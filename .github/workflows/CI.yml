@@ -7,7 +7,7 @@ on:
       - "aiotdlib_*"
 
 jobs:
-  build_ubuntu:
+  build_ubuntu_x86_64:
     name: Build Linux x86_64
     runs-on: ubuntu-24.04
     steps:
@@ -16,20 +16,66 @@ jobs:
         with:
           path: tdlib
 
-      - name: Build TDLib
+      - name: Build TDLib x86_64
         env:
           CXXFLAGS: "-stdlib=libc++"
           CC: "/usr/bin/clang-18"
           CXX: "/usr/bin/clang++-18"
         run: |
-          sudo apt-get install make zlib1g-dev libssl-dev gperf php-cli cmake clang-14 libc++-dev libc++abi-dev
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends make zlib1g-dev libssl-dev gperf php-cli cmake clang-18 libc++-18-dev libc++abi-18-dev
           mkdir build
-          cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX:PATH=../tdlib -DTD_ENABLE_LTO=ON -DCMAKE_AR=/usr/bin/llvm-ar-18 -DCMAKE_NM=/usr/bin/llvm-nm-18 -DCMAKE_OBJDUMP=/usr/bin/llvm-objdump-18 -DCMAKE_RANLIB=/usr/bin/llvm-ranlib-18 -S ./tdlib -B ./build
-          cmake --build ./build --target tdjson --parallel 2
+          cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX:PATH=../tdlib_install_x86_64 -DTD_ENABLE_LTO=ON -DCMAKE_AR=/usr/bin/llvm-ar-18 -DCMAKE_NM=/usr/bin/llvm-nm-18 -DCMAKE_OBJDUMP=/usr/bin/llvm-objdump-18 -DCMAKE_RANLIB=/usr/bin/llvm-ranlib-18 -S ./tdlib -B ./build
+          cmake --build ./build --target tdjson --parallel $(nproc)
           strip --strip-all ./build/libtdjson.so.*
           mv -v ./build/libtdjson.so.* ./build/libtdjson_linux_amd64.so
 
-      - name: Release artifacts to packages
-        uses: softprops/action-gh-release@v1
+      - name: Upload x86_64 artifact
+        uses: actions/upload-artifact@v4
         with:
-          files: build/libtdjson_linux_amd64.so
+          name: tdjson-x86_64
+          path: build/libtdjson_linux_amd64.so
+
+  build_ubuntu_arm64:
+    name: Build Linux arm64
+    runs-on: ubuntu-latest-arm64
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          path: tdlib
+
+      - name: Build TDLib arm64
+        env:
+          CXXFLAGS: "-stdlib=libc++"
+          CC: "/usr/bin/clang-18"
+          CXX: "/usr/bin/clang++-18"
+        run: |
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends make zlib1g-dev libssl-dev gperf php-cli cmake clang-18 libc++-18-dev libc++abi-18-dev
+          mkdir build
+          cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX:PATH=../tdlib_install_arm64 -DTD_ENABLE_LTO=ON -DCMAKE_AR=/usr/bin/llvm-ar-18 -DCMAKE_NM=/usr/bin/llvm-nm-18 -DCMAKE_OBJDUMP=/usr/bin/llvm-objdump-18 -DCMAKE_RANLIB=/usr/bin/llvm-ranlib-18 -S ./tdlib -B ./build
+          cmake --build ./build --target tdjson --parallel $(nproc)
+          strip --strip-all ./build/libtdjson.so.*
+          mv -v ./build/libtdjson.so.* ./build/libtdjson_linux_arm64.so
+
+      - name: Upload arm64 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tdjson-arm64
+          path: build/libtdjson_linux_arm64.so
+
+  release:
+    name: Release artifacts
+    needs: [build_ubuntu_x86_64, build_ubuntu_arm64]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Release artifacts to packages
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/tdjson-x86_64/libtdjson_linux_amd64.so
+            artifacts/tdjson-arm64/libtdjson_linux_arm64.so
