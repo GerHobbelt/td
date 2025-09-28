@@ -182,6 +182,14 @@ OptionManager::OptionManager(Td *td)
   set_default_integer_option("checklist_task_text_length_max", 100);
   set_default_integer_option("checklist_title_length_max", 255);
   set_default_integer_option("checklist_task_count_max", is_test_dc ? 10 : 30);
+  set_default_integer_option("suggested_post_star_count_min", 5);
+  set_default_integer_option("suggested_post_star_count_max", 100000);
+  set_default_integer_option("suggested_post_toncoin_cent_count_min", 1);
+  set_default_integer_option("suggested_post_toncoin_cent_count_max", 1000000);
+  set_default_integer_option("suggested_post_star_earnings_per_mille", 850);
+  set_default_integer_option("suggested_post_toncoin_earnings_per_mille", 850);
+  set_default_integer_option("million_toncoin_to_usd_rate", 3000000);
+  set_default_integer_option("suggested_post_lifetime_min", is_test_dc ? 120 : 86400);
 
   if (options.isset("my_phone_number") || !options.isset("my_id")) {
     update_premium_options();
@@ -199,9 +207,6 @@ OptionManager::OptionManager(Td *td)
   set_option_empty("usd_to_1000_star_rate");
   set_option_empty("1000_star_to_usd_rate");
   set_option_empty("is_location_visible");
-  set_option_empty("to_do_list_task_text_length_max");
-  set_option_empty("to_do_list_title_length_max");
-  set_option_empty("to_do_list_task_count_max");
 }
 
 OptionManager::~OptionManager() = default;

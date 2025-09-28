@@ -873,7 +873,7 @@ chatPermissions can_send_basic_messages:Bool can_send_audios:Bool can_send_docum
 //@can_manage_chat True, if the administrator can access the chat event log, get boost list, see hidden supergroup and channel members, report supergroup spam messages,
 //-ignore slow mode, and send messages to the chat without paying Telegram Stars. Implied by any other privilege; applicable to supergroups and channels only
 //@can_change_info True, if the administrator can change the chat title, photo, and other settings
-//@can_post_messages True, if the administrator can create channel posts, answer to channel direct messages, or view channel statistics; applicable to channels only
+//@can_post_messages True, if the administrator can create channel posts, approve suggested channel posts, or view channel statistics; applicable to channels only
 //@can_edit_messages True, if the administrator can edit messages of other users and pin messages; applicable to channels only
 //@can_delete_messages True, if the administrator can delete messages of other users
 //@can_invite_users True, if the administrator can invite new users to the chat
@@ -885,8 +885,53 @@ chatPermissions can_send_basic_messages:Bool can_send_audios:Bool can_send_docum
 //@can_post_stories True, if the administrator can create new chat stories, or edit and delete posted stories; applicable to supergroups and channels only
 //@can_edit_stories True, if the administrator can edit stories posted by other users, post stories to the chat page, pin chat stories, and access story archive; applicable to supergroups and channels only
 //@can_delete_stories True, if the administrator can delete stories posted by other users; applicable to supergroups and channels only
+//@can_manage_direct_messages True, if the administrator can answer to channel direct messages; applicable to channels only
 //@is_anonymous True, if the administrator isn't shown in the chat member list and sends messages anonymously; applicable to supergroups only
-chatAdministratorRights can_manage_chat:Bool can_change_info:Bool can_post_messages:Bool can_edit_messages:Bool can_delete_messages:Bool can_invite_users:Bool can_restrict_members:Bool can_pin_messages:Bool can_manage_topics:Bool can_promote_members:Bool can_manage_video_chats:Bool can_post_stories:Bool can_edit_stories:Bool can_delete_stories:Bool is_anonymous:Bool = ChatAdministratorRights;
+chatAdministratorRights can_manage_chat:Bool can_change_info:Bool can_post_messages:Bool can_edit_messages:Bool can_delete_messages:Bool can_invite_users:Bool can_restrict_members:Bool can_pin_messages:Bool can_manage_topics:Bool can_promote_members:Bool can_manage_video_chats:Bool can_post_stories:Bool can_edit_stories:Bool can_delete_stories:Bool can_manage_direct_messages:Bool is_anonymous:Bool = ChatAdministratorRights;
+
+
+//@class SuggestedPostPrice @description Describes price of a suggested post
+
+//@description Describes price of a suggested post in Telegram Stars
+//@star_count The amount of Telegram Stars agreed to pay for the post; getOption("suggested_post_star_count_min")-getOption("suggested_post_star_count_max")
+suggestedPostPriceStar star_count:int53 = SuggestedPostPrice;
+
+//@description Describes price of a suggested post in Toncoins
+//@toncoin_cent_count The amount of 1/100 of Toncoin agreed to pay for the post; getOption("suggested_post_toncoin_cent_count_min")-getOption("suggested_post_toncoin_cent_count_max")
+suggestedPostPriceTon toncoin_cent_count:int53 = SuggestedPostPrice;
+
+
+//@class SuggestedPostState @description Describes state of a suggested post
+
+//@description The post must be approved or declined
+suggestedPostStatePending = SuggestedPostState;
+
+//@description The post was approved
+suggestedPostStateApproved = SuggestedPostState;
+
+//@description The post was declined
+suggestedPostStateDeclined = SuggestedPostState;
+
+
+//@description Contains information about a suggested post
+//@price Price of the suggested post; may be null if the post is non-paid
+//@send_date Point in time (Unix timestamp) when the post is expected to be published; 0 if the specific date isn't set yet
+//@state State of the post
+suggestedPostInfo price:SuggestedPostPrice send_date:int32 state:SuggestedPostState = SuggestedPostInfo;
+
+//@description Contains information about a post to suggest
+//@price Price of the suggested post; pass null to suggest a post without payment
+//@send_date Point in time (Unix timestamp) when the post is expected to be published; pass 0 if the date isn't restricted
+inputSuggestedPostInfo price:SuggestedPostPrice send_date:int32 = InputSuggestedPostInfo;
+
+
+//@class SuggestedPostRefundReason @description Describes reason for refund of the payment for a suggested post
+
+//@description The post was refunded, because it was deleted by channel administrators in less than getOption("suggested_post_lifetime_min") seconds
+suggestedPostRefundReasonPostDeleted = SuggestedPostRefundReason;
+
+//@description The post was refunded, because the payment for the post was refunded
+suggestedPostRefundReasonPaymentRefunded = SuggestedPostRefundReason;
 
 
 //@description Describes a possibly non-integer amount of Telegram Stars
@@ -1284,13 +1329,13 @@ receivedGifts total_count:int32 gifts:vector<receivedGift> are_notifications_ena
 giftUpgradePreview models:vector<upgradedGiftModel> symbols:vector<upgradedGiftSymbol> backdrops:vector<upgradedGiftBackdrop> = GiftUpgradePreview;
 
 
-//@class StarTransactionDirection @description Describes direction of a transaction with Telegram Stars
+//@class TransactionDirection @description Describes direction of transactions in a transaction list
 
-//@description The transaction is incoming and increases the number of owned Telegram Stars
-starTransactionDirectionIncoming = StarTransactionDirection;
+//@description The transaction is incoming and increases the amount of owned currency
+transactionDirectionIncoming = TransactionDirection;
 
-//@description The transaction is outgoing and decreases the number of owned Telegram Stars
-starTransactionDirectionOutgoing = StarTransactionDirection;
+//@description The transaction is outgoing and decreases the amount of owned currency
+transactionDirectionOutgoing = TransactionDirection;
 
 
 //@class StarTransactionType @description Describes type of transaction with Telegram Stars
@@ -1462,6 +1507,32 @@ starTransaction id:string star_amount:starAmount is_refund:Bool date:int32 type:
 //@transactions List of transactions with Telegram Stars
 //@next_offset The offset for the next request. If empty, then there are no more results
 starTransactions star_amount:starAmount transactions:vector<starTransaction> next_offset:string = StarTransactions;
+
+
+//@class TonTransactionType @description Describes type of transaction with TON
+
+//@description The transaction is a deposit of TON from Fragment
+//@is_gift True, if the transaction is a gift from another user
+//@sticker The sticker to be shown in the transaction information; may be null if unknown
+tonTransactionTypeFragmentDeposit is_gift:Bool sticker:sticker = TonTransactionType;
+
+//@description The transaction is a transaction of an unsupported type
+tonTransactionTypeUnsupported = TonTransactionType;
+
+
+//@description Represents a transaction changing the amount of owned TON
+//@id Unique identifier of the transaction
+//@ton_amount The amount of added owned TON; negative for outgoing transactions
+//@is_refund True, if the transaction is a refund of a previous transaction
+//@date Point in time (Unix timestamp) when the transaction was completed
+//@type Type of the transaction
+tonTransaction id:string ton_amount:int53 is_refund:Bool date:int32 type:TonTransactionType = TonTransaction;
+
+//@description Represents a list of TON transactions
+//@ton_amount The amount of owned TON
+//@transactions List of TON transactions
+//@next_offset The offset for the next request. If empty, then there are no more results
+tonTransactions ton_amount:int53 transactions:vector<tonTransaction> next_offset:string = TonTransactions;
 
 
 //@class GiveawayParticipantStatus @description Contains information about status of a user in a giveaway
@@ -2241,6 +2312,8 @@ factCheck text:formattedText country_code:string = FactCheck;
 //@can_be_saved True, if content of the message can be saved locally
 //@has_timestamped_media True, if media timestamp entities refers to a media in this message as opposed to a media in the replied message
 //@is_channel_post True, if the message is a channel post. All messages to channels are channel posts, all other messages are not channel posts
+//@is_paid_star_suggested_post True, if the message is a suggested channel post which was paid in Telegram Stars; a warning must be shown if the message is deleted in less than getOption("suggested_post_lifetime_min") seconds after sending
+//@is_paid_ton_suggested_post True, if the message is a suggested channel post which was paid in Toncoins; a warning must be shown if the message is deleted in less than getOption("suggested_post_lifetime_min") seconds after sending
 //@contains_unread_mention True, if the message contains an unread mention for the current user
 //@date Point in time (Unix timestamp) when the message was sent; 0 for scheduled messages
 //@edit_date Point in time (Unix timestamp) when the message was last edited; 0 for scheduled messages
@@ -2249,6 +2322,7 @@ factCheck text:formattedText country_code:string = FactCheck;
 //@interaction_info Information about interactions with the message; may be null if none
 //@unread_reactions Information about unread reactions added to the message
 //@fact_check Information about fact-check added to the message; may be null if none
+//@suggested_post_info Information about the suggested post; may be null if the message isn't a suggested post
 //@reply_to Information about the message or the story this message is replying to; may be null if none
 //@message_thread_id If non-zero, the identifier of the message thread the message belongs to; unique within the chat to which the message belongs
 //@topic_id Identifier of the topic within the chat to which the message belongs; may be null if none
@@ -2266,7 +2340,7 @@ factCheck text:formattedText country_code:string = FactCheck;
 //@restriction_reason If non-empty, contains a human-readable description of the reason why access to this message must be restricted
 //@content Content of the message
 //@reply_markup Reply markup for the message; may be null if none
-message id:int53 sender_id:MessageSender chat_id:int53 sending_state:MessageSendingState scheduling_state:MessageSchedulingState is_outgoing:Bool is_pinned:Bool is_from_offline:Bool can_be_saved:Bool has_timestamped_media:Bool is_channel_post:Bool contains_unread_mention:Bool date:int32 edit_date:int32 forward_info:messageForwardInfo import_info:messageImportInfo interaction_info:messageInteractionInfo unread_reactions:vector<unreadReaction> fact_check:factCheck reply_to:MessageReplyTo message_thread_id:int53 topic_id:MessageTopic self_destruct_type:MessageSelfDestructType self_destruct_in:double auto_delete_in:double via_bot_user_id:int53 sender_business_bot_user_id:int53 sender_boost_count:int32 paid_message_star_count:int53 author_signature:string media_album_id:int64 effect_id:int64 has_sensitive_content:Bool restriction_reason:string content:MessageContent reply_markup:ReplyMarkup = Message;
+message id:int53 sender_id:MessageSender chat_id:int53 sending_state:MessageSendingState scheduling_state:MessageSchedulingState is_outgoing:Bool is_pinned:Bool is_from_offline:Bool can_be_saved:Bool has_timestamped_media:Bool is_channel_post:Bool is_paid_star_suggested_post:Bool is_paid_ton_suggested_post:Bool contains_unread_mention:Bool date:int32 edit_date:int32 forward_info:messageForwardInfo import_info:messageImportInfo interaction_info:messageInteractionInfo unread_reactions:vector<unreadReaction> fact_check:factCheck suggested_post_info:suggestedPostInfo reply_to:MessageReplyTo message_thread_id:int53 topic_id:MessageTopic self_destruct_type:MessageSelfDestructType self_destruct_in:double auto_delete_in:double via_bot_user_id:int53 sender_business_bot_user_id:int53 sender_boost_count:int32 paid_message_star_count:int53 author_signature:string media_album_id:int64 effect_id:int64 has_sensitive_content:Bool restriction_reason:string content:MessageContent reply_markup:ReplyMarkup = Message;
 
 
 //@description Contains a list of messages @total_count Approximate total number of messages found @messages List of messages; messages may be null
@@ -2496,7 +2570,8 @@ reactionNotificationSettings message_reaction_source:ReactionNotificationSource 
 //@date Point in time (Unix timestamp) when the draft was created
 //@input_message_text Content of the message draft; must be of the type inputMessageText, inputMessageVideoNote, or inputMessageVoiceNote
 //@effect_id Identifier of the effect to apply to the message when it is sent; 0 if none
-draftMessage reply_to:InputMessageReplyTo date:int32 input_message_text:InputMessageContent effect_id:int64 = DraftMessage;
+//@suggested_post_info Information about the suggested post; may be null if none
+draftMessage reply_to:InputMessageReplyTo date:int32 input_message_text:InputMessageContent effect_id:int64 suggested_post_info:inputSuggestedPostInfo = DraftMessage;
 
 
 //@class ChatType @description Describes the type of chat
@@ -3702,7 +3777,7 @@ paidMediaUnsupported = PaidMedia;
 
 //@description Describes parameters of a giveaway
 //@boosted_chat_id Identifier of the supergroup or channel chat, which will be automatically boosted by the winners of the giveaway for duration of the Telegram Premium subscription,
-//-or for the specified time. If the chat is a channel, then can_post_messages right is required in the channel, otherwise, the user must be an administrator in the supergroup
+//-or for the specified time. If the chat is a channel, then can_post_messages administrator right is required in the channel, otherwise, the user must be an administrator in the supergroup
 //@additional_chat_ids Identifiers of other supergroup or channel chats that must be subscribed by the users to be eligible for the giveaway. There can be up to getOption("giveaway_additional_chat_count_max") additional chats
 //@winners_selection_date Point in time (Unix timestamp) when the giveaway is expected to be performed; must be 60-getOption("giveaway_duration_max") seconds in the future in scheduled giveaways
 //@only_new_members True, if only new members of the chats will be eligible for the giveaway
@@ -4321,6 +4396,14 @@ messageGiveawayWinners boosted_chat_id:int53 giveaway_message_id:int53 additiona
 //@sticker A sticker to be shown in the message; may be null if unknown
 messageGiftedStars gifter_user_id:int53 receiver_user_id:int53 currency:string amount:int53 cryptocurrency:string cryptocurrency_amount:int64 star_count:int53 transaction_id:string sticker:sticker = MessageContent;
 
+//@description TON was gifted to a user
+//@gifter_user_id The identifier of a user that gifted TON; 0 if the gift was anonymous or is outgoing
+//@receiver_user_id The identifier of a user that received TON; 0 if the gift is incoming
+//@ton_amount The received amount of TON, in the smallest units of the cryptocurrency
+//@transaction_id Identifier of the transaction for TON credit; for receiver only
+//@sticker A sticker to be shown in the message; may be null if unknown
+messageGiftedTon gifter_user_id:int53 receiver_user_id:int53 ton_amount:int64 transaction_id:string sticker:sticker = MessageContent;
+
 //@description A Telegram Stars were received by the current user from a giveaway
 //@star_count Number of Telegram Stars that were received
 //@transaction_id Identifier of the transaction for Telegram Stars credit
@@ -4392,6 +4475,24 @@ messageChecklistTasksDone checklist_message_id:int53 marked_as_done_task_ids:vec
 //@checklist_message_id Identifier of the message with the checklist; can be 0 if the message was deleted
 //@tasks List of tasks added to the checklist
 messageChecklistTasksAdded checklist_message_id:int53 tasks:vector<checklistTask> = MessageContent;
+
+//@description A suggested post was approved or declined
+//@suggested_post_message_id Identifier of the message with the suggested post; can be 0 if the message was deleted
+//@info Information about the suggested post
+//@is_balance_too_low True, if the post was apporved, but there is no enough funds on the balance of the user which proposed the post
+//@comment Comment added by administrator of the channel when the post was declined
+messageSuggestedPostApprovalToggled suggested_post_message_id:int53 info:suggestedPostInfo is_balance_too_low:Bool comment:string = MessageContent;
+
+//@description A suggested post was published for 24 hours and payment for the post was received
+//@suggested_post_message_id Identifier of the message with the suggested post; can be 0 if the message was deleted
+//@star_amount The amount of received Telegram Stars
+//@ton_amount The amount of received Toncoins; in the smallest units of the cryptocurrency
+messageSuggestedPostPaid suggested_post_message_id:int53 star_amount:starAmount ton_amount:int64 = MessageContent;
+
+//@description A suggested post was refunded
+//@suggested_post_message_id Identifier of the message with the suggested post; can be 0 if the message was deleted
+//@reason Reason of the refund
+messageSuggestedPostRefunded suggested_post_message_id:int53 reason:SuggestedPostRefundReason = MessageContent;
 
 //@description A contact has registered with Telegram
 messageContactRegistered = MessageContent;
@@ -4547,6 +4648,7 @@ messageSelfDestructTypeImmediately = MessageSelfDestructType;
 
 //@description Options to be used when a message is sent
 //@direct_messages_chat_topic_id Unique identifier of the topic in a channel direct messages chat administered by the current user; pass 0 if the chat isn't a channel direct messages chat administered by the current user
+//@suggested_post_info Information about the suggested post; pass null if none. For messages to channel direct messages chat only. Applicable only to sendMessage
 //@disable_notification Pass true to disable notification for the message
 //@from_background Pass true if the message is sent from the background
 //@protect_content Pass true if the content of the message must be protected from forwarding and saving; for bots only
@@ -4558,7 +4660,7 @@ messageSelfDestructTypeImmediately = MessageSelfDestructType;
 //@effect_id Identifier of the effect to apply to the message; pass 0 if none; applicable only to sendMessage and sendMessageAlbum in private chats
 //@sending_id Non-persistent identifier, which will be returned back in messageSendingStatePending object and can be used to match sent messages and corresponding updateNewMessage updates
 //@only_preview Pass true to get a fake message instead of actually sending them
-messageSendOptions direct_messages_chat_topic_id:int53 disable_notification:Bool from_background:Bool protect_content:Bool allow_paid_broadcast:Bool paid_message_star_count:int53 update_order_of_installed_sticker_sets:Bool scheduling_state:MessageSchedulingState effect_id:int64 sending_id:int32 only_preview:Bool = MessageSendOptions;
+messageSendOptions direct_messages_chat_topic_id:int53 suggested_post_info:inputSuggestedPostInfo disable_notification:Bool from_background:Bool protect_content:Bool allow_paid_broadcast:Bool paid_message_star_count:int53 update_order_of_installed_sticker_sets:Bool scheduling_state:MessageSchedulingState effect_id:int64 sending_id:int32 only_preview:Bool = MessageSendOptions;
 
 //@description Options to be used when a message content is copied without reference to the original sender. Service messages, messages with messageInvoice, messagePaidMedia, messageGiveaway, or messageGiveawayWinners content can't be copied
 //@send_copy True, if content of the message needs to be copied without reference to the original sender. Always true if the message is forwarded to a secret chat or is local.
@@ -8334,21 +8436,23 @@ revenueWithdrawalStateFailed = RevenueWithdrawalState;
 
 //@class ChatRevenueTransactionType @description Describes type of transaction for revenue earned from sponsored messages in a chat
 
+//@description Describes an unsupported transaction
+chatRevenueTransactionTypeUnsupported = ChatRevenueTransactionType;
+
 //@description Describes earnings from sponsored messages in a chat in some time frame
 //@start_date Point in time (Unix timestamp) when the earnings started
 //@end_date Point in time (Unix timestamp) when the earnings ended
 chatRevenueTransactionTypeEarnings start_date:int32 end_date:int32 = ChatRevenueTransactionType;
 
-//@description Describes a withdrawal of earnings
+//@description Describes a withdrawal of earnings through Fragment
 //@withdrawal_date Point in time (Unix timestamp) when the earnings withdrawal started
-//@provider Name of the payment provider
 //@state State of the withdrawal
-chatRevenueTransactionTypeWithdrawal withdrawal_date:int32 provider:string state:RevenueWithdrawalState = ChatRevenueTransactionType;
+chatRevenueTransactionTypeFragmentWithdrawal withdrawal_date:int32 state:RevenueWithdrawalState = ChatRevenueTransactionType;
 
-//@description Describes a refund for failed withdrawal of earnings
+//@description Describes a refund for failed withdrawal of earnings through Fragment
 //@refund_date Point in time (Unix timestamp) when the transaction was refunded
-//@provider Name of the payment provider
-chatRevenueTransactionTypeRefund refund_date:int32 provider:string = ChatRevenueTransactionType;
+chatRevenueTransactionTypeFragmentRefund refund_date:int32 = ChatRevenueTransactionType;
+
 
 //@description Contains a chat revenue transactions
 //@cryptocurrency Cryptocurrency in which revenue is calculated
@@ -8356,8 +8460,11 @@ chatRevenueTransactionTypeRefund refund_date:int32 provider:string = ChatRevenue
 //@type Type of the transaction
 chatRevenueTransaction cryptocurrency:string cryptocurrency_amount:int64 type:ChatRevenueTransactionType = ChatRevenueTransaction;
 
-//@description Contains a list of chat revenue transactions @total_count Total number of transactions @transactions List of transactions
-chatRevenueTransactions total_count:int32 transactions:vector<chatRevenueTransaction> = ChatRevenueTransactions;
+//@description Contains a list of chat revenue transactions
+//@ton_amount The amount of owned TON; in the smallest units of the cryptocurrency
+//@transactions List of transactions
+//@next_offset The offset for the next request. If empty, then there are no more results
+chatRevenueTransactions ton_amount:int53 transactions:vector<chatRevenueTransaction> next_offset:string = ChatRevenueTransactions;
 
 
 //@description Contains information about Telegram Stars earned by a bot or a chat
@@ -8485,6 +8592,12 @@ updateMessageUnreadReactions chat_id:int53 message_id:int53 unread_reactions:vec
 //@message_id Message identifier
 //@fact_check The new fact-check
 updateMessageFactCheck chat_id:int53 message_id:int53 fact_check:factCheck = Update;
+
+//@description Information about suggested post of a message was changed
+//@chat_id Chat identifier
+//@message_id Message identifier
+//@suggested_post_info The new information about the suggested post
+updateMessageSuggestedPostInfo chat_id:int53 message_id:int53 suggested_post_info:suggestedPostInfo = Update;
 
 //@description A message with a live location was viewed. When the update is received, the application is expected to update the live location
 //@chat_id Identifier of the chat with the live location message
@@ -8953,6 +9066,9 @@ updateActiveLiveLocationMessages messages:vector<message> = Update;
 //@description The number of Telegram Stars owned by the current user has changed @star_amount The new amount of owned Telegram Stars
 updateOwnedStarCount star_amount:starAmount = Update;
 
+//@description The number of TONs owned by the current user has changed @ton_amount The new amount of owned TON; in the smallest units of the cryptocurrency
+updateOwnedTonCount ton_amount:int53 = Update;
+
 //@description The revenue earned from sponsored messages in a chat has changed. If chat revenue screen is opened, then getChatRevenueTransactions may be called to fetch new transactions
 //@chat_id Identifier of the chat
 //@revenue_amount New amount of earned revenue
@@ -9400,7 +9516,8 @@ getMessageLocally chat_id:int53 message_id:int53 = Message;
 
 //@description Returns information about a non-bundled message that is replied by a given message. Also, returns the pinned message, the game message, the invoice message,
 //-the message with a previously set same background, the giveaway message, the checklist message, and the topic creation message for messages of the types
-//-messagePinMessage, messageGameScore, messagePaymentSuccessful, messageChatSetBackground, messageGiveawayCompleted, messageChecklistTasksDone and messageChecklistTasksAdded, and topic messages without non-bundled replied message respectively.
+//-messagePinMessage, messageGameScore, messagePaymentSuccessful, messageChatSetBackground, messageGiveawayCompleted, messageChecklistTasksDone, messageChecklistTasksAdded,
+//-messageSuggestedPostApprovalToggled, messageSuggestedPostPaid, messageSuggestedPostRefunded, and topic messages without non-bundled replied message respectively.
 //-Returns a 404 error if the message doesn't exist
 //@chat_id Identifier of the chat the message belongs to
 //@message_id Identifier of the reply message
@@ -11594,6 +11711,19 @@ processChatJoinRequest chat_id:int53 user_id:int53 approve:Bool = Ok;
 processChatJoinRequests chat_id:int53 invite_link:string approve:Bool = Ok;
 
 
+//@description Approves a suggested post in a channel direct messages chat. Requires can_post_messages administrator right in the corresponding channel chat
+//@chat_id Chat identifier of the channel direct messages chat
+//@message_id Identifier of the message with the suggested post; posts sent on behalf of the direct messages chat can be approved only by the administrator which sent them
+//@send_date Point in time (Unix timestamp) when the post is expected to be published; pass 0 if the date has already been chosen
+approveSuggestedPost chat_id:int53 message_id:int53 send_date:int32 = Ok;
+
+//@description Declines a suggested post in a channel direct messages chat
+//@chat_id Chat identifier of the channel direct messages chat
+//@message_id Identifier of the message with the suggested post
+//@comment Comment for the creator of the suggested post
+declineSuggestedPost chat_id:int53 message_id:int53 comment:string = Ok;
+
+
 //@description Creates a new call
 //@user_id Identifier of the user to be called
 //@protocol The call protocols supported by the application
@@ -12815,9 +12945,15 @@ getChatRevenueWithdrawalUrl chat_id:int53 password:string = HttpUrl;
 //@description Returns the list of revenue transactions for a chat. Currently, this method can be used only
 //-for channels if supergroupFullInfo.can_get_revenue_statistics == true or bots if userFullInfo.bot_info.can_get_revenue_statistics == true
 //@chat_id Chat identifier
-//@offset Number of transactions to skip
-//@limit The maximum number of transactions to be returned; up to 200
-getChatRevenueTransactions chat_id:int53 offset:int32 limit:int32 = ChatRevenueTransactions;
+//@offset Offset of the first transaction to return as received from the previous request; use empty string to get the first chunk of results
+//@limit The maximum number of transactions to be returned; up to 100
+getChatRevenueTransactions chat_id:int53 offset:string limit:int32 = ChatRevenueTransactions;
+
+//@description Returns the list of TON transactions of the current user
+//@direction Direction of the transactions to receive; pass null to get all transactions
+//@offset Offset of the first transaction to return as received from the previous request; use empty string to get the first chunk of results
+//@limit The maximum number of transactions to return
+getTonTransactions direction:TransactionDirection offset:string limit:int32 = TonTransactions;
 
 
 //@description Returns detailed Telegram Star revenue statistics
@@ -13130,7 +13266,7 @@ getStarGiveawayPaymentOptions = StarGiveawayPaymentOptions;
 //@direction Direction of the transactions to receive; pass null to get all transactions
 //@offset Offset of the first transaction to return as received from the previous request; use empty string to get the first chunk of results
 //@limit The maximum number of transactions to return
-getStarTransactions owner_id:MessageSender subscription_id:string direction:StarTransactionDirection offset:string limit:int32 = StarTransactions;
+getStarTransactions owner_id:MessageSender subscription_id:string direction:TransactionDirection offset:string limit:int32 = StarTransactions;
 
 //@description Returns the list of Telegram Star subscriptions for the current user
 //@only_expiring Pass true to receive only expiring subscriptions for which there are no enough Telegram Stars to extend

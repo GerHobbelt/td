@@ -87,6 +87,8 @@
 #include "td/telegram/StickerType.h"
 #include "td/telegram/StoryId.h"
 #include "td/telegram/StoryManager.h"
+#include "td/telegram/SuggestedPost.h"
+#include "td/telegram/SuggestedPost.hpp"
 #include "td/telegram/Td.h"
 #include "td/telegram/TdDb.h"
 #include "td/telegram/telegram_api.h"
@@ -1191,9 +1193,9 @@ class SendMessageQuery final : public Td::ResultHandler {
   void send(int32 flags, DialogId dialog_id, tl_object_ptr<telegram_api::InputPeer> as_input_peer,
             const MessageInputReplyTo &input_reply_to, MessageId top_thread_message_id,
             SavedMessagesTopicId saved_messages_topic_id, int32 schedule_date, MessageEffectId effect_id,
-            int64 paid_message_star_count, tl_object_ptr<telegram_api::ReplyMarkup> &&reply_markup,
-            vector<tl_object_ptr<telegram_api::MessageEntity>> &&entities, const string &text, bool is_copy,
-            int64 random_id, NetQueryRef *send_query_ref) {
+            int64 paid_message_star_count, const SuggestedPost *suggested_post,
+            const unique_ptr<ReplyMarkup> &reply_markup, vector<tl_object_ptr<telegram_api::MessageEntity>> &&entities,
+            const string &text, bool is_copy, int64 random_id, NetQueryRef *send_query_ref) {
     random_id_ = random_id;
     dialog_id_ = dialog_id;
 
@@ -1213,6 +1215,11 @@ class SendMessageQuery final : public Td::ResultHandler {
     if (as_input_peer != nullptr) {
       flags |= MessagesManager::SEND_MESSAGE_FLAG_HAS_SEND_AS;
     }
+    telegram_api::object_ptr<telegram_api::suggestedPost> post;
+    if (suggested_post != nullptr) {
+      flags |= telegram_api::messages_sendMessage::SUGGESTED_POST_MASK;
+      post = suggested_post->get_input_suggested_post();
+    }
     if (false) {
       flags |= MessagesManager::SEND_MESSAGE_FLAG_HAS_SCHEDULE_DATE;
       schedule_date = G()->unix_time() + 35;
@@ -1221,8 +1228,9 @@ class SendMessageQuery final : public Td::ResultHandler {
     auto query = G()->net_query_creator().create(
         telegram_api::messages_sendMessage(flags, false, false, false, false, false, false, false, false,
                                            std::move(input_peer), std::move(reply_to), text, random_id,
-                                           std::move(reply_markup), std::move(entities), schedule_date,
-                                           std::move(as_input_peer), nullptr, effect_id.get(), paid_message_star_count),
+                                           get_input_reply_markup(td_->user_manager_.get(), reply_markup),
+                                           std::move(entities), schedule_date, std::move(as_input_peer), nullptr,
+                                           effect_id.get(), paid_message_star_count, std::move(post)),
         {{dialog_id, MessageContentType::Text},
          {dialog_id, is_copy ? MessageContentType::Photo : MessageContentType::Text}});
     if (td_->option_manager_->get_option_boolean("use_quick_ack")) {
@@ -1541,11 +1549,10 @@ class SendMediaQuery final : public Td::ResultHandler {
             vector<FileId> cover_file_ids, int32 flags, DialogId dialog_id,
             tl_object_ptr<telegram_api::InputPeer> as_input_peer, const MessageInputReplyTo &input_reply_to,
             MessageId top_thread_message_id, SavedMessagesTopicId saved_messages_topic_id, int32 schedule_date,
-            MessageEffectId effect_id, int64 paid_message_star_count,
-            tl_object_ptr<telegram_api::ReplyMarkup> &&reply_markup,
-            vector<tl_object_ptr<telegram_api::MessageEntity>> &&entities, const string &text,
-            tl_object_ptr<telegram_api::InputMedia> &&input_media, MessageContentType content_type, bool is_copy,
-            int64 random_id, NetQueryRef *send_query_ref) {
+            MessageEffectId effect_id, int64 paid_message_star_count, const SuggestedPost *suggested_post,
+            const unique_ptr<ReplyMarkup> &reply_markup, vector<tl_object_ptr<telegram_api::MessageEntity>> &&entities,
+            const string &text, tl_object_ptr<telegram_api::InputMedia> &&input_media, MessageContentType content_type,
+            bool is_copy, int64 random_id, NetQueryRef *send_query_ref) {
     random_id_ = random_id;
     file_upload_ids_ = std::move(file_upload_ids);
     thumbnail_file_upload_ids_ = std::move(thumbnail_file_upload_ids);
@@ -1572,12 +1579,18 @@ class SendMediaQuery final : public Td::ResultHandler {
     if (as_input_peer != nullptr) {
       flags |= MessagesManager::SEND_MESSAGE_FLAG_HAS_SEND_AS;
     }
+    telegram_api::object_ptr<telegram_api::suggestedPost> post;
+    if (suggested_post != nullptr) {
+      flags |= telegram_api::messages_sendMedia::SUGGESTED_POST_MASK;
+      post = suggested_post->get_input_suggested_post();
+    }
 
     auto query = G()->net_query_creator().create(
         telegram_api::messages_sendMedia(flags, false, false, false, false, false, false, false, std::move(input_peer),
                                          std::move(reply_to), std::move(input_media), text, random_id,
-                                         std::move(reply_markup), std::move(entities), schedule_date,
-                                         std::move(as_input_peer), nullptr, effect_id.get(), paid_message_star_count),
+                                         get_input_reply_markup(td_->user_manager_.get(), reply_markup),
+                                         std::move(entities), schedule_date, std::move(as_input_peer), nullptr,
+                                         effect_id.get(), paid_message_star_count, std::move(post)),
         {{dialog_id, content_type}, {dialog_id, is_copy ? MessageContentType::Text : content_type}});
     if (td_->option_manager_->get_option_boolean("use_quick_ack") && was_uploaded_) {
       query->quick_ack_promise_ = PromiseCreator::lambda([random_id](Result<Unit> result) {
@@ -1823,8 +1836,7 @@ class EditMessageQuery final : public Td::ResultHandler {
   void send(DialogId dialog_id, MessageId message_id, bool edit_text, const string &text,
             vector<telegram_api::object_ptr<telegram_api::MessageEntity>> &&entities, bool disable_web_page_preview,
             telegram_api::object_ptr<telegram_api::InputMedia> &&input_media, bool invert_media,
-            telegram_api::object_ptr<telegram_api::ReplyMarkup> &&reply_markup, int32 schedule_date,
-            bool is_media = false) {
+            const unique_ptr<ReplyMarkup> &reply_markup, int32 schedule_date, bool is_media = false) {
     dialog_id_ = dialog_id;
     message_id_ = message_id;
     is_media_ = is_media;
@@ -1833,13 +1845,14 @@ class EditMessageQuery final : public Td::ResultHandler {
       return on_error(Status::Error(400, "FILE_PART_1_MISSING"));
     }
 
+    auto input_reply_markup = get_input_reply_markup(td_->user_manager_.get(), reply_markup);
     auto input_peer = td_->dialog_manager_->get_input_peer(dialog_id, AccessRights::Edit);
     if (input_peer == nullptr) {
       return on_error(Status::Error(400, "Can't access the chat"));
     }
 
     int32 flags = 0;
-    if (reply_markup != nullptr) {
+    if (input_reply_markup != nullptr) {
       flags |= telegram_api::messages_editMessage::REPLY_MARKUP_MASK;
     }
     if (!entities.empty()) {
@@ -1859,8 +1872,8 @@ class EditMessageQuery final : public Td::ResultHandler {
                                                  : message_id.get_server_message_id().get();
     send_query(G()->net_query_creator().create(
         telegram_api::messages_editMessage(flags, disable_web_page_preview, invert_media, std::move(input_peer),
-                                           server_message_id, text, std::move(input_media), std::move(reply_markup),
-                                           std::move(entities), schedule_date, 0),
+                                           server_message_id, text, std::move(input_media),
+                                           std::move(input_reply_markup), std::move(entities), schedule_date, 0),
         {{dialog_id}}));
   }
 
@@ -1954,7 +1967,7 @@ class ForwardMessagesQuery final : public Td::ResultHandler {
             flags, false, false, false, false, false, false, false, std::move(from_input_peer),
             MessageId::get_server_message_ids(message_ids), std::move(random_ids), std::move(to_input_peer),
             top_thread_message_id.get_server_message_id().get(), std::move(input_reply_to), schedule_date,
-            std::move(as_input_peer), nullptr, new_video_start_timestamp, paid_message_star_count),
+            std::move(as_input_peer), nullptr, new_video_start_timestamp, paid_message_star_count, nullptr),
         {{to_dialog_id, MessageContentType::Text}, {to_dialog_id, MessageContentType::Photo}});
     if (td_->option_manager_->get_option_boolean("use_quick_ack")) {
       query->quick_ack_promise_ = PromiseCreator::lambda([random_ids = random_ids_](Result<Unit> result) {
@@ -2298,6 +2311,8 @@ void MessagesManager::Message::store(StorerT &storer) const {
   bool has_reactions_are_possible = true;
   bool has_new_video_start_timestamp = new_video_start_timestamp >= 0;
   bool has_paid_message_star_count = paid_message_star_count > 0;
+  bool has_suggested_post = suggested_post != nullptr;
+  bool has_flags4 = true;
   BEGIN_STORE_FLAGS();
   STORE_FLAG(is_channel_post);
   STORE_FLAG(is_outgoing);
@@ -2393,6 +2408,14 @@ void MessagesManager::Message::store(StorerT &storer) const {
     STORE_FLAG(reactions_are_possible);
     STORE_FLAG(has_new_video_start_timestamp);  // 25
     STORE_FLAG(has_paid_message_star_count);
+    STORE_FLAG(has_suggested_post);
+    STORE_FLAG(is_paid_suggested_post_stars);
+    STORE_FLAG(has_flags4);
+    END_STORE_FLAGS();
+  }
+  if (has_flags4) {
+    BEGIN_STORE_FLAGS();
+    STORE_FLAG(is_paid_suggested_post_ton);
     END_STORE_FLAGS();
   }
 
@@ -2534,6 +2557,9 @@ void MessagesManager::Message::store(StorerT &storer) const {
   if (has_paid_message_star_count) {
     store(paid_message_star_count, storer);
   }
+  if (has_suggested_post) {
+    store(suggested_post, storer);
+  }
 }
 
 // do not forget to resolve message dependencies
@@ -2597,6 +2623,8 @@ void MessagesManager::Message::parse(ParserT &parser) {
   bool has_reactions_are_possible = false;
   bool has_new_video_start_timestamp = false;
   bool has_paid_message_star_count = false;
+  bool has_suggested_post = false;
+  bool has_flags4 = false;
   BEGIN_PARSE_FLAGS();
   PARSE_FLAG(is_channel_post);
   PARSE_FLAG(is_outgoing);
@@ -2692,6 +2720,14 @@ void MessagesManager::Message::parse(ParserT &parser) {
     PARSE_FLAG(reactions_are_possible);
     PARSE_FLAG(has_new_video_start_timestamp);
     PARSE_FLAG(has_paid_message_star_count);
+    PARSE_FLAG(has_suggested_post);
+    PARSE_FLAG(is_paid_suggested_post_stars);
+    PARSE_FLAG(has_flags4);
+    END_PARSE_FLAGS();
+  }
+  if (has_flags4) {
+    BEGIN_PARSE_FLAGS();
+    PARSE_FLAG(is_paid_suggested_post_ton);
     END_PARSE_FLAGS();
   }
 
@@ -2898,6 +2934,9 @@ void MessagesManager::Message::parse(ParserT &parser) {
   }
   if (has_paid_message_star_count) {
     parse(paid_message_star_count, parser);
+  }
+  if (has_suggested_post) {
+    parse(suggested_post, parser);
   }
 
   CHECK(content != nullptr);
@@ -10714,6 +10753,7 @@ MessagesManager::MessageInfo MessagesManager::parse_telegram_api_message(
       message_info.reply_info = std::move(message->replies_);
       message_info.reactions = std::move(message->reactions_);
       message_info.fact_check = std::move(message->factcheck_);
+      message_info.suggested_post = std::move(message->suggested_post_);
       message_info.edit_date = message->edit_date_;
       message_info.media_album_id = message->grouped_id_;
       message_info.ttl_period = message->ttl_period_;
@@ -10730,6 +10770,8 @@ MessagesManager::MessageInfo MessagesManager::parse_telegram_api_message(
       message_info.has_unread_content = message->media_unread_;
       message_info.invert_media = message->invert_media_;
       message_info.video_processing_pending = message->video_processing_pending_;
+      message_info.is_paid_suggested_post_stars = message->paid_suggested_post_stars_;
+      message_info.is_paid_suggested_post_ton = message->paid_suggested_post_ton_;
       message_info.effect_id = MessageEffectId(message->effect_);
 
       bool is_content_read = true;
@@ -10862,6 +10904,12 @@ std::pair<DialogId, unique_ptr<MessagesManager::Message>> MessagesManager::creat
     LOG(ERROR) << "Receive is_channel_post for " << message_id << " in " << dialog_id;
     is_channel_post = false;
   }
+  if (!is_channel_post && (message_info.is_paid_suggested_post_stars || message_info.is_paid_suggested_post_ton)) {
+    LOG(ERROR) << "Receive " << message_info.is_paid_suggested_post_stars << ' '
+               << message_info.is_paid_suggested_post_ton << " for " << message_id << " in " << dialog_id;
+    message_info.is_paid_suggested_post_stars = false;
+    message_info.is_paid_suggested_post_ton = false;
+  }
 
   UserId my_id = td->user_manager_->get_my_id();
   DialogId my_dialog_id = DialogId(my_id);
@@ -10970,6 +11018,11 @@ std::pair<DialogId, unique_ptr<MessagesManager::Message>> MessagesManager::creat
       LOG(ERROR) << "Receive " << message_id << " in " << dialog_id << " with " << to_string(message_info.fact_check);
       message_info.fact_check = nullptr;
     }
+    if (message_info.suggested_post != nullptr) {
+      LOG(ERROR) << "Receive " << message_id << " in " << dialog_id << " with "
+                 << to_string(message_info.suggested_post);
+      message_info.suggested_post = nullptr;
+    }
   }
   int32 view_count = message_info.view_count;
   if (view_count < 0) {
@@ -11002,6 +11055,7 @@ std::pair<DialogId, unique_ptr<MessagesManager::Message>> MessagesManager::creat
     reactions->fix_my_recent_chooser_dialog_id(my_dialog_id);
   }
   auto fact_check = FactCheck::get_fact_check(td->user_manager_.get(), std::move(message_info.fact_check), is_bot);
+  auto suggested_post = SuggestedPost::get_suggested_post(std::move(message_info.suggested_post));
 
   bool has_forward_info = message_info.forward_header != nullptr;
   bool noforwards = message_info.noforwards;
@@ -11065,6 +11119,8 @@ std::pair<DialogId, unique_ptr<MessagesManager::Message>> MessagesManager::creat
   message->is_pinned = is_pinned;
   message->noforwards = noforwards;
   message->video_processing_pending = message_info.video_processing_pending;
+  message->is_paid_suggested_post_stars = message_info.is_paid_suggested_post_stars;
+  message->is_paid_suggested_post_ton = message_info.is_paid_suggested_post_ton;
   message->reactions_are_possible = message_info.reactions_are_possible;
   message->interaction_info_update_date = G()->unix_time();
   message->view_count = view_count;
@@ -11072,6 +11128,7 @@ std::pair<DialogId, unique_ptr<MessagesManager::Message>> MessagesManager::creat
   message->reply_info = std::move(reply_info);
   message->reactions = std::move(reactions);
   message->fact_check = std::move(fact_check);
+  message->suggested_post = std::move(suggested_post);
   message->effect_id = message_info.effect_id;
   message->legacy_layer = (message_info.is_legacy ? MTPROTO_LAYER : 0);
   message->invert_media = message_info.invert_media;
@@ -19673,8 +19730,9 @@ td_api::object_ptr<td_api::message> MessagesManager::get_dialog_event_log_messag
       get_message_own_max_media_timestamp(m), m->invert_media, m->disable_web_page_preview);
   return td_api::make_object<td_api::message>(
       m->message_id.get(), std::move(sender), get_chat_id_object(dialog_id, "get_dialog_event_log_message_object"),
-      nullptr, nullptr, m->is_outgoing, m->is_pinned, m->is_from_offline, can_be_saved, true, m->is_channel_post, false,
-      m->date, edit_date, std::move(forward_info), std::move(import_info), std::move(interaction_info), Auto(), nullptr,
+      nullptr, nullptr, m->is_outgoing, m->is_pinned, m->is_from_offline, can_be_saved, true, m->is_channel_post,
+      m->is_paid_suggested_post_stars, m->is_paid_suggested_post_ton, false, m->date, edit_date,
+      std::move(forward_info), std::move(import_info), std::move(interaction_info), Auto(), nullptr, nullptr,
       std::move(reply_to), 0, nullptr, nullptr, 0.0, 0.0, via_bot_user_id, 0, m->sender_boost_count,
       m->paid_message_star_count, m->author_signature, 0, 0,
       get_restriction_reason_has_sensitive_content(m->restriction_reasons),
@@ -19742,11 +19800,11 @@ td_api::object_ptr<td_api::message> MessagesManager::get_business_message_messag
 
   return td_api::make_object<td_api::message>(
       m->message_id.get(), std::move(sender), get_chat_id_object(dialog_id, "get_business_message_message_object"),
-      nullptr, nullptr, m->is_outgoing, false, m->is_from_offline, can_be_saved, false, false, false, m->date,
-      m->edit_date, std::move(forward_info), std::move(import_info), nullptr, Auto(), nullptr, std::move(reply_to), 0,
-      nullptr, std::move(self_destruct_type), 0.0, 0.0, via_bot_user_id, via_business_bot_user_id,
-      m->sender_boost_count, m->paid_message_star_count, string(), m->media_album_id, m->effect_id.get(),
-      get_restriction_reason_has_sensitive_content(m->restriction_reasons),
+      nullptr, nullptr, m->is_outgoing, false, m->is_from_offline, can_be_saved, false, false, false, false, false,
+      m->date, m->edit_date, std::move(forward_info), std::move(import_info), nullptr, Auto(), nullptr, nullptr,
+      std::move(reply_to), 0, nullptr, std::move(self_destruct_type), 0.0, 0.0, via_bot_user_id,
+      via_business_bot_user_id, m->sender_boost_count, m->paid_message_star_count, string(), m->media_album_id,
+      m->effect_id.get(), get_restriction_reason_has_sensitive_content(m->restriction_reasons),
       get_restriction_reason_description(m->restriction_reasons), std::move(content), std::move(reply_markup));
 }
 
@@ -19806,6 +19864,7 @@ td_api::object_ptr<td_api::message> MessagesManager::get_message_object(DialogId
   auto interaction_info = is_bot ? nullptr : get_message_interaction_info_object(dialog_id, m);
   auto unread_reactions = get_unread_reactions_object(dialog_id, m);
   auto fact_check = get_message_fact_check_object(m);
+  auto suggested_post = SuggestedPost::get_suggested_post_info_object(m->suggested_post);
   auto can_be_saved = can_save_message(dialog_id, m);
   auto via_bot_user_id =
       td_->user_manager_->get_user_id_object(m->via_bot_user_id, "get_message_object via_bot_user_id");
@@ -19838,9 +19897,10 @@ td_api::object_ptr<td_api::message> MessagesManager::get_message_object(DialogId
   return td_api::make_object<td_api::message>(
       m->message_id.get(), std::move(sender), get_chat_id_object(dialog_id, "get_message_object"),
       std::move(sending_state), std::move(scheduling_state), is_outgoing, m->is_pinned, m->is_from_offline,
-      can_be_saved, has_timestamped_media, m->is_channel_post, m->contains_unread_mention, date, edit_date,
-      std::move(forward_info), std::move(import_info), std::move(interaction_info), std::move(unread_reactions),
-      std::move(fact_check), std::move(reply_to), top_thread_message_id, topic.get_message_topic_object(td_),
+      can_be_saved, has_timestamped_media, m->is_channel_post, m->is_paid_suggested_post_stars,
+      m->is_paid_suggested_post_ton, m->contains_unread_mention, date, edit_date, std::move(forward_info),
+      std::move(import_info), std::move(interaction_info), std::move(unread_reactions), std::move(fact_check),
+      std::move(suggested_post), std::move(reply_to), top_thread_message_id, topic.get_message_topic_object(td_),
       std::move(self_destruct_type), ttl_expires_in, auto_delete_in, via_bot_user_id, via_business_bot_user_id,
       m->sender_boost_count, m->paid_message_star_count, m->author_signature, m->media_album_id, m->effect_id.get(),
       get_restriction_reason_has_sensitive_content(m->restriction_reasons),
@@ -20074,6 +20134,7 @@ unique_ptr<MessagesManager::Message> MessagesManager::create_message_to_send(
   m->real_forward_from_dialog_id = real_forward_from_dialog_id;
   m->is_copy = is_copy || m->forward_info != nullptr;
   m->sending_id = options.sending_id;
+  m->suggested_post = options.suggested_post.is_empty() ? nullptr : make_unique<SuggestedPost>(options.suggested_post);
 
   if (td_->auth_manager_->is_bot() || options.disable_notification ||
       td_->option_manager_->get_option_boolean("ignore_default_disable_notification")) {
@@ -20750,7 +20811,7 @@ Result<td_api::object_ptr<td_api::message>> MessagesManager::send_message(
 
   TRY_STATUS(can_send_message(dialog_id));
   TRY_RESULT(message_reply_markup, get_dialog_reply_markup(dialog_id, std::move(reply_markup)));
-  TRY_RESULT(message_send_options, process_message_send_options(dialog_id, std::move(options), true, true, 1));
+  TRY_RESULT(message_send_options, process_message_send_options(dialog_id, std::move(options), true, true, true, 1));
   TRY_RESULT(message_content, process_input_message_content(dialog_id, std::move(input_message_content),
                                                             !message_send_options.allow_paid));
   TRY_STATUS(can_use_message_send_options(message_send_options, message_content));
@@ -20888,7 +20949,7 @@ Status MessagesManager::check_paid_message_star_count(int64 &paid_message_star_c
 
 Result<MessagesManager::MessageSendOptions> MessagesManager::process_message_send_options(
     DialogId dialog_id, tl_object_ptr<td_api::messageSendOptions> &&options, bool allow_update_stickersets_order,
-    bool allow_effect, int32 message_count) const {
+    bool allow_effect, bool allow_suggested_post, int32 message_count) const {
   MessageSendOptions result;
   if (options == nullptr) {
     return std::move(result);
@@ -20954,6 +21015,16 @@ Result<MessagesManager::MessageSendOptions> MessagesManager::process_message_sen
       return Status::Error(400, "Can't use message effects in the method");
     }
     result.effect_id = MessageEffectId(options->effect_id_);
+  }
+  TRY_RESULT(suggested_post, SuggestedPost::get_suggested_post(td_, std::move(options->suggested_post_info_)));
+  if (suggested_post != nullptr) {
+    if (!allow_suggested_post) {
+      return Status::Error(400, "Can't send suggested posts with the method");
+    }
+    if (!td_->dialog_manager_->is_monoforum_channel(dialog_id)) {
+      return Status::Error(400, "Suggested posts can be sent only to channel direct messages");
+    }
+    result.suggested_post = *suggested_post;
   }
 
   return std::move(result);
@@ -21043,7 +21114,7 @@ Result<td_api::object_ptr<td_api::messages>> MessagesManager::send_message_group
   }
 
   TRY_STATUS(can_send_message(dialog_id));
-  TRY_RESULT(message_send_options, process_message_send_options(dialog_id, std::move(options), true, true,
+  TRY_RESULT(message_send_options, process_message_send_options(dialog_id, std::move(options), true, true, false,
                                                                 static_cast<int32>(input_message_contents.size())));
 
   vector<InputMessageContent> message_contents;
@@ -21336,7 +21407,6 @@ void MessagesManager::on_message_media_uploaded(DialogId dialog_id, const Messag
     auto thumbnail_file_upload_id = get_message_send_thumbnail_file_upload_id(dialog_id, m, media_pos);
     auto cover_file_id = get_message_content_cover_any_file_id(edited_message->content_.get());
     const FormattedText *caption = get_message_content_caption(edited_message->content_.get());
-    auto input_reply_markup = get_input_reply_markup(td_->user_manager_.get(), edited_message->reply_markup_);
     bool was_uploaded = FileManager::extract_was_uploaded(input_media);
     bool was_thumbnail_uploaded = FileManager::extract_was_thumbnail_uploaded(input_media);
 
@@ -21355,7 +21425,7 @@ void MessagesManager::on_message_media_uploaded(DialogId dialog_id, const Messag
     td_->create_handler<EditMessageQuery>(std::move(promise))
         ->send(dialog_id, message_id, true, caption == nullptr ? "" : caption->text,
                get_input_message_entities(td_->user_manager_.get(), caption, "edit_message_media"), false,
-               std::move(input_media), edited_message->invert_media_, std::move(input_reply_markup), schedule_date,
+               std::move(input_media), edited_message->invert_media_, edited_message->reply_markup_, schedule_date,
                true);
     return;
   }
@@ -21381,7 +21451,7 @@ void MessagesManager::on_message_media_uploaded(DialogId dialog_id, const Messag
                              get_send_message_as_input_peer(m), *get_message_input_reply_to(m),
                              m->initial_top_thread_message_id, get_message_monoforum_topic_id(m),
                              get_message_schedule_date(m), m->effect_id, m->paid_message_star_count,
-                             get_input_reply_markup(td_->user_manager_.get(), m->reply_markup),
+                             m->suggested_post.get(), m->reply_markup,
                              get_input_message_entities(td_->user_manager_.get(), caption, "on_message_media_uploaded"),
                              caption == nullptr ? "" : caption->text, std::move(input_media), m->content->get_type(),
                              m->is_copy, random_id, &m->send_query_ref);
@@ -21864,7 +21934,7 @@ void MessagesManager::do_send_paid_media_group(DialogId dialog_id, MessageId mes
       m->file_upload_ids, m->thumbnail_file_upload_ids, get_message_content_cover_any_file_ids(m->content.get()),
       get_message_flags(m), dialog_id, get_send_message_as_input_peer(m), *get_message_input_reply_to(m),
       m->initial_top_thread_message_id, get_message_monoforum_topic_id(m), get_message_schedule_date(m), m->effect_id,
-      m->paid_message_star_count, get_input_reply_markup(td_->user_manager_.get(), m->reply_markup),
+      m->paid_message_star_count, m->suggested_post.get(), m->reply_markup,
       get_input_message_entities(td_->user_manager_.get(), caption, "do_send_paid_media_group"),
       caption == nullptr ? "" : caption->text, std::move(input_media), m->content->get_type(), m->is_copy, random_id,
       &m->send_query_ref);
@@ -21901,15 +21971,15 @@ void MessagesManager::on_text_message_ready_to_send(DialogId dialog_id, MessageI
       td_->create_handler<SendMessageQuery>()->send(
           get_message_flags(m), dialog_id, get_send_message_as_input_peer(m), *get_message_input_reply_to(m),
           m->initial_top_thread_message_id, get_message_monoforum_topic_id(m), get_message_schedule_date(m),
-          m->effect_id, m->paid_message_star_count, get_input_reply_markup(td_->user_manager_.get(), m->reply_markup),
+          m->effect_id, m->paid_message_star_count, m->suggested_post.get(), m->reply_markup,
           get_input_message_entities(td_->user_manager_.get(), message_text, "on_text_message_ready_to_send"),
           message_text->text, m->is_copy, random_id, &m->send_query_ref);
     } else {
       td_->create_handler<SendMediaQuery>()->send(
           {}, {}, {}, get_message_flags(m), dialog_id, get_send_message_as_input_peer(m),
           *get_message_input_reply_to(m), m->initial_top_thread_message_id, get_message_monoforum_topic_id(m),
-          get_message_schedule_date(m), m->effect_id, m->paid_message_star_count,
-          get_input_reply_markup(td_->user_manager_.get(), m->reply_markup),
+          get_message_schedule_date(m), m->effect_id, m->paid_message_star_count, m->suggested_post.get(),
+          m->reply_markup,
           get_input_message_entities(td_->user_manager_.get(), message_text, "on_text_message_ready_to_send"),
           message_text->text, std::move(input_media), MessageContentType::Text, m->is_copy, random_id,
           &m->send_query_ref);
@@ -22152,7 +22222,7 @@ Result<td_api::object_ptr<td_api::message>> MessagesManager::send_inline_query_r
   }
 
   TRY_STATUS(can_send_message(dialog_id));
-  TRY_RESULT(message_send_options, process_message_send_options(dialog_id, std::move(options), false, false, 1));
+  TRY_RESULT(message_send_options, process_message_send_options(dialog_id, std::move(options), false, false, false, 1));
   bool to_secret = false;
   switch (dialog_id.get_type()) {
     case DialogType::User:
@@ -22319,6 +22389,9 @@ bool MessagesManager::can_edit_message(DialogId dialog_id, const Message *m, boo
     return false;
   }
   if (m->reply_markup != nullptr && m->reply_markup->type != ReplyMarkup::Type::InlineKeyboard) {
+    return false;
+  }
+  if (m->is_paid_suggested_post_stars || m->is_paid_suggested_post_ton) {
     return false;
   }
 
@@ -22602,13 +22675,12 @@ void MessagesManager::edit_message_text(MessageFullId message_full_id,
   TRY_RESULT_PROMISE(promise, new_reply_markup,
                      get_inline_reply_markup(std::move(reply_markup), td_->auth_manager_->is_bot(),
                                              has_message_sender_user_id(dialog_id, m)));
-  auto input_reply_markup = get_input_reply_markup(td_->user_manager_.get(), new_reply_markup);
   td_->create_handler<EditMessageQuery>(std::move(promise))
       ->send(
           dialog_id, m->message_id, true, input_message_text.text.text,
           get_input_message_entities(td_->user_manager_.get(), input_message_text.text.entities, "edit_message_text"),
           input_message_text.disable_web_page_preview, input_message_text.get_input_media_web_page(),
-          input_message_text.show_above_text, std::move(input_reply_markup), get_message_schedule_date(m));
+          input_message_text.show_above_text, new_reply_markup, get_message_schedule_date(m));
 }
 
 void MessagesManager::edit_message_live_location(MessageFullId message_full_id,
@@ -22644,7 +22716,6 @@ void MessagesManager::edit_message_live_location(MessageFullId message_full_id,
   TRY_RESULT_PROMISE(promise, new_reply_markup,
                      get_inline_reply_markup(std::move(reply_markup), td_->auth_manager_->is_bot(),
                                              has_message_sender_user_id(dialog_id, m)));
-  auto input_reply_markup = get_input_reply_markup(td_->user_manager_.get(), new_reply_markup);
 
   int32 flags = 0;
   if (live_period != 0) {
@@ -22658,7 +22729,7 @@ void MessagesManager::edit_message_live_location(MessageFullId message_full_id,
       flags, location.empty(), location.get_input_geo_point(), heading, live_period, proximity_alert_radius);
   td_->create_handler<EditMessageQuery>(std::move(promise))
       ->send(dialog_id, m->message_id, false, string(), vector<tl_object_ptr<telegram_api::MessageEntity>>(), false,
-             std::move(input_media), false, std::move(input_reply_markup), get_message_schedule_date(m));
+             std::move(input_media), false, new_reply_markup, get_message_schedule_date(m));
 }
 
 void MessagesManager::edit_message_to_do_list(MessageFullId message_full_id,
@@ -22685,12 +22756,11 @@ void MessagesManager::edit_message_to_do_list(MessageFullId message_full_id,
   TRY_RESULT_PROMISE(promise, new_reply_markup,
                      get_inline_reply_markup(std::move(reply_markup), td_->auth_manager_->is_bot(),
                                              has_message_sender_user_id(dialog_id, m)));
-  auto input_reply_markup = get_input_reply_markup(td_->user_manager_.get(), new_reply_markup);
 
   auto input_media = to_do_list.get_input_media_todo(td_->user_manager_.get());
   td_->create_handler<EditMessageQuery>(std::move(promise))
       ->send(dialog_id, m->message_id, false, string(), vector<tl_object_ptr<telegram_api::MessageEntity>>(), false,
-             std::move(input_media), false, std::move(input_reply_markup), get_message_schedule_date(m));
+             std::move(input_media), false, new_reply_markup, get_message_schedule_date(m));
 }
 
 void MessagesManager::cancel_edit_message_media(DialogId dialog_id, Message *m, Slice error_message) {
@@ -22911,12 +22981,11 @@ void MessagesManager::edit_message_caption(MessageFullId message_full_id,
   TRY_RESULT_PROMISE(promise, new_reply_markup,
                      get_inline_reply_markup(std::move(reply_markup), td_->auth_manager_->is_bot(),
                                              has_message_sender_user_id(dialog_id, m)));
-  auto input_reply_markup = get_input_reply_markup(td_->user_manager_.get(), new_reply_markup);
 
   td_->create_handler<EditMessageQuery>(std::move(promise))
       ->send(dialog_id, m->message_id, true, caption.text,
              get_input_message_entities(td_->user_manager_.get(), caption.entities, "edit_message_caption"), false,
-             nullptr, invert_media, std::move(input_reply_markup), get_message_schedule_date(m));
+             nullptr, invert_media, new_reply_markup, get_message_schedule_date(m));
 }
 
 void MessagesManager::edit_message_reply_markup(MessageFullId message_full_id,
@@ -22938,11 +23007,10 @@ void MessagesManager::edit_message_reply_markup(MessageFullId message_full_id,
   TRY_RESULT_PROMISE(promise, new_reply_markup,
                      get_inline_reply_markup(std::move(reply_markup), td_->auth_manager_->is_bot(),
                                              has_message_sender_user_id(dialog_id, m)));
-  auto input_reply_markup = get_input_reply_markup(td_->user_manager_.get(), new_reply_markup);
+
   td_->create_handler<EditMessageQuery>(std::move(promise))
       ->send(dialog_id, m->message_id, false, string(), vector<tl_object_ptr<telegram_api::MessageEntity>>(),
-             m->disable_web_page_preview, nullptr, m->invert_media, std::move(input_reply_markup),
-             get_message_schedule_date(m));
+             m->disable_web_page_preview, nullptr, m->invert_media, new_reply_markup, get_message_schedule_date(m));
 }
 
 void MessagesManager::edit_message_scheduling_state(
@@ -23699,7 +23767,7 @@ Result<MessagesManager::ForwardedMessages> MessagesManager::get_forwarded_messag
   }
 
   TRY_STATUS(can_send_message(to_dialog_id));
-  TRY_RESULT(message_send_options, process_message_send_options(to_dialog_id, std::move(options), false, false,
+  TRY_RESULT(message_send_options, process_message_send_options(to_dialog_id, std::move(options), false, false, false,
                                                                 static_cast<int32>(message_ids.size())));
   TRY_STATUS(can_use_top_thread_message_id(to_dialog, top_thread_message_id, MessageInputReplyTo()));
 
@@ -24063,7 +24131,7 @@ Result<td_api::object_ptr<td_api::messages>> MessagesManager::send_quick_reply_s
   CHECK(d != nullptr);
 
   MessageSendOptions message_send_options(false, false, false, false, false, false, 0, sending_id, MessageEffectId(), 0,
-                                          SavedMessagesTopicId());
+                                          SavedMessagesTopicId(), SuggestedPost());
   FlatHashMap<MessageId, MessageId, MessageIdHash> original_message_id_to_new_message_id;
   vector<td_api::object_ptr<td_api::message>> result;
   vector<Message *> sent_messages;
@@ -24288,7 +24356,8 @@ Result<vector<MessageId>> MessagesManager::resend_messages(DialogId dialog_id, v
         message->disable_notification, message->from_background, message->update_stickersets_order, message->noforwards,
         message->allow_paid, false, get_message_schedule_date(message.get()), message->sending_id, message->effect_id,
         required_paid_message_star_count == 0 ? message->paid_message_star_count : paid_message_star_count,
-        dialog_id.get_type() == DialogType::Channel ? message->saved_messages_topic_id : SavedMessagesTopicId());
+        dialog_id.get_type() == DialogType::Channel ? message->saved_messages_topic_id : SavedMessagesTopicId(),
+        message->suggested_post == nullptr ? SuggestedPost() : *message->suggested_post);
     Message *m = get_message_to_send(d, message->top_thread_message_id, std::move(message->input_reply_to), options,
                                      std::move(new_contents[i]), message->invert_media, &need_update_dialog_pos, false,
                                      nullptr, DialogId(), message->is_copy,
@@ -24422,6 +24491,20 @@ void MessagesManager::share_dialogs_with_bot(MessageFullId message_full_id, int3
 
   td_->message_query_manager_->send_bot_requested_peer(message_full_id, button_id, std::move(shared_dialog_ids),
                                                        std::move(promise));
+}
+
+void MessagesManager::process_suggested_post(MessageFullId message_full_id, bool is_rejected, int32 schedule_date,
+                                             const string &comment, Promise<Unit> &&promise) {
+  const Message *m = get_message_force(message_full_id, "process_suggested_post");
+  if (m == nullptr) {
+    return promise.set_error(400, "Message not found");
+  }
+  if (m->suggested_post == nullptr) {
+    return promise.set_error(400, "Message is not a suggested post");
+  }
+  CHECK(m->message_id.is_server());
+  td_->message_query_manager_->toggle_suggested_post_approval(message_full_id, is_rejected, schedule_date, comment,
+                                                              std::move(promise));
 }
 
 Result<MessageId> MessagesManager::add_local_message(
@@ -26026,6 +26109,18 @@ void MessagesManager::send_update_message_fact_check(DialogId dialog_id, const M
       G()->td(), &Td::send_update,
       td_api::make_object<td_api::updateMessageFactCheck>(get_chat_id_object(dialog_id, "updateMessageFactCheck"),
                                                           m->message_id.get(), get_message_fact_check_object(m)));
+}
+
+void MessagesManager::send_update_message_suggested_post_info(DialogId dialog_id, const Message *m) const {
+  CHECK(m != nullptr);
+  if (td_->auth_manager_->is_bot() || !m->is_update_sent) {
+    return;
+  }
+
+  send_closure(G()->td(), &Td::send_update,
+               td_api::make_object<td_api::updateMessageSuggestedPostInfo>(
+                   get_chat_id_object(dialog_id, "updateMessageSuggestedPostInfo"), m->message_id.get(),
+                   SuggestedPost::get_suggested_post_info_object(m->suggested_post)));
 }
 
 void MessagesManager::send_update_message_live_location_viewed(MessageFullId message_full_id) {
@@ -31324,6 +31419,15 @@ bool MessagesManager::update_message(Dialog *d, Message *old_message, unique_ptr
   }
   if (old_message->is_from_offline != new_message->is_from_offline) {
     old_message->is_from_offline = new_message->is_from_offline;
+    need_send_update = true;
+  }
+  if (old_message->is_paid_suggested_post_stars != new_message->is_paid_suggested_post_stars) {
+    old_message->is_paid_suggested_post_stars = new_message->is_paid_suggested_post_stars;
+    need_send_update = true;
+  }
+  if (old_message->is_paid_suggested_post_ton != new_message->is_paid_suggested_post_ton) {
+    old_message->is_paid_suggested_post_ton = new_message->is_paid_suggested_post_ton;
+    need_send_update = true;
   }
   if (old_message->video_processing_pending != new_message->video_processing_pending) {
     old_message->video_processing_pending = new_message->video_processing_pending;
@@ -31418,6 +31522,11 @@ bool MessagesManager::update_message(Dialog *d, Message *old_message, unique_ptr
     need_send_update = true;
   }
   if (update_message_fact_check(d, old_message, std::move(new_message->fact_check), false)) {
+    need_send_update = true;
+  }
+  if (old_message->suggested_post != new_message->suggested_post) {
+    old_message->suggested_post = std::move(new_message->suggested_post);
+    send_update_message_suggested_post_info(dialog_id, old_message);
     need_send_update = true;
   }
 

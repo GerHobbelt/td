@@ -189,12 +189,12 @@ class BusinessConnectionManager::SendBusinessMessageQuery final : public Td::Res
 
     send_query(G()->net_query_creator().create_with_prefix(
         message_->business_connection_id_.get_invoke_prefix(),
-        telegram_api::messages_sendMessage(flags, message_->disable_web_page_preview_, message_->disable_notification_,
-                                           false, false, message_->noforwards_, false, message_->invert_media_, false,
-                                           std::move(input_peer), std::move(reply_to), message_text->text,
-                                           message_->random_id_,
-                                           get_input_reply_markup(td_->user_manager_.get(), message_->reply_markup_),
-                                           std::move(entities), 0, nullptr, nullptr, message_->effect_id_.get(), 0),
+        telegram_api::messages_sendMessage(
+            flags, message_->disable_web_page_preview_, message_->disable_notification_, false, false,
+            message_->noforwards_, false, message_->invert_media_, false, std::move(input_peer), std::move(reply_to),
+            message_text->text, message_->random_id_,
+            get_input_reply_markup(td_->user_manager_.get(), message_->reply_markup_), std::move(entities), 0, nullptr,
+            nullptr, message_->effect_id_.get(), 0, nullptr),
         td_->business_connection_manager_->get_business_connection_dc_id(message_->business_connection_id_),
         {{message_->dialog_id_}}));
   }
@@ -254,12 +254,12 @@ class BusinessConnectionManager::SendBusinessMediaQuery final : public Td::Resul
 
     send_query(G()->net_query_creator().create_with_prefix(
         message_->business_connection_id_.get_invoke_prefix(),
-        telegram_api::messages_sendMedia(flags, message_->disable_notification_, false, false, message_->noforwards_,
-                                         false, message_->invert_media_, false, std::move(input_peer),
-                                         std::move(reply_to), std::move(input_media),
-                                         message_text == nullptr ? string() : message_text->text, message_->random_id_,
-                                         get_input_reply_markup(td_->user_manager_.get(), message_->reply_markup_),
-                                         std::move(entities), 0, nullptr, nullptr, message_->effect_id_.get(), 0),
+        telegram_api::messages_sendMedia(
+            flags, message_->disable_notification_, false, false, message_->noforwards_, false, message_->invert_media_,
+            false, std::move(input_peer), std::move(reply_to), std::move(input_media),
+            message_text == nullptr ? string() : message_text->text, message_->random_id_,
+            get_input_reply_markup(td_->user_manager_.get(), message_->reply_markup_), std::move(entities), 0, nullptr,
+            nullptr, message_->effect_id_.get(), 0, nullptr),
         td_->business_connection_manager_->get_business_connection_dc_id(message_->business_connection_id_),
         {{message_->dialog_id_}}));
   }
@@ -420,15 +420,16 @@ class BusinessConnectionManager::EditBusinessMessageQuery final : public Td::Res
   void send(BusinessConnectionId business_connection_id, DialogId dialog_id, MessageId message_id, bool edit_text,
             const string &text, vector<telegram_api::object_ptr<telegram_api::MessageEntity>> &&entities,
             bool disable_web_page_preview, telegram_api::object_ptr<telegram_api::InputMedia> &&input_media,
-            bool invert_media, telegram_api::object_ptr<telegram_api::ReplyMarkup> &&reply_markup) {
+            bool invert_media, const unique_ptr<ReplyMarkup> &reply_markup) {
     business_connection_id_ = std::move(business_connection_id);
     dialog_id_ = dialog_id;
 
+    auto input_reply_markup = get_input_reply_markup(td_->user_manager_.get(), reply_markup);
     auto input_peer = td_->dialog_manager_->get_input_peer(dialog_id, AccessRights::Know);
     CHECK(input_peer != nullptr);
 
     int32 flags = 0;
-    if (reply_markup != nullptr) {
+    if (input_reply_markup != nullptr) {
       flags |= telegram_api::messages_editMessage::REPLY_MARKUP_MASK;
     }
     if (edit_text) {
@@ -445,8 +446,8 @@ class BusinessConnectionManager::EditBusinessMessageQuery final : public Td::Res
     send_query(G()->net_query_creator().create_with_prefix(
         business_connection_id_.get_invoke_prefix(),
         telegram_api::messages_editMessage(flags, disable_web_page_preview, invert_media, std::move(input_peer),
-                                           server_message_id, text, std::move(input_media), std::move(reply_markup),
-                                           std::move(entities), 0, 0),
+                                           server_message_id, text, std::move(input_media),
+                                           std::move(input_reply_markup), std::move(entities), 0, 0),
         td_->business_connection_manager_->get_business_connection_dc_id(business_connection_id_), {{dialog_id}}));
   }
 
@@ -764,7 +765,8 @@ class GetBusinessStarsStatusQuery final : public Td::ResultHandler {
     }
 
     send_query(G()->net_query_creator().create_with_prefix(
-        business_connection_id.get_invoke_prefix(), telegram_api::payments_getStarsStatus(std::move(input_peer)),
+        business_connection_id.get_invoke_prefix(),
+        telegram_api::payments_getStarsStatus(0, false, std::move(input_peer)),
         td_->business_connection_manager_->get_business_connection_dc_id(business_connection_id)));
   }
 
@@ -776,8 +778,12 @@ class GetBusinessStarsStatusQuery final : public Td::ResultHandler {
 
     auto result = result_ptr.move_as_ok();
     LOG(DEBUG) << "Receive result for GetBusinessStarsStatusQuery: " << to_string(result);
+    if (result->balance_->get_id() != telegram_api::starsAmount::ID) {
+      LOG(ERROR) << "Receive " << to_string(result);
+      return on_error(Status::Error(500, "Receive invalid response"));
+    }
 
-    auto star_amount = StarAmount(std::move(result->balance_), true);
+    auto star_amount = StarAmount(telegram_api::move_object_as<telegram_api::starsAmount>(result->balance_), true);
     promise_.set_value(star_amount.get_star_amount_object());
   }
 
@@ -1734,13 +1740,12 @@ void BusinessConnectionManager::edit_business_message_text(
   TRY_RESULT_PROMISE(promise, new_reply_markup,
                      get_inline_reply_markup(std::move(reply_markup), td_->auth_manager_->is_bot(), true));
 
-  auto input_reply_markup = get_input_reply_markup(td_->user_manager_.get(), new_reply_markup);
   td_->create_handler<EditBusinessMessageQuery>(std::move(promise))
       ->send(business_connection_id, dialog_id, message_id, true, input_message_text.text.text,
              get_input_message_entities(td_->user_manager_.get(), input_message_text.text.entities,
                                         "edit_business_message_text"),
              input_message_text.disable_web_page_preview, input_message_text.get_input_media_web_page(),
-             input_message_text.show_above_text, std::move(input_reply_markup));
+             input_message_text.show_above_text, new_reply_markup);
 }
 
 void BusinessConnectionManager::edit_business_message_live_location(
@@ -1758,7 +1763,6 @@ void BusinessConnectionManager::edit_business_message_live_location(
 
   TRY_RESULT_PROMISE(promise, new_reply_markup,
                      get_inline_reply_markup(std::move(reply_markup), td_->auth_manager_->is_bot(), true));
-  auto input_reply_markup = get_input_reply_markup(td_->user_manager_.get(), new_reply_markup);
 
   int32 flags = 0;
   if (live_period != 0) {
@@ -1773,7 +1777,7 @@ void BusinessConnectionManager::edit_business_message_live_location(
   td_->create_handler<EditBusinessMessageQuery>(std::move(promise))
       ->send(business_connection_id, dialog_id, message_id, false, string(),
              vector<telegram_api::object_ptr<telegram_api::MessageEntity>>(), false, std::move(input_media), false,
-             std::move(input_reply_markup));
+             new_reply_markup);
 }
 
 void BusinessConnectionManager::edit_business_message_to_do_list(
@@ -1787,12 +1791,11 @@ void BusinessConnectionManager::edit_business_message_to_do_list(
   TRY_RESULT_PROMISE(promise, to_do_list, ToDoList::get_to_do_list(td_, dialog_id, std::move(input_to_do_list)));
   TRY_RESULT_PROMISE(promise, new_reply_markup,
                      get_inline_reply_markup(std::move(reply_markup), td_->auth_manager_->is_bot(), true));
-  auto input_reply_markup = get_input_reply_markup(td_->user_manager_.get(), new_reply_markup);
   auto input_media = to_do_list.get_input_media_todo(td_->user_manager_.get());
   td_->create_handler<EditBusinessMessageQuery>(std::move(promise))
       ->send(business_connection_id, dialog_id, message_id, false, string(),
              vector<telegram_api::object_ptr<telegram_api::MessageEntity>>(), false, std::move(input_media), false,
-             std::move(input_reply_markup));
+             new_reply_markup);
 }
 
 void BusinessConnectionManager::edit_business_message_media(
@@ -1870,8 +1873,7 @@ void BusinessConnectionManager::do_edit_business_message_media(
       ->send(message->business_connection_id_, message->dialog_id_, message->message_id_, true,
              caption == nullptr ? "" : caption->text,
              get_input_message_entities(td_->user_manager_.get(), caption, "do_edit_business_message_media"), false,
-             std::move(upload_result.input_media_), message->invert_media_,
-             get_input_reply_markup(td_->user_manager_.get(), message->reply_markup_));
+             std::move(upload_result.input_media_), message->invert_media_, message->reply_markup_);
 }
 
 void BusinessConnectionManager::edit_business_message_caption(
@@ -1889,7 +1891,7 @@ void BusinessConnectionManager::edit_business_message_caption(
   td_->create_handler<EditBusinessMessageQuery>(std::move(promise))
       ->send(business_connection_id, dialog_id, message_id, true, caption.text,
              get_input_message_entities(td_->user_manager_.get(), caption.entities, "edit_business_message_caption"),
-             false, nullptr, invert_media, get_input_reply_markup(td_->user_manager_.get(), new_reply_markup));
+             false, nullptr, invert_media, new_reply_markup);
 }
 
 void BusinessConnectionManager::edit_business_message_reply_markup(
@@ -1903,8 +1905,7 @@ void BusinessConnectionManager::edit_business_message_reply_markup(
 
   td_->create_handler<EditBusinessMessageQuery>(std::move(promise))
       ->send(business_connection_id, dialog_id, message_id, false, string(),
-             vector<telegram_api::object_ptr<telegram_api::MessageEntity>>(), false, nullptr, false,
-             get_input_reply_markup(td_->user_manager_.get(), new_reply_markup));
+             vector<telegram_api::object_ptr<telegram_api::MessageEntity>>(), false, nullptr, false, new_reply_markup);
 }
 
 void BusinessConnectionManager::stop_poll(BusinessConnectionId business_connection_id, DialogId dialog_id,

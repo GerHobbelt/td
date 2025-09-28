@@ -125,6 +125,34 @@ static bool is_valid_premium_referrer(CSlice referrer) {
   return check_utf8(referrer);
 }
 
+static bool is_valid_proxy_server(CSlice server) {
+  return !server.empty() && server.size() <= 255u && check_utf8(server);
+}
+
+static bool is_valid_proxy_username(CSlice username) {
+  return check_utf8(username);
+}
+
+static bool is_valid_proxy_password(CSlice password) {
+  return check_utf8(password);
+}
+
+static bool is_valid_invoice_name(CSlice invoice_name) {
+  return !invoice_name.empty() && check_utf8(invoice_name);
+}
+
+static bool is_valid_gift_code(CSlice gift_code) {
+  return !gift_code.empty() && check_utf8(gift_code);
+}
+
+static bool is_valid_business_link_name(CSlice link_name) {
+  return !link_name.empty() && check_utf8(link_name);
+}
+
+static bool is_valid_star_top_up_purpose(CSlice purpose) {
+  return check_utf8(purpose);
+}
+
 static bool is_valid_story_id(Slice story_id) {
   auto r_story_id = to_integer_safe<int32>(story_id);
   return r_story_id.is_ok() && StoryId(r_story_id.ok()).is_server();
@@ -204,6 +232,7 @@ static AdministratorRights get_administrator_rights(Slice rights, bool for_chann
   bool can_post_stories = false;
   bool can_edit_stories = false;
   bool can_delete_stories = false;
+  bool can_manage_direct_messages = false;
   bool is_anonymous = false;
   for (auto right : full_split(rights, ' ')) {
     if (right == "change_info") {
@@ -232,6 +261,8 @@ static AdministratorRights get_administrator_rights(Slice rights, bool for_chann
       can_edit_stories = true;
     } else if (right == "delete_stories") {
       can_delete_stories = true;
+    } else if (right == "manage_direct_messages") {
+      can_manage_direct_messages = true;
     } else if (right == "anonymous") {
       is_anonymous = true;
     } else if (right == "manage_chat") {
@@ -241,7 +272,7 @@ static AdministratorRights get_administrator_rights(Slice rights, bool for_chann
   return AdministratorRights(is_anonymous, can_manage_dialog, can_change_info, can_post_messages, can_edit_messages,
                              can_delete_messages, can_invite_users, can_restrict_members, can_pin_messages,
                              can_manage_topics, can_promote_members, can_manage_calls, can_post_stories,
-                             can_edit_stories, can_delete_stories,
+                             can_edit_stories, can_delete_stories, can_manage_direct_messages,
                              for_channel ? ChannelType::Broadcast : ChannelType::Megagroup);
 }
 
@@ -285,6 +316,9 @@ static string get_admin_string(AdministratorRights rights) {
   }
   if (rights.can_delete_stories()) {
     admin_rights.emplace_back("delete_stories");
+  }
+  if (rights.can_manage_direct_messages()) {
+    admin_rights.emplace_back("manage_direct_messages");
   }
   if (rights.is_anonymous()) {
     admin_rights.emplace_back("anonymous");
@@ -476,8 +510,9 @@ class LinkManager::InternalLinkBuyStars final : public InternalLink {
   }
 
  public:
-  InternalLinkBuyStars(int64 star_count, const string &purpose)
-      : star_count_(clamp(star_count, static_cast<int64>(1), static_cast<int64>(1000000000000))), purpose_(purpose) {
+  InternalLinkBuyStars(int64 star_count, string purpose)
+      : star_count_(clamp(star_count, static_cast<int64>(1), static_cast<int64>(1000000000000)))
+      , purpose_(std::move(purpose)) {
   }
 };
 
@@ -1739,27 +1774,29 @@ unique_ptr<LinkManager::InternalLink> LinkManager::parse_tg_link_query(Slice que
       return td::make_unique<InternalLinkConfirmPhone>(std::move(hash), std::move(phone_number));
     }
   } else if (path.size() == 1 && path[0] == "socks") {
-    if (has_arg("server") && has_arg("port")) {
-      // socks?server=<server>&port=<port>&user=<user>&pass=<pass>
-      auto port = to_integer<int32>(get_arg("port"));
-      if (0 < port && port < 65536) {
-        return td::make_unique<InternalLinkProxy>(
-            get_arg("server"), port, td_api::make_object<td_api::proxyTypeSocks5>(get_arg("user"), get_arg("pass")));
-      } else {
-        return td::make_unique<InternalLinkUnsupportedProxy>();
-      }
+    // socks?server=<server>&port=<port>&user=<user>&pass=<pass>
+    auto server = get_arg("server");
+    auto port = to_integer<int32>(get_arg("port"));
+    auto username = get_arg("user");
+    auto password = get_arg("pass");
+    if (is_valid_proxy_server(server) && 0 < port && port < 65536 && is_valid_proxy_username(username) &&
+        is_valid_proxy_password(password)) {
+      return td::make_unique<InternalLinkProxy>(
+          std::move(server), port,
+          td_api::make_object<td_api::proxyTypeSocks5>(std::move(username), std::move(password)));
+    } else {
+      return td::make_unique<InternalLinkUnsupportedProxy>();
     }
   } else if (path.size() == 1 && path[0] == "proxy") {
-    if (has_arg("server") && has_arg("port")) {
-      // proxy?server=<server>&port=<port>&secret=<secret>
-      auto port = to_integer<int32>(get_arg("port"));
-      auto r_secret = mtproto::ProxySecret::from_link(get_arg("secret"));
-      if (0 < port && port < 65536 && r_secret.is_ok()) {
-        return td::make_unique<InternalLinkProxy>(
-            get_arg("server"), port, td_api::make_object<td_api::proxyTypeMtproto>(r_secret.ok().get_encoded_secret()));
-      } else {
-        return td::make_unique<InternalLinkUnsupportedProxy>();
-      }
+    // proxy?server=<server>&port=<port>&secret=<secret>
+    auto server = get_arg("server");
+    auto port = to_integer<int32>(get_arg("port"));
+    auto r_secret = mtproto::ProxySecret::from_link(get_arg("secret"));
+    if (is_valid_proxy_server(server) && 0 < port && port < 65536 && r_secret.is_ok()) {
+      return td::make_unique<InternalLinkProxy>(
+          std::move(server), port, td_api::make_object<td_api::proxyTypeMtproto>(r_secret.ok().get_encoded_secret()));
+    } else {
+      return td::make_unique<InternalLinkUnsupportedProxy>();
     }
   } else if (path.size() == 1 && path[0] == "privatepost") {
     // privatepost?channel=123456789&post=12345&single&thread=<thread_id>&comment=<message_id>&t=<media_timestamp>
@@ -1796,18 +1833,21 @@ unique_ptr<LinkManager::InternalLink> LinkManager::parse_tg_link_query(Slice que
     }
   } else if (path.size() == 1 && path[0] == "invoice") {
     // invoice?slug=<invoice_name>
-    if (has_arg("slug")) {
-      return td::make_unique<InternalLinkInvoice>(url_query.get_arg("slug").str());
+    auto invoice_name = get_arg("slug");
+    if (is_valid_invoice_name(invoice_name)) {
+      return td::make_unique<InternalLinkInvoice>(std::move(invoice_name));
     }
   } else if (path.size() == 1 && path[0] == "giftcode") {
     // giftcode?slug=<code>
-    if (has_arg("slug")) {
-      return td::make_unique<InternalLinkPremiumGiftCode>(url_query.get_arg("slug").str());
+    auto gift_code = get_arg("slug");
+    if (is_valid_gift_code(gift_code)) {
+      return td::make_unique<InternalLinkPremiumGiftCode>(std::move(gift_code));
     }
   } else if (path.size() == 1 && path[0] == "message") {
     // message?slug=<name>
-    if (has_arg("slug")) {
-      return td::make_unique<InternalLinkBusinessChat>(url_query.get_arg("slug").str());
+    auto link_name = get_arg("slug");
+    if (is_valid_business_link_name(link_name)) {
+      return td::make_unique<InternalLinkBusinessChat>(std::move(link_name));
     }
   } else if (path.size() == 1 && (path[0] == "share" || path[0] == "msg" || path[0] == "msg_url")) {
     // msg_url?url=<url>
@@ -1815,9 +1855,9 @@ unique_ptr<LinkManager::InternalLink> LinkManager::parse_tg_link_query(Slice que
     return get_internal_link_message_draft(get_arg("url"), get_arg("text"));
   } else if (path.size() == 1 && path[0] == "stars_topup") {
     // stars_topup?balance=<star_count>&purpose=<purpose>
-    if (has_arg("balance")) {
-      return td::make_unique<InternalLinkBuyStars>(to_integer<int64>(url_query.get_arg("balance")),
-                                                   url_query.get_arg("purpose").str());
+    auto purpose = get_arg("purpose");
+    if (has_arg("balance") && is_valid_star_top_up_purpose(purpose)) {
+      return td::make_unique<InternalLinkBuyStars>(to_integer<int64>(url_query.get_arg("balance")), std::move(purpose));
     }
   }
   if (!path.empty() && !path[0].empty()) {
@@ -1951,27 +1991,29 @@ unique_ptr<LinkManager::InternalLink> LinkManager::parse_t_me_link_query(Slice q
       return td::make_unique<InternalLinkConfirmPhone>(std::move(hash), std::move(phone_number));
     }
   } else if (path[0] == "socks") {
-    if (has_arg("server") && has_arg("port")) {
-      // /socks?server=<server>&port=<port>&user=<user>&pass=<pass>
-      auto port = to_integer<int32>(get_arg("port"));
-      if (0 < port && port < 65536) {
-        return td::make_unique<InternalLinkProxy>(
-            get_arg("server"), port, td_api::make_object<td_api::proxyTypeSocks5>(get_arg("user"), get_arg("pass")));
-      } else {
-        return td::make_unique<InternalLinkUnsupportedProxy>();
-      }
+    // /socks?server=<server>&port=<port>&user=<user>&pass=<pass>
+    auto server = get_arg("server");
+    auto port = to_integer<int32>(get_arg("port"));
+    auto username = get_arg("user");
+    auto password = get_arg("pass");
+    if (is_valid_proxy_server(server) && 0 < port && port < 65536 && is_valid_proxy_username(username) &&
+        is_valid_proxy_password(password)) {
+      return td::make_unique<InternalLinkProxy>(
+          std::move(server), port,
+          td_api::make_object<td_api::proxyTypeSocks5>(std::move(username), std::move(password)));
+    } else {
+      return td::make_unique<InternalLinkUnsupportedProxy>();
     }
   } else if (path[0] == "proxy") {
-    if (has_arg("server") && has_arg("port")) {
-      // /proxy?server=<server>&port=<port>&secret=<secret>
-      auto port = to_integer<int32>(get_arg("port"));
-      auto r_secret = mtproto::ProxySecret::from_link(get_arg("secret"));
-      if (0 < port && port < 65536 && r_secret.is_ok()) {
-        return td::make_unique<InternalLinkProxy>(
-            get_arg("server"), port, td_api::make_object<td_api::proxyTypeMtproto>(r_secret.ok().get_encoded_secret()));
-      } else {
-        return td::make_unique<InternalLinkUnsupportedProxy>();
-      }
+    // /proxy?server=<server>&port=<port>&secret=<secret>
+    auto server = get_arg("server");
+    auto port = to_integer<int32>(get_arg("port"));
+    auto r_secret = mtproto::ProxySecret::from_link(get_arg("secret"));
+    if (is_valid_proxy_server(server) && 0 < port && port < 65536 && r_secret.is_ok()) {
+      return td::make_unique<InternalLinkProxy>(
+          std::move(server), port, td_api::make_object<td_api::proxyTypeMtproto>(r_secret.ok().get_encoded_secret()));
+    } else {
+      return td::make_unique<InternalLinkUnsupportedProxy>();
     }
   } else if (path[0] == "bg") {
     if (path.size() >= 2 && !path[1].empty()) {
@@ -1988,24 +2030,25 @@ unique_ptr<LinkManager::InternalLink> LinkManager::parse_t_me_link_query(Slice q
                                                      << copy_arg("bg_color") << copy_arg("rotation"));
     }
   } else if (path[0] == "invoice") {
-    if (path.size() >= 2 && !path[1].empty()) {
+    if (path.size() >= 2 && is_valid_invoice_name(path[1])) {
       // /invoice/<name>
       return td::make_unique<InternalLinkInvoice>(path[1]);
     }
   } else if (path[0] == "giftcode") {
-    if (path.size() >= 2 && !path[1].empty()) {
+    if (path.size() >= 2 && is_valid_gift_code(path[1])) {
       // /giftcode/<code>
       return td::make_unique<InternalLinkPremiumGiftCode>(path[1]);
     }
   } else if (path[0] == "m") {
-    if (path.size() >= 2 && !path[1].empty()) {
+    if (path.size() >= 2 && is_valid_business_link_name(path[1])) {
       // /m/<link_name>
       return td::make_unique<InternalLinkBusinessChat>(path[1]);
     }
   } else if (path[0][0] == '$') {
-    if (path[0].size() >= 2) {
+    auto invoice_name = Slice(path[0]).substr(1).str();
+    if (is_valid_invoice_name(invoice_name)) {
       // /$<invoice_name>
-      return td::make_unique<InternalLinkInvoice>(path[0].substr(1));
+      return td::make_unique<InternalLinkInvoice>(std::move(invoice_name));
     }
   } else if (path[0] == "share" || path[0] == "msg") {
     if (!(path.size() > 1 && (path[1] == "bookmarklet" || path[1] == "embed"))) {
@@ -2171,10 +2214,10 @@ unique_ptr<LinkManager::InternalLink> LinkManager::get_internal_link_passport(
   auto get_arg = [&args](Slice key) {
     for (auto &arg : args) {
       if (arg.first == key) {
-        return Slice(arg.second);
+        return CSlice(arg.second);
       }
     }
-    return Slice();
+    return CSlice();
   };
 
   UserId bot_user_id(to_integer<int64>(get_arg("bot_id")));
@@ -2186,7 +2229,8 @@ unique_ptr<LinkManager::InternalLink> LinkManager::get_internal_link_passport(
   }
   auto callback_url = get_arg("callback_url");
 
-  if (!bot_user_id.is_valid() || scope.empty() || public_key.empty() || nonce.empty()) {
+  if (!bot_user_id.is_valid() || scope.empty() || !check_utf8(scope) || public_key.empty() || !check_utf8(public_key) ||
+      nonce.empty() || !check_utf8(nonce)) {
     if (!allow_unknown) {
       return nullptr;
     }
@@ -2413,6 +2457,9 @@ Result<string> LinkManager::get_internal_link_impl(const td_api::InternalLinkTyp
     }
     case td_api::internalLinkTypeBusinessChat::ID: {
       auto link = static_cast<const td_api::internalLinkTypeBusinessChat *>(type_ptr);
+      if (!is_valid_business_link_name(link->link_name_)) {
+        return Status::Error("Invalid link name specified");
+      }
       if (is_internal) {
         return PSTRING() << "tg://message?slug=" << url_encode(link->link_name_);
       } else {
@@ -2425,7 +2472,10 @@ Result<string> LinkManager::get_internal_link_impl(const td_api::InternalLinkTyp
         return Status::Error("HTTP link is unavailable for the link type");
       }
       if (link->star_count_ <= 0) {
-        return Status::Error(400, "Invalid Telegram Star number provided");
+        return Status::Error(400, "Invalid Telegram Star amount provided");
+      }
+      if (!is_valid_star_top_up_purpose(link->purpose_)) {
+        return Status::Error(400, "Invalid purpose specified");
       }
       return PSTRING() << "tg://stars_topup?balance=" << link->star_count_ << "&purpose=" << url_encode(link->purpose_);
     }
@@ -2545,6 +2595,9 @@ Result<string> LinkManager::get_internal_link_impl(const td_api::InternalLinkTyp
     }
     case td_api::internalLinkTypeInvoice::ID: {
       auto link = static_cast<const td_api::internalLinkTypeInvoice *>(type_ptr);
+      if (!is_valid_invoice_name(link->invoice_name_)) {
+        return Status::Error(400, "Invalid invoice name specified");
+      }
       if (is_internal) {
         return PSTRING() << "tg://invoice?slug=" << url_encode(link->invoice_name_);
       } else {
@@ -2650,6 +2703,10 @@ Result<string> LinkManager::get_internal_link_impl(const td_api::InternalLinkTyp
       if (!UserId(link->bot_user_id_).is_valid()) {
         return Status::Error("Invalid bot user identifier specified");
       }
+      if (link->scope_.empty() || !check_utf8(link->scope_) || link->public_key_.empty() ||
+          !check_utf8(link->public_key_) || link->nonce_.empty() || !check_utf8(link->nonce_)) {
+        return Status::Error("Invalid parameters specified");
+      }
       return PSTRING() << "tg://resolve?domain=telegrampassport&bot_id=" << link->bot_user_id_
                        << "&scope=" << url_encode(link->scope_) << "&public_key=" << url_encode(link->public_key_)
                        << "&nonce=" << url_encode(link->nonce_) << "&callback_url=" << url_encode(link->callback_url_);
@@ -2692,6 +2749,9 @@ Result<string> LinkManager::get_internal_link_impl(const td_api::InternalLinkTyp
     }
     case td_api::internalLinkTypePremiumGiftCode::ID: {
       auto link = static_cast<const td_api::internalLinkTypePremiumGiftCode *>(type_ptr);
+      if (!is_valid_gift_code(link->code_)) {
+        return Status::Error("Invalid gift code specified");
+      }
       if (is_internal) {
         return PSTRING() << "tg://giftcode?slug=" << url_encode(link->code_);
       } else {

@@ -393,6 +393,7 @@ set(TDLIB_SOURCE_PART1
   td/telegram/ConnectionStateManager.cpp
   td/telegram/Contact.cpp
   td/telegram/CountryInfoManager.cpp
+  td/telegram/CurrencyAmount.cpp
   td/telegram/DelayDispatcher.cpp
   td/telegram/Dependencies.cpp
   td/telegram/DeviceTokenManager.cpp
@@ -625,6 +626,8 @@ set(TDLIB_SOURCE_PART2
   td/telegram/StoryViewer.cpp
   td/telegram/SuggestedAction.cpp
   td/telegram/SuggestedActionManager.cpp
+  td/telegram/SuggestedPost.cpp
+  td/telegram/SuggestedPostPrice.cpp
   td/telegram/Support.cpp
   td/telegram/SynchronousRequests.cpp
   td/telegram/TargetDialogTypes.cpp
@@ -638,6 +641,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/ToDoCompletion.cpp
   td/telegram/ToDoItem.cpp
   td/telegram/ToDoList.cpp
+  td/telegram/TonAmount.cpp
   td/telegram/TopDialogCategory.cpp
   td/telegram/TopDialogManager.cpp
   td/telegram/TranscriptionInfo.cpp
@@ -723,6 +727,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/ConnectionStateManager.h
   td/telegram/Contact.h
   td/telegram/CountryInfoManager.h
+  td/telegram/CurrencyAmount.h
   td/telegram/CustomEmojiId.h
   td/telegram/DelayDispatcher.h
   td/telegram/Dependencies.h
@@ -1012,6 +1017,8 @@ set(TDLIB_SOURCE_PART2
   td/telegram/StoryViewer.h
   td/telegram/SuggestedAction.h
   td/telegram/SuggestedActionManager.h
+  td/telegram/SuggestedPost.h
+  td/telegram/SuggestedPostPrice.h
   td/telegram/Support.h
   td/telegram/SynchronousRequests.h
   td/telegram/TargetDialogTypes.h
@@ -1026,6 +1033,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/ToDoCompletion.h
   td/telegram/ToDoItem.h
   td/telegram/ToDoList.h
+  td/telegram/TonAmount.h
   td/telegram/TopDialogCategory.h
   td/telegram/TopDialogManager.h
   td/telegram/TranscriptionInfo.h
@@ -1070,6 +1078,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/BusinessRecipients.hpp
   td/telegram/BusinessWorkHours.hpp
   td/telegram/ChatReactions.hpp
+  td/telegram/CurrencyAmount.hpp
   td/telegram/DialogFilter.hpp
   td/telegram/DialogInviteLink.hpp
   td/telegram/DialogNotificationSettings.hpp
@@ -1142,11 +1151,14 @@ set(TDLIB_SOURCE_PART2
   td/telegram/StoryInteractionInfo.hpp
   td/telegram/StoryStealthMode.hpp
   td/telegram/SuggestedAction.hpp
+  td/telegram/SuggestedPost.hpp
+  td/telegram/SuggestedPostPrice.hpp
   td/telegram/TermsOfService.hpp
   td/telegram/ThemeSettings.hpp
   td/telegram/ToDoCompletion.hpp
   td/telegram/ToDoItem.hpp
   td/telegram/ToDoList.hpp
+  td/telegram/TonAmount.hpp
   td/telegram/TranscriptionInfo.hpp
   td/telegram/VideoNotesManager.hpp
   td/telegram/VideosManager.hpp
