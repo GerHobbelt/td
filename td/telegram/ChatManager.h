@@ -88,7 +88,7 @@ class ChatManager final : public Actor {
   bool is_channel_received_from_server(ChannelId channel_id) const;
 
   const DialogPhoto *get_chat_dialog_photo(ChatId chat_id) const;
-  const DialogPhoto *get_channel_dialog_photo(ChannelId channel_id) const;
+  const DialogPhoto *get_channel_dialog_photo(ChannelId channel_id, bool is_recursive = false) const;
 
   AccentColorId get_channel_accent_color_id(ChannelId channel_id) const;
 
@@ -105,7 +105,7 @@ class ChatManager final : public Actor {
   CustomEmojiId get_channel_profile_background_custom_emoji_id(ChannelId channel_id) const;
 
   string get_chat_title(ChatId chat_id) const;
-  string get_channel_title(ChannelId channel_id) const;
+  string get_channel_title(ChannelId channel_id, bool is_recursive = false) const;
 
   RestrictedRights get_chat_default_permissions(ChatId chat_id) const;
   RestrictedRights get_channel_default_permissions(ChannelId channel_id) const;
@@ -270,7 +270,7 @@ class ChatManager final : public Actor {
   void toggle_channel_has_aggressive_anti_spam_enabled(ChannelId channel_id, bool has_aggressive_anti_spam_enabled,
                                                        Promise<Unit> &&promise);
 
-  void toggle_channel_is_forum(ChannelId channel_id, bool is_forum, Promise<Unit> &&promise);
+  void toggle_channel_is_forum(ChannelId channel_id, bool is_forum, bool is_forum_tabs, Promise<Unit> &&promise);
 
   void convert_channel_to_gigagroup(ChannelId channel_id, Promise<Unit> &&promise);
 
@@ -525,6 +525,7 @@ class ChatManager final : public Actor {
     bool is_megagroup = false;
     bool is_gigagroup = false;
     bool is_forum = false;
+    bool is_forum_tabs = false;
     bool is_monoforum = false;
     bool is_verified = false;
     bool is_scam = false;
@@ -672,7 +673,7 @@ class ChatManager final : public Actor {
 
   const Channel *get_channel(ChannelId channel_id) const;
   Channel *get_channel(ChannelId channel_id);
-  Channel *get_channel_force(ChannelId channel_id, const char *source);
+  Channel *get_channel_force(ChannelId channel_id, const char *source, bool is_recursive = false);
 
   Channel *add_channel(ChannelId channel_id, const char *source);
 
@@ -765,8 +766,6 @@ class ChatManager final : public Actor {
 
   void remove_linked_channel_id(ChannelId channel_id);
 
-  void remove_monoforum_channel_id(ChannelId channel_id);
-
   ChannelId get_linked_channel_id(ChannelId channel_id) const;
 
   static bool speculative_add_count(int32 &count, int32 delta_count, int32 min_count = 0);
@@ -802,8 +801,8 @@ class ChatManager final : public Actor {
   void save_channel_to_database_impl(Channel *c, ChannelId channel_id, string value);
   void on_save_channel_to_database(ChannelId channel_id, bool success);
   void load_channel_from_database(Channel *c, ChannelId channel_id, Promise<Unit> promise);
-  void load_channel_from_database_impl(ChannelId channel_id, Promise<Unit> promise);
-  void on_load_channel_from_database(ChannelId channel_id, string value, bool force);
+  void load_channel_from_database_impl(ChannelId channel_id, bool is_recursive, Promise<Unit> promise);
+  void on_load_channel_from_database(ChannelId channel_id, string value, bool force, bool is_recursive);
 
   static void save_chat_full(const ChatFull *chat_full, ChatId chat_id);
   static string get_chat_full_database_key(ChatId chat_id);

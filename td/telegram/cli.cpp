@@ -3153,6 +3153,31 @@ class CliClient final : public Actor {
       send_request(td_api::make_object<td_api::getChats>(nullptr, 1));
       send_request(td_api::make_object<td_api::getChats>(nullptr, 10));
       send_request(td_api::make_object<td_api::getChats>(nullptr, 5));
+    } else if (op == "lfct") {
+      ChatId chat_id;
+      string limit;
+      get_args(args, chat_id, limit);
+      send_request(td_api::make_object<td_api::loadFeedbackChatTopics>(chat_id, as_limit(limit)));
+    } else if (op == "gfcth") {
+      ChatId chat_id;
+      MessageId from_message_id;
+      int32 offset;
+      string limit;
+      get_args(args, chat_id, from_message_id, offset, limit);
+      send_request(td_api::make_object<td_api::getFeedbackChatTopicHistory>(chat_id, feedback_chat_topic_id_,
+                                                                            from_message_id, offset, as_limit(limit)));
+    } else if (op == "gfctmbd") {
+      ChatId chat_id;
+      int32 date;
+      get_args(args, chat_id, date);
+      send_request(
+          td_api::make_object<td_api::getFeedbackChatTopicMessageByDate>(chat_id, feedback_chat_topic_id_, date));
+    } else if (op == "sfctimau") {
+      ChatId chat_id;
+      bool is_marked_as_unread;
+      get_args(args, chat_id, is_marked_as_unread);
+      send_request(td_api::make_object<td_api::setFeedbackChatTopicIsMarkedAsUnread>(chat_id, feedback_chat_topic_id_,
+                                                                                     is_marked_as_unread));
     } else if (op == "lsmt") {
       string limit;
       get_args(args, limit);
@@ -3165,8 +3190,10 @@ class CliClient final : public Actor {
       send_request(td_api::make_object<td_api::getSavedMessagesTopicHistory>(get_saved_messages_topic_id(),
                                                                              from_message_id, offset, as_limit(limit)));
     } else if (op == "gsmtmbd") {
-      send_request(td_api::make_object<td_api::getSavedMessagesTopicMessageByDate>(get_saved_messages_topic_id(),
-                                                                                   to_integer<int32>(args)));
+      int32 date;
+      get_args(args, date);
+      send_request(
+          td_api::make_object<td_api::getSavedMessagesTopicMessageByDate>(get_saved_messages_topic_id(), date));
     } else if (op == "dsmth" && args.empty()) {
       send_request(td_api::make_object<td_api::deleteSavedMessagesTopicHistory>(get_saved_messages_topic_id()));
     } else if (op == "dsmtmbd") {
@@ -5457,6 +5484,8 @@ class CliClient final : public Actor {
       only_preview_ = as_bool(args);
     } else if (op == "smti") {
       get_args(args, message_thread_id_);
+    } else if (op == "sfcti") {
+      get_args(args, feedback_chat_topic_id_);
     } else if (op == "sbci") {
       business_connection_id_ = args;
     } else if (op == "shs") {
@@ -6735,8 +6764,10 @@ class CliClient final : public Actor {
     } else if (op == "tsgif") {
       string supergroup_id;
       bool is_forum;
-      get_args(args, supergroup_id, is_forum);
-      send_request(td_api::make_object<td_api::toggleSupergroupIsForum>(as_supergroup_id(supergroup_id), is_forum));
+      bool has_forum_tabs;
+      get_args(args, supergroup_id, is_forum, has_forum_tabs);
+      send_request(td_api::make_object<td_api::toggleSupergroupIsForum>(as_supergroup_id(supergroup_id), is_forum,
+                                                                        has_forum_tabs));
     } else if (op == "tsibg") {
       string supergroup_id;
       get_args(args, supergroup_id);
@@ -7823,6 +7854,7 @@ class CliClient final : public Actor {
   int64 message_effect_id_ = 0;
   bool only_preview_ = false;
   MessageThreadId message_thread_id_;
+  ChatId feedback_chat_topic_id_;
   string business_connection_id_;
   bool has_spoiler_ = false;
   int32 message_self_destruct_time_ = 0;

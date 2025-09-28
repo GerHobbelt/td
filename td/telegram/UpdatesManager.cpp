@@ -3710,6 +3710,30 @@ void UpdatesManager::on_update(tl_object_ptr<telegram_api::updateReadChannelDisc
   promise.set_value(Unit());
 }
 
+void UpdatesManager::on_update(tl_object_ptr<telegram_api::updateReadMonoForumInbox> update, Promise<Unit> &&promise) {
+  auto read_inbox_max_message_id = MessageId(ServerMessageId(update->read_max_id_));
+  if (!read_inbox_max_message_id.is_valid()) {
+    LOG(ERROR) << "Receive " << to_string(update);
+    return;
+  }
+  td_->saved_messages_manager_->on_update_read_monoforum_inbox(DialogId(ChannelId(update->channel_id_)),
+                                                               SavedMessagesTopicId(DialogId(update->saved_peer_id_)),
+                                                               read_inbox_max_message_id);
+  promise.set_value(Unit());
+}
+
+void UpdatesManager::on_update(tl_object_ptr<telegram_api::updateReadMonoForumOutbox> update, Promise<Unit> &&promise) {
+  auto read_outbox_max_message_id = MessageId(ServerMessageId(update->read_max_id_));
+  if (!read_outbox_max_message_id.is_valid()) {
+    LOG(ERROR) << "Receive " << to_string(update);
+    return;
+  }
+  td_->saved_messages_manager_->on_update_read_monoforum_outbox(DialogId(ChannelId(update->channel_id_)),
+                                                                SavedMessagesTopicId(DialogId(update->saved_peer_id_)),
+                                                                read_outbox_max_message_id);
+  promise.set_value(Unit());
+}
+
 void UpdatesManager::on_update(tl_object_ptr<telegram_api::updateChannelPinnedTopic> update, Promise<Unit> &&promise) {
   td_->forum_topic_manager_->on_update_forum_topic_is_pinned(
       DialogId(ChannelId(update->channel_id_)), MessageId(ServerMessageId(update->topic_id_)), update->pinned_);
@@ -4170,7 +4194,9 @@ void UpdatesManager::on_update(tl_object_ptr<telegram_api::updateChatDefaultBann
 
 void UpdatesManager::on_update(tl_object_ptr<telegram_api::updateDraftMessage> update, Promise<Unit> &&promise) {
   if (update->saved_peer_id_ != nullptr) {
-    // TODO
+    LOG_IF(ERROR, update->top_msg_id_ != 0) << "Have both top_msg_id and saved_peer_id";
+    td_->saved_messages_manager_->on_update_topic_draft_message(
+        DialogId(update->peer_), SavedMessagesTopicId(DialogId(update->saved_peer_id_)), std::move(update->draft_));
   } else {
     td_->messages_manager_->on_update_dialog_draft_message(
         DialogId(update->peer_), MessageId(ServerMessageId(update->top_msg_id_)), std::move(update->draft_));
@@ -4201,7 +4227,8 @@ void UpdatesManager::on_update(tl_object_ptr<telegram_api::updatePinnedSavedDial
 
 void UpdatesManager::on_update(tl_object_ptr<telegram_api::updateDialogUnreadMark> update, Promise<Unit> &&promise) {
   if (update->saved_peer_id_ != nullptr) {
-    // TODO
+    td_->saved_messages_manager_->on_update_topic_is_marked_as_unread(
+        DialogId(update->peer_), SavedMessagesTopicId(DialogId(update->saved_peer_id_)), update->unread_);
   } else {
     td_->messages_manager_->on_update_dialog_is_marked_as_unread(DialogId(update->peer_), update->unread_);
   }
@@ -4719,14 +4746,6 @@ void UpdatesManager::on_update(tl_object_ptr<telegram_api::updateStarsRevenueSta
 // unsupported updates
 
 void UpdatesManager::on_update(tl_object_ptr<telegram_api::updateNewStoryReaction> update, Promise<Unit> &&promise) {
-  promise.set_value(Unit());
-}
-
-void UpdatesManager::on_update(tl_object_ptr<telegram_api::updateReadMonoForumInbox> update, Promise<Unit> &&promise) {
-  promise.set_value(Unit());
-}
-
-void UpdatesManager::on_update(tl_object_ptr<telegram_api::updateReadMonoForumOutbox> update, Promise<Unit> &&promise) {
   promise.set_value(Unit());
 }
 

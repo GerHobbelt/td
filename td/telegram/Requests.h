@@ -357,6 +357,14 @@ class Requests {
 
   void on_request(uint64 id, const td_api::getChats &request);
 
+  void on_request(uint64 id, const td_api::loadFeedbackChatTopics &request);
+
+  void on_request(uint64 id, const td_api::getFeedbackChatTopicHistory &request);
+
+  void on_request(uint64 id, const td_api::getFeedbackChatTopicMessageByDate &request);
+
+  void on_request(uint64 id, const td_api::setFeedbackChatTopicIsMarkedAsUnread &request);
+
   void on_request(uint64 id, const td_api::loadSavedMessagesTopics &request);
 
   void on_request(uint64 id, const td_api::getSavedMessagesTopicHistory &request);
