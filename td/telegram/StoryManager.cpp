@@ -61,6 +61,7 @@
 #include "td/utils/Time.h"
 #include "td/utils/tl_helpers.h"
 
+#include <algorithm>
 #include <limits>
 
 namespace td {
@@ -1032,6 +1033,7 @@ class GetAlbumStoriesQuery final : public Td::ResultHandler {
 class CreateStoryAlbumQuery final : public Td::ResultHandler {
   Promise<td_api::object_ptr<td_api::storyAlbum>> promise_;
   DialogId owner_dialog_id_;
+  vector<StoryId> story_ids_;
 
  public:
   explicit CreateStoryAlbumQuery(Promise<td_api::object_ptr<td_api::storyAlbum>> &&promise)
@@ -1040,6 +1042,7 @@ class CreateStoryAlbumQuery final : public Td::ResultHandler {
 
   void send(DialogId owner_dialog_id, const string &title, const vector<StoryId> &story_ids) {
     owner_dialog_id_ = owner_dialog_id;
+    story_ids_ = story_ids;
     auto input_peer = td_->dialog_manager_->get_input_peer(owner_dialog_id_, AccessRights::Read);
     CHECK(input_peer != nullptr);
     send_query(G()->net_query_creator().create(
@@ -1055,6 +1058,10 @@ class CreateStoryAlbumQuery final : public Td::ResultHandler {
     auto ptr = result_ptr.move_as_ok();
     LOG(INFO) << "Receive result for CreateStoryAlbumQuery: " << to_string(ptr);
     StoryAlbum story_album(td_, owner_dialog_id_, std::move(ptr));
+    if (!story_album.is_valid()) {
+      return on_error(Status::Error(500, "Receive invalid album"));
+    }
+    td_->story_manager_->update_story_albums(owner_dialog_id_, story_ids_, story_album.get_story_album_id(), true);
     promise_.set_value(story_album.get_story_album_object(td_));
   }
 
@@ -1131,6 +1138,9 @@ class DeleteStoryAlbumQuery final : public Td::ResultHandler {
 class UpdateStoryAlbumQuery final : public Td::ResultHandler {
   Promise<td_api::object_ptr<td_api::storyAlbum>> promise_;
   DialogId owner_dialog_id_;
+  StoryAlbumId story_album_id_;
+  vector<StoryId> deleted_story_ids_;
+  vector<StoryId> added_story_ids_;
 
  public:
   explicit UpdateStoryAlbumQuery(Promise<td_api::object_ptr<td_api::storyAlbum>> &&promise)
@@ -1141,6 +1151,9 @@ class UpdateStoryAlbumQuery final : public Td::ResultHandler {
             const vector<StoryId> &deleted_story_ids, const vector<StoryId> &added_story_ids,
             const vector<StoryId> &ordered_story_ids) {
     owner_dialog_id_ = owner_dialog_id;
+    story_album_id_ = story_album_id;
+    deleted_story_ids_ = deleted_story_ids;
+    added_story_ids_ = added_story_ids;
     auto input_peer = td_->dialog_manager_->get_input_peer(owner_dialog_id_, AccessRights::Read);
     CHECK(input_peer != nullptr);
     int32 flags = 0;
@@ -1172,11 +1185,16 @@ class UpdateStoryAlbumQuery final : public Td::ResultHandler {
     auto ptr = result_ptr.move_as_ok();
     LOG(INFO) << "Receive result for UpdateStoryAlbumQuery: " << to_string(ptr);
     StoryAlbum story_album(td_, owner_dialog_id_, std::move(ptr));
+    if (story_album.get_story_album_id() != story_album_id_) {
+      return on_error(Status::Error(500, "Receive invalid album"));
+    }
     promise_.set_value(story_album.get_story_album_object(td_));
   }
 
   void on_error(Status status) final {
     td_->dialog_manager_->on_get_dialog_error(owner_dialog_id_, status, "UpdateStoryAlbumQuery");
+    td_->story_manager_->update_story_albums(owner_dialog_id_, deleted_story_ids_, story_album_id_, true);
+    td_->story_manager_->update_story_albums(owner_dialog_id_, added_story_ids_, story_album_id_, false);
     promise_.set_error(std::move(status));
   }
 };
@@ -2195,6 +2213,14 @@ bool StoryManager::is_active_story(const Story *story) {
   return story != nullptr && G()->unix_time() < story->expire_date_;
 }
 
+Status StoryManager::can_manage_story_albums(DialogId owner_dialog_id, const char *source) const {
+  TRY_STATUS(td_->dialog_manager_->check_dialog_access(owner_dialog_id, false, AccessRights::Read, source));
+  if (!can_edit_stories(owner_dialog_id)) {
+    return Status::Error(400, "Can't manage story albums of the chat");
+  }
+  return Status::OK();
+}
+
 int32 StoryManager::get_story_viewers_expire_date(const Story *story) const {
   return story->expire_date_ +
          narrow_cast<int32>(td_->option_manager_->get_option_integer("story_viewers_expiration_delay", 86400));
@@ -2447,6 +2473,7 @@ void StoryManager::load_active_stories(StoryListId story_list_id, Promise<Unit> 
     CHECK(G()->use_message_database());
     story_list.load_list_from_database_queries_.push_back(std::move(promise));
     if (story_list.load_list_from_database_queries_.size() == 1u) {
+      LOG(INFO) << "Load active stories in " << story_list_id << " from database";
       G()->td_db()->get_story_db_async()->get_active_story_list(
           story_list_id, story_list.last_loaded_database_dialog_date_.get_order(),
           story_list.last_loaded_database_dialog_date_.get_dialog_id(), 10,
@@ -2546,6 +2573,7 @@ void StoryManager::load_active_stories_from_server(StoryListId story_list_id, St
                                                    Promise<Unit> &&promise) {
   story_list.load_list_from_server_queries_.push_back(std::move(promise));
   if (story_list.load_list_from_server_queries_.size() == 1u) {
+    LOG(INFO) << "Load active stories in " << story_list_id << " from server";
     auto query_promise =
         PromiseCreator::lambda([actor_id = actor_id(this), story_list_id, is_next, state = story_list.state_](
                                    Result<telegram_api::object_ptr<telegram_api::stories_AllStories>> r_all_stories) {
@@ -3696,16 +3724,34 @@ void StoryManager::on_get_story_album_stories(DialogId owner_dialog_id, StoryAlb
                                               Promise<td_api::object_ptr<td_api::stories>> &&promise) {
   TRY_STATUS_PROMISE(promise, G()->close_status());
   auto result = on_get_stories(owner_dialog_id, {}, std::move(stories));
+  update_story_albums(owner_dialog_id, result.second, story_album_id, true);
   promise.set_value(get_stories_object(
       result.first,
       transform(result.second, [owner_dialog_id](StoryId story_id) { return StoryFullId(owner_dialog_id, story_id); }),
       vector<StoryId>()));
 }
 
+void StoryManager::update_story_albums(DialogId owner_dialog_id, const vector<StoryId> &story_ids,
+                                       StoryAlbumId story_album_id, bool is_add) {
+  for (auto story_id : story_ids) {
+    auto story_full_id = StoryFullId{owner_dialog_id, story_id};
+    auto *story = get_story_force(story_full_id, "update_story_albums");
+    if (story == nullptr || is_add == td::contains(story->album_ids_, story_album_id)) {
+      continue;
+    }
+    if (is_add) {
+      story->album_ids_.push_back(story_album_id);
+      std::sort(story->album_ids_.begin(), story->album_ids_.end());
+    } else {
+      td::remove(story->album_ids_, story_album_id);
+    }
+    on_story_changed(story_full_id, story, true, true);
+  }
+}
+
 void StoryManager::create_story_album(DialogId owner_dialog_id, const string &title, const vector<StoryId> &story_ids,
                                       Promise<td_api::object_ptr<td_api::storyAlbum>> &&promise) {
-  TRY_STATUS_PROMISE(promise, td_->dialog_manager_->check_dialog_access(owner_dialog_id, false, AccessRights::Read,
-                                                                        "create_story_album"));
+  TRY_STATUS_PROMISE(promise, can_manage_story_albums(owner_dialog_id, "create_story_album"));
   TRY_STATUS_PROMISE(promise, check_story_ids(story_ids, true));
   if (title.empty()) {
     return promise.set_error(400, "Story album name must be non-empty");
@@ -3715,8 +3761,7 @@ void StoryManager::create_story_album(DialogId owner_dialog_id, const string &ti
 
 void StoryManager::reorder_story_albums(DialogId owner_dialog_id, const vector<StoryAlbumId> &story_album_ids,
                                         Promise<Unit> &&promise) {
-  TRY_STATUS_PROMISE(promise, td_->dialog_manager_->check_dialog_access(owner_dialog_id, false, AccessRights::Read,
-                                                                        "reorder_story_albums"));
+  TRY_STATUS_PROMISE(promise, can_manage_story_albums(owner_dialog_id, "reorder_story_albums"));
   for (auto story_album_id : story_album_ids) {
     TRY_STATUS_PROMISE(promise, check_story_album_id(story_album_id));
   }
@@ -3724,16 +3769,14 @@ void StoryManager::reorder_story_albums(DialogId owner_dialog_id, const vector<S
 }
 
 void StoryManager::delete_story_album(DialogId owner_dialog_id, StoryAlbumId story_album_id, Promise<Unit> &&promise) {
-  TRY_STATUS_PROMISE(promise, td_->dialog_manager_->check_dialog_access(owner_dialog_id, false, AccessRights::Read,
-                                                                        "delete_story_album"));
+  TRY_STATUS_PROMISE(promise, can_manage_story_albums(owner_dialog_id, "delete_story_album"));
   TRY_STATUS_PROMISE(promise, check_story_album_id(story_album_id));
   td_->create_handler<DeleteStoryAlbumQuery>(std::move(promise))->send(owner_dialog_id, story_album_id);
 }
 
 void StoryManager::set_story_album_title(DialogId owner_dialog_id, StoryAlbumId story_album_id, const string &title,
                                          Promise<td_api::object_ptr<td_api::storyAlbum>> &&promise) {
-  TRY_STATUS_PROMISE(promise, td_->dialog_manager_->check_dialog_access(owner_dialog_id, false, AccessRights::Read,
-                                                                        "set_story_album_title"));
+  TRY_STATUS_PROMISE(promise, can_manage_story_albums(owner_dialog_id, "set_story_album_title"));
   TRY_STATUS_PROMISE(promise, check_story_album_id(story_album_id));
   if (title.empty()) {
     return promise.set_error(400, "Story album name must be non-empty");
@@ -3745,10 +3788,10 @@ void StoryManager::set_story_album_title(DialogId owner_dialog_id, StoryAlbumId 
 void StoryManager::add_story_album_stories(DialogId owner_dialog_id, StoryAlbumId story_album_id,
                                            const vector<StoryId> &story_ids,
                                            Promise<td_api::object_ptr<td_api::storyAlbum>> &&promise) {
-  TRY_STATUS_PROMISE(promise, td_->dialog_manager_->check_dialog_access(owner_dialog_id, false, AccessRights::Read,
-                                                                        "add_story_album_stories"));
+  TRY_STATUS_PROMISE(promise, can_manage_story_albums(owner_dialog_id, "add_story_album_stories"));
   TRY_STATUS_PROMISE(promise, check_story_album_id(story_album_id));
   TRY_STATUS_PROMISE(promise, check_story_ids(story_ids, true));
+  update_story_albums(owner_dialog_id, story_ids, story_album_id, true);
   td_->create_handler<UpdateStoryAlbumQuery>(std::move(promise))
       ->send(owner_dialog_id, story_album_id, {}, {}, story_ids, {});
 }
@@ -3756,10 +3799,10 @@ void StoryManager::add_story_album_stories(DialogId owner_dialog_id, StoryAlbumI
 void StoryManager::remove_story_album_stories(DialogId owner_dialog_id, StoryAlbumId story_album_id,
                                               const vector<StoryId> &story_ids,
                                               Promise<td_api::object_ptr<td_api::storyAlbum>> &&promise) {
-  TRY_STATUS_PROMISE(promise, td_->dialog_manager_->check_dialog_access(owner_dialog_id, false, AccessRights::Read,
-                                                                        "remove_story_album_stories"));
+  TRY_STATUS_PROMISE(promise, can_manage_story_albums(owner_dialog_id, "remove_story_album_stories"));
   TRY_STATUS_PROMISE(promise, check_story_album_id(story_album_id));
   TRY_STATUS_PROMISE(promise, check_story_ids(story_ids, true));
+  update_story_albums(owner_dialog_id, story_ids, story_album_id, false);
   td_->create_handler<UpdateStoryAlbumQuery>(std::move(promise))
       ->send(owner_dialog_id, story_album_id, {}, story_ids, {}, {});
 }
@@ -3767,8 +3810,7 @@ void StoryManager::remove_story_album_stories(DialogId owner_dialog_id, StoryAlb
 void StoryManager::reorder_story_album_stories(DialogId owner_dialog_id, StoryAlbumId story_album_id,
                                                const vector<StoryId> &story_ids,
                                                Promise<td_api::object_ptr<td_api::storyAlbum>> &&promise) {
-  TRY_STATUS_PROMISE(promise, td_->dialog_manager_->check_dialog_access(owner_dialog_id, false, AccessRights::Read,
-                                                                        "remove_story_album_stories"));
+  TRY_STATUS_PROMISE(promise, can_manage_story_albums(owner_dialog_id, "remove_story_album_stories"));
   TRY_STATUS_PROMISE(promise, check_story_album_id(story_album_id));
   TRY_STATUS_PROMISE(promise, check_story_ids(story_ids, true));
   td_->create_handler<UpdateStoryAlbumQuery>(std::move(promise))
@@ -3870,6 +3912,7 @@ FileSourceId StoryManager::get_story_album_file_source_id(StoryAlbumFullId story
 }
 
 void StoryManager::register_story_album(StoryAlbumFullId story_album_full_id, const StoryAlbum &story_album) {
+  CHECK(story_album.is_valid());
   auto new_file_ids = story_album.get_file_ids(td_);
   auto old_file_ids = story_album_file_ids_.get(story_album_full_id);
   if (new_file_ids == old_file_ids) {
@@ -4317,6 +4360,7 @@ StoryId StoryManager::on_get_new_story(DialogId owner_dialog_id,
       }
       return false;
     });
+    std::sort(album_ids.begin(), album_ids.end());
     if (story->album_ids_ != album_ids) {
       story->album_ids_ = std::move(album_ids);
       is_changed = true;
@@ -5256,9 +5300,10 @@ StoryListId StoryManager::get_dialog_story_list_id(DialogId owner_dialog_id) con
   }
 }
 
-void StoryManager::on_dialog_active_stories_order_updated(DialogId owner_dialog_id, const char *source) {
+void StoryManager::on_dialog_active_stories_order_updated(DialogId owner_dialog_id, const char *source, bool force) {
   // called from update_user/on_channel_status_changed, must not create the dialog and hence must not load active stories
-  auto active_stories = get_active_stories_editable(owner_dialog_id);
+  auto active_stories =
+      force ? get_active_stories_force(owner_dialog_id, source) : get_active_stories_editable(owner_dialog_id);
   bool need_save_to_database = false;
   if (active_stories != nullptr &&
       update_active_stories_order(owner_dialog_id, active_stories, &need_save_to_database)) {

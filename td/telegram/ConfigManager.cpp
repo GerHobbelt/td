@@ -6,6 +6,8 @@
 //
 #include "td/telegram/ConfigManager.h"
 
+#include "td/telegram/AccountManager.h"
+#include "td/telegram/AgeVerificationParameters.h"
 #include "td/telegram/AuthManager.h"
 #include "td/telegram/ConnectionState.h"
 #include "td/telegram/Global.h"
@@ -1356,6 +1358,10 @@ void ConfigManager::process_app_config(tl_object_ptr<telegram_api::JSONValue> &c
   int32 freeze_until_date = 0;
   string freeze_appeal_url;
   bool can_accept_calls = true;
+  bool need_age_video_verification = false;
+  string verify_age_bot_username;
+  string verify_age_country;
+  int32 verify_age_min = 0;
 
   static const FlatHashMap<Slice, Slice, SliceHash> integer_keys = {
       {"authorization_autoconfirm_period", ""},
@@ -1401,7 +1407,7 @@ void ConfigManager::process_app_config(tl_object_ptr<telegram_api::JSONValue> &c
       {"ringtone_duration_max", "notification_sound_duration_max"},
       {"ringtone_saved_count_max", "notification_sound_count_max"},
       {"ringtone_size_max", "notification_sound_size_max"},
-      {"stargifts_collection_gifts_limit", "gift_collection_gift_count_max"},
+      {"stargifts_collection_gifts_limit", "gift_collection_size_max"},
       {"stargifts_collections_limit", "gift_collection_count_max"},
       {"stargifts_convert_period_max", "gift_sell_period"},
       {"stargifts_message_length_max", "gift_text_length_max"},
@@ -1429,7 +1435,7 @@ void ConfigManager::process_app_config(tl_object_ptr<telegram_api::JSONValue> &c
       {"stars_usd_withdraw_rate_x1000", "thousand_star_to_usd_rate"},
       {"stickers_premium_by_emoji_num", ""},
       {"stickers_normal_by_emoji_per_premium_num", ""},
-      {"stories_album_stories_limit", "story_album_story_count_max"},
+      {"stories_album_stories_limit", "story_album_size_max"},
       {"stories_albums_limit", "story_album_count_max"},
       {"stories_area_url_max", "story_link_area_count_max"},
       {"stories_pinned_to_top_count_max", "pinned_story_count_max"},
@@ -1456,7 +1462,8 @@ void ConfigManager::process_app_config(tl_object_ptr<telegram_api::JSONValue> &c
        "upload_max_fileparts_default", "upload_max_fileparts_premium", "channel_color_level_min",
        "groupcall_video_participants_max", "story_expire_period", "stories_posting",
        "giveaway_gifts_purchase_available", "stars_purchase_blocked", "stargifts_blocked", "starref_program_allowed",
-       "starref_connect_allowed", "qr_login_camera", "qr_login_code", "dialog_filters_enabled",
+       "starref_connect_allowed", "stars_rating_learnmore_url", "qr_login_camera", "qr_login_code",
+       "dialog_filters_enabled",
        //
        "dialog_filters_tooltip"});
   if (config->get_id() == telegram_api::jsonObject::ID) {
@@ -1940,8 +1947,20 @@ void ConfigManager::process_app_config(tl_object_ptr<telegram_api::JSONValue> &c
         G()->set_option_string("toncoin_top_up_url", get_json_value_string(std::move(key_value->value_), key));
         continue;
       }
-      if (key == "stars_rating_learnmore_url") {
-        G()->set_option_string("user_rating_learn_more_url", get_json_value_string(std::move(key_value->value_), key));
+      if (key == "need_age_video_verification") {
+        need_age_video_verification = get_json_value_bool(std::move(key_value->value_), key);
+        continue;
+      }
+      if (key == "verify_age_bot_username") {
+        verify_age_bot_username = get_json_value_string(std::move(key_value->value_), key);
+        continue;
+      }
+      if (key == "verify_age_country") {
+        verify_age_country = get_json_value_string(std::move(key_value->value_), key);
+        continue;
+      }
+      if (key == "verify_age_min") {
+        verify_age_min = get_json_value_int(std::move(key_value->value_), key);
         continue;
       }
 
@@ -1961,6 +1980,10 @@ void ConfigManager::process_app_config(tl_object_ptr<telegram_api::JSONValue> &c
 
   send_closure(G()->user_manager(), &UserManager::on_update_freeze_state, freeze_since_date, freeze_until_date,
                std::move(freeze_appeal_url));
+
+  send_closure(G()->account_manager(), &AccountManager::on_update_age_verification_parameters,
+               AgeVerificationParameters(need_age_video_verification, std::move(verify_age_bot_username),
+                                         std::move(verify_age_country), verify_age_min));
 
   Global &options = *G();
 

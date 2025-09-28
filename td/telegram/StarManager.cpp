@@ -488,7 +488,14 @@ class GetStarsTransactionsQuery final : public Td::ResultHandler {
                       }
                     }
                   } else {
-                    if (for_user || for_bot) {
+                    if (transaction->stargift_prepaid_upgrade_) {
+                      if (for_user) {
+                        transaction->stargift_prepaid_upgrade_ = false;
+                        product_info = nullptr;
+                        return td_api::make_object<td_api::starTransactionTypeGiftUpgradePurchase>(
+                            td_api::make_object<td_api::messageSenderUser>(user_id_object), gift.get_gift_object(td_));
+                      }
+                    } else if (for_user || for_bot) {
                       product_info = nullptr;
                       return td_api::make_object<td_api::starTransactionTypeGiftPurchase>(
                           get_message_sender_object(td_, user_id, DialogId(), "starTransactionTypeGiftPurchase"),
@@ -499,9 +506,13 @@ class GetStarsTransactionsQuery final : public Td::ResultHandler {
                   if (gift.is_unique()) {
                     if (transaction->stargift_resale_) {
                       if (for_user && affiliate != nullptr) {
-                        transaction->stargift_resale_ = false;
+                        SCOPE_EXIT {
+                          affiliate = nullptr;
+                          transaction->stargift_resale_ = false;
+                        };
                         return td_api::make_object<td_api::starTransactionTypeUpgradedGiftSale>(
-                            user_id_object, gift.get_upgraded_gift_object(td_), std::move(affiliate));
+                            user_id_object, gift.get_upgraded_gift_object(td_), affiliate->commission_per_mille_,
+                            std::move(affiliate->star_amount_));
                       }
                     } else {
                       LOG(ERROR) << "Receive sale of an upgraded gift";
@@ -629,7 +640,7 @@ class GetStarsTransactionsQuery final : public Td::ResultHandler {
               td_->star_gift_manager_->on_get_star_gift(gift, true);
               if (is_purchase) {
                 if (gift.is_unique()) {
-                  if (!transaction->stargift_upgrade_) {
+                  if (!transaction->stargift_upgrade_ && !transaction->stargift_resale_) {
                     if (for_user) {
                       return td_api::make_object<td_api::starTransactionTypeGiftTransfer>(
                           get_message_sender_object(td_, UserId(), dialog_id, "starTransactionTypeGiftTransfer"),
@@ -637,7 +648,15 @@ class GetStarsTransactionsQuery final : public Td::ResultHandler {
                     }
                   }
                 } else {
-                  if (for_user || for_bot) {
+                  if (transaction->stargift_prepaid_upgrade_) {
+                    if (for_user) {
+                      transaction->stargift_prepaid_upgrade_ = false;
+                      product_info = nullptr;
+                      return td_api::make_object<td_api::starTransactionTypeGiftUpgradePurchase>(
+                          get_message_sender_object(td_, UserId(), dialog_id, "starTransactionTypeGiftUpgradePurchase"),
+                          gift.get_gift_object(td_));
+                    }
+                  } else if (for_user || for_bot) {
                     product_info = nullptr;
                     return td_api::make_object<td_api::starTransactionTypeGiftPurchase>(
                         get_message_sender_object(td_, UserId(), dialog_id, "starTransactionTypeGiftPurchase"),
@@ -832,6 +851,36 @@ class GetTonTransactionsQuery final : public Td::ResultHandler {
               auto chat_id =
                   td_->dialog_manager_->get_chat_id_object(dialog_id, "tonTransactionTypeSuggestedPostPayment");
               return td_api::make_object<td_api::tonTransactionTypeSuggestedPostPayment>(chat_id);
+            }
+            if (transaction->stargift_resale_ && transaction->stargift_ != nullptr &&
+                dialog_id.get_type() == DialogType::User) {
+              auto gift = StarGift(td_, std::move(transaction->stargift_), true);
+              transaction->stargift_ = nullptr;
+              transaction->stargift_resale_ = false;
+              if (!gift.is_valid() || !gift.is_unique()) {
+                return nullptr;
+              }
+              td_->star_gift_manager_->on_get_star_gift(gift, true);
+              auto user_id_object =
+                  td_->user_manager_->get_user_id_object(dialog_id.get_user_id(), "starsTransactionPeer");
+              if (is_purchase) {
+                return td_api::make_object<td_api::tonTransactionTypeUpgradedGiftPurchase>(
+                    user_id_object, gift.get_upgraded_gift_object(td_));
+              } else if (transaction->starref_commission_permille_ > 0 &&
+                         transaction->starref_commission_permille_ < 1000 &&
+                         transaction->starref_amount_->get_id() == telegram_api::starsTonAmount::ID) {
+                SCOPE_EXIT {
+                  transaction->starref_peer_ = nullptr;  // ignore
+                  transaction->starref_commission_permille_ = 0;
+                  transaction->starref_amount_ = nullptr;
+                };
+                return td_api::make_object<td_api::tonTransactionTypeUpgradedGiftSale>(
+                    user_id_object, gift.get_upgraded_gift_object(td_), transaction->starref_commission_permille_,
+                    TonAmount(telegram_api::move_object_as<telegram_api::starsTonAmount>(transaction->starref_amount_),
+                              true)
+                        .get_ton_amount());
+              }
+              return nullptr;
             }
             return nullptr;
           }
@@ -1698,6 +1747,9 @@ string StarManager::get_unused_star_transaction_field(
   }
   if (transaction->posts_search_) {
     return "post search";
+  }
+  if (transaction->stargift_prepaid_upgrade_) {
+    return "prepaid gift upgrade";
   }
   return string();
 }

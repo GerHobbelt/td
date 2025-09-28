@@ -323,6 +323,9 @@ class StoryManager final : public Actor {
   void get_story_album_stories(DialogId owner_dialog_id, StoryAlbumId story_album_id, int32 offset, int32 limit,
                                Promise<td_api::object_ptr<td_api::stories>> &&promise);
 
+  void update_story_albums(DialogId owner_dialog_id, const vector<StoryId> &story_ids, StoryAlbumId story_album_id,
+                           bool is_add);
+
   void create_story_album(DialogId owner_dialog_id, const string &title, const vector<StoryId> &story_ids,
                           Promise<td_api::object_ptr<td_api::storyAlbum>> &&promise);
 
@@ -369,7 +372,7 @@ class StoryManager final : public Actor {
 
   void on_update_dialog_stories_hidden(DialogId owner_dialog_id, bool stories_hidden);
 
-  void on_dialog_active_stories_order_updated(DialogId owner_dialog_id, const char *source);
+  void on_dialog_active_stories_order_updated(DialogId owner_dialog_id, const char *source, bool force = false);
 
   Status can_get_story_viewers(StoryFullId story_full_id, const Story *story, int32 unix_time) const;
 
@@ -496,9 +499,11 @@ class StoryManager final : public Actor {
 
   bool can_delete_story(StoryFullId story_full_id, const Story *story) const;
 
-  int32 get_story_viewers_expire_date(const Story *story) const;
-
   static bool is_active_story(const Story *story);
+
+  Status can_manage_story_albums(DialogId owner_dialog_id, const char *source) const;
+
+  int32 get_story_viewers_expire_date(const Story *story) const;
 
   DialogId get_changelog_story_dialog_id() const;
 

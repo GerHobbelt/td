@@ -3133,6 +3133,13 @@ class CliClient final : public Actor {
       get_args(args, received_gift_id, keep_original_details, star_count);
       send_request(td_api::make_object<td_api::upgradeGift>(business_connection_id_, received_gift_id,
                                                             keep_original_details, star_count));
+    } else if (op == "bgu") {
+      string owner_id;
+      int64 star_count;
+      string upgrade_gift_hash;
+      get_args(args, owner_id, star_count, upgrade_gift_hash);
+      send_request(
+          td_api::make_object<td_api::buyGiftUpgrade>(as_message_sender(owner_id), upgrade_gift_hash, star_count));
     } else if (op == "tg") {
       string received_gift_id;
       string new_owner_id;
@@ -3153,13 +3160,15 @@ class CliClient final : public Actor {
       bool exclude_unsaved;
       bool exclude_saved;
       bool exclude_unlimited;
-      bool exclude_limited;
+      bool exclude_upgradable;
+      bool exclude_non_upgradable;
       bool exclude_upgraded;
-      get_args(args, owner_id, limit, offset, exclude_unsaved, exclude_saved, exclude_unlimited, exclude_limited,
-               exclude_upgraded);
+      get_args(args, owner_id, limit, offset, exclude_unsaved, exclude_saved, exclude_unlimited, exclude_upgradable,
+               exclude_non_upgradable, exclude_upgraded);
       send_request(td_api::make_object<td_api::getReceivedGifts>(
           business_connection_id_, as_message_sender(owner_id), gift_collection_id_, exclude_unsaved, exclude_saved,
-          exclude_unlimited, exclude_limited, exclude_upgraded, op == "grgsp", offset, limit));
+          exclude_unlimited, exclude_upgradable, exclude_non_upgradable, exclude_upgraded, op == "grgsp", offset,
+          limit));
     } else if (op == "grg") {
       string received_gift_id;
       get_args(args, received_gift_id);
@@ -3168,6 +3177,10 @@ class CliClient final : public Actor {
       string name;
       get_args(args, name);
       send_request(td_api::make_object<td_api::getUpgradedGift>(name));
+    } else if (op == "gugvi") {
+      string name;
+      get_args(args, name);
+      send_request(td_api::make_object<td_api::getUpgradedGiftValueInfo>(name));
     } else if (op == "sgrp") {
       string received_gift_id;
       GiftResalePrice price;
@@ -3222,13 +3235,13 @@ class CliClient final : public Actor {
       get_args(args, owner_id, received_gift_ids);
       send_request(td_api::make_object<td_api::removeGiftCollectionGifts>(
           as_message_sender(owner_id), gift_collection_id_, autosplit_str(received_gift_ids)));
-    } else if (op == "ogicg") {
+    } else if (op == "rogicg") {
       string owner_id;
       string received_gift_ids;
       get_args(args, owner_id, received_gift_ids);
       send_request(td_api::make_object<td_api::reorderGiftCollectionGifts>(
           as_message_sender(owner_id), gift_collection_id_, autosplit_str(received_gift_ids)));
-    } else if (op == "rgics") {
+    } else if (op == "rogic") {
       string owner_id;
       string collection_ids;
       get_args(args, owner_id, collection_ids);

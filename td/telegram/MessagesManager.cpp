@@ -2425,6 +2425,7 @@ void MessagesManager::Message::store(StorerT &storer) const {
     STORE_FLAG(is_paid_suggested_post_ton);
     END_STORE_FLAGS();
   }
+  // update MessageDb::get_message_info when flags5 is added
 
   store(message_id, storer);
   if (has_sender) {
@@ -5949,6 +5950,9 @@ ChatReactions MessagesManager::get_active_reactions(const ChatReactions &availab
 
 ChatReactions MessagesManager::get_dialog_active_reactions(const Dialog *d) const {
   CHECK(d != nullptr);
+  if (need_hide_dialog_reactions(d)) {
+    return {};
+  }
   switch (d->dialog_id.get_type()) {
     case DialogType::User:
       return ChatReactions(true, true);
@@ -14864,7 +14868,7 @@ MessagesManager::ReportDialogFromActionBar MessagesManager::report_dialog_from_a
   return result;
 }
 
-Status MessagesManager::can_get_media_timestamp_link(DialogId dialog_id, const Message *m) {
+Status MessagesManager::can_get_media_timestamp_link(DialogId dialog_id, const Message *m) const {
   if (m == nullptr) {
     return Status::Error(400, "Message not found");
   }
@@ -14879,7 +14883,14 @@ Status MessagesManager::can_get_media_timestamp_link(DialogId dialog_id, const M
     if (!origin_message_id.is_server()) {
       return Status::Error(400, "Message links are available only for messages in supergroups and channel chats");
     }
+    auto origin_dialog_id = origin_message_full_id.get_dialog_id();
+    if (td_->dialog_manager_->is_monoforum_channel(origin_dialog_id)) {
+      return Status::Error(400, "Message links aren't available for messages in channel direct messages chats");
+    }
     return Status::OK();
+  }
+  if (td_->dialog_manager_->is_monoforum_channel(dialog_id)) {
+    return Status::Error(400, "Message links aren't available for messages in channel direct messages chats");
   }
 
   if (m->message_id.is_yet_unsent()) {
@@ -19824,9 +19835,8 @@ td_api::object_ptr<td_api::message> MessagesManager::get_dialog_event_log_messag
       m->is_paid_suggested_post_stars, m->is_paid_suggested_post_ton, false, m->date, edit_date,
       std::move(forward_info), std::move(import_info), std::move(interaction_info), Auto(), nullptr, nullptr,
       std::move(reply_to), 0, nullptr, nullptr, 0.0, 0.0, via_bot_user_id, 0, m->sender_boost_count,
-      m->paid_message_star_count, m->author_signature, 0, 0,
-      get_restriction_reason_has_sensitive_content(m->restriction_reasons),
-      get_restriction_reason_description(m->restriction_reasons), std::move(content), std::move(reply_markup));
+      m->paid_message_star_count, m->author_signature, 0, 0, get_restriction_info_object(m->restriction_reasons),
+      std::move(content), std::move(reply_markup));
 }
 
 td_api::object_ptr<td_api::businessMessage> MessagesManager::get_business_message_object(
@@ -19894,8 +19904,8 @@ td_api::object_ptr<td_api::message> MessagesManager::get_business_message_messag
       m->date, m->edit_date, std::move(forward_info), std::move(import_info), nullptr, Auto(), nullptr, nullptr,
       std::move(reply_to), 0, nullptr, std::move(self_destruct_type), 0.0, 0.0, via_bot_user_id,
       via_business_bot_user_id, m->sender_boost_count, m->paid_message_star_count, string(), m->media_album_id,
-      m->effect_id.get(), get_restriction_reason_has_sensitive_content(m->restriction_reasons),
-      get_restriction_reason_description(m->restriction_reasons), std::move(content), std::move(reply_markup));
+      m->effect_id.get(), get_restriction_info_object(m->restriction_reasons), std::move(content),
+      std::move(reply_markup));
 }
 
 td_api::object_ptr<td_api::message> MessagesManager::get_message_object(Dialog *d, MessageId message_id,
@@ -19993,13 +20003,16 @@ td_api::object_ptr<td_api::message> MessagesManager::get_message_object(DialogId
       std::move(suggested_post), std::move(reply_to), top_thread_message_id, topic.get_message_topic_object(td_),
       std::move(self_destruct_type), ttl_expires_in, auto_delete_in, via_bot_user_id, via_business_bot_user_id,
       m->sender_boost_count, m->paid_message_star_count, m->author_signature, m->media_album_id, m->effect_id.get(),
-      get_restriction_reason_has_sensitive_content(m->restriction_reasons),
-      get_restriction_reason_description(m->restriction_reasons), std::move(content), std::move(reply_markup));
+      get_restriction_info_object(m->restriction_reasons), std::move(content), std::move(reply_markup));
 }
 
 td_api::object_ptr<td_api::messages> MessagesManager::get_messages_object(int32 total_count, DialogId dialog_id,
                                                                           const vector<MessageId> &message_ids,
                                                                           bool skip_not_found, const char *source) {
+  if (message_ids.empty()) {
+    // if list of messages is empty, then chat may not exist
+    return get_messages_object(total_count, {}, skip_not_found);
+  }
   Dialog *d = get_dialog(dialog_id);
   CHECK(d != nullptr);
   auto message_objects = transform(
@@ -26317,6 +26330,8 @@ void MessagesManager::send_update_new_chat(Dialog *d, const char *source) {
   bool has_background = chat_object->background_ != nullptr;
   bool has_theme = !chat_object->theme_name_.empty();
   d->last_sent_has_scheduled_messages = chat_object->has_scheduled_messages_;
+  d->last_need_hide_dialog_draft_message = need_hide_dialog_draft_message(d);
+  d->last_need_hide_reactions = need_hide_dialog_reactions(d);
   send_closure(G()->td(), &Td::send_update, td_api::make_object<td_api::updateNewChat>(std::move(chat_object)));
   d->is_update_new_chat_sent = true;
   d->is_update_new_chat_being_sent = false;
@@ -26651,13 +26666,33 @@ void MessagesManager::send_update_chat_business_bot_manage_bar(Dialog *d) {
           get_chat_id_object(d->dialog_id, "updateChatBusinessBotManageBar"), get_business_bot_manage_bar_object(d)));
 }
 
-void MessagesManager::send_update_chat_available_reactions(const Dialog *d) {
+bool MessagesManager::need_hide_dialog_reactions(const Dialog *d) const {
+  switch (d->dialog_id.get_type()) {
+    case DialogType::User:
+      return false;
+    case DialogType::Chat:
+      return td_->chat_manager_->get_chat_permissions(d->dialog_id.get_chat_id()).is_banned();
+    case DialogType::Channel:
+      return td_->chat_manager_->get_channel_permissions(d->dialog_id.get_channel_id()).is_banned();
+    case DialogType::SecretChat:
+      return false;
+    default:
+      UNREACHABLE();
+      return false;
+  }
+}
+
+void MessagesManager::send_update_chat_available_reactions(Dialog *d) {
   CHECK(d != nullptr);
   LOG_CHECK(d->is_update_new_chat_sent) << "Wrong " << d->dialog_id << " in send_update_chat_available_reactions";
-  auto available_reactions = get_dialog_active_reactions(d).get_chat_available_reactions_object(td_);
-  send_closure(G()->td(), &Td::send_update,
-               td_api::make_object<td_api::updateChatAvailableReactions>(
-                   get_chat_id_object(d->dialog_id, "updateChatAvailableReactions"), std::move(available_reactions)));
+  auto need_hide = need_hide_dialog_reactions(d);
+  if (!need_hide || !d->last_need_hide_reactions) {
+    d->last_need_hide_reactions = need_hide;
+    auto available_reactions = get_dialog_active_reactions(d).get_chat_available_reactions_object(td_);
+    send_closure(G()->td(), &Td::send_update,
+                 td_api::make_object<td_api::updateChatAvailableReactions>(
+                     get_chat_id_object(d->dialog_id, "updateChatAvailableReactions"), std::move(available_reactions)));
+  }
 }
 
 void MessagesManager::send_update_secret_chats_with_user_background(const Dialog *d) const {
@@ -28632,6 +28667,9 @@ void MessagesManager::on_dialog_access_updated(DialogId dialog_id) {
   if (d != nullptr && d->is_update_new_chat_sent) {
     if (d->draft_message != nullptr && d->last_need_hide_dialog_draft_message != need_hide_dialog_draft_message(d)) {
       send_update_chat_draft_message(d);
+    }
+    if (!d->available_reactions.empty() && d->last_need_hide_reactions != need_hide_dialog_reactions(d)) {
+      send_update_chat_available_reactions(d);
     }
   }
 }

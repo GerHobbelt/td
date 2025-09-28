@@ -221,7 +221,8 @@ void TopDialogManager::on_dialog_used(TopDialogCategory category, DialogId dialo
     it = next;
   }
 
-  LOG(INFO) << "Update " << get_top_dialog_category_name(category) << " rating of " << dialog_id << " by " << delta;
+  LOG(INFO) << "Update " << get_top_dialog_category_name(category) << " rating of " << dialog_id << " by " << delta
+            << " to " << it->rating;
 
   if (old_need_dialog_stories != need_dialog_stories(category, dialog_id, it->rating)) {
     on_need_dialog_stories_changed(dialog_id);
@@ -260,6 +261,7 @@ void TopDialogManager::remove_dialog(TopDialogCategory category, DialogId dialog
     return promise.set_value(Unit());
   }
 
+  bool old_need_dialog_stories = need_dialog_stories(category, dialog_id, it->rating);
   top_dialogs.is_dirty = true;
   top_dialogs.dialogs.erase(it);
   if (!first_unsync_change_) {
@@ -267,6 +269,10 @@ void TopDialogManager::remove_dialog(TopDialogCategory category, DialogId dialog
   }
   loop();
   promise.set_value(Unit());
+
+  if (old_need_dialog_stories) {
+    on_need_dialog_stories_changed(dialog_id);
+  }
 }
 
 void TopDialogManager::get_top_dialogs(TopDialogCategory category, int32 limit,
@@ -397,7 +403,7 @@ bool TopDialogManager::need_dialog_stories(TopDialogCategory category, DialogId 
 
 void TopDialogManager::on_need_dialog_stories_changed(DialogId dialog_id) {
   send_closure_later(td_->story_manager_actor_, &StoryManager::on_dialog_active_stories_order_updated, dialog_id,
-                     "on_need_dialog_stories_changed");
+                     "on_need_dialog_stories_changed", true);
 }
 
 void TopDialogManager::do_get_top_dialogs(GetTopDialogsQuery &&query) {
