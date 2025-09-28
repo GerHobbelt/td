@@ -8963,9 +8963,6 @@ unique_ptr<MessageContent> get_action_message_content(Td *td, tl_object_ptr<tele
     }
     case telegram_api::messageActionSetChatTheme::ID: {
       auto action = telegram_api::move_object_as<telegram_api::messageActionSetChatTheme>(action_ptr);
-      if (action->theme_->get_id() != telegram_api::chatTheme::ID) {
-        return td::make_unique<MessageUnsupported>();
-      }
       return td::make_unique<MessageChatSetTheme>(ChatTheme(td, std::move(action->theme_)));
     }
     case telegram_api::messageActionChatJoinedByRequest::ID:
@@ -9879,11 +9876,24 @@ td_api::object_ptr<td_api::MessageContent> get_message_content_object(
       } else {
         receiver_dialog_id = m->is_upgrade != is_outgoing ? dialog_id : td->dialog_manager_->get_my_dialog_id();
       }
+      auto origin = [&]() -> td_api::object_ptr<td_api::UpgradedGiftOrigin> {
+        if (m->is_prepaid_upgrade) {
+          return td_api::make_object<td_api::upgradedGiftOriginPrepaidUpgrade>();
+        }
+        if (!m->resale_price.is_empty()) {
+          return td_api::make_object<td_api::upgradedGiftOriginResale>(m->resale_price.get_gift_resale_price_object());
+        }
+        if (m->is_upgrade) {
+          return td_api::make_object<td_api::upgradedGiftOriginUpgrade>(m->gift_message_id.get());
+        }
+        return td_api::make_object<td_api::upgradedGiftOriginTransfer>();
+      }();
       if (m->was_refunded) {
         return td_api::make_object<td_api::messageRefundedUpgradedGift>(
             m->star_gift.get_gift_object(td),
             get_message_sender_object(td, sender_dialog_id, "messageRefundedUpgradedGift sender"),
-            get_message_sender_object(td, receiver_dialog_id, "messageRefundedUpgradedGift receiver"), m->is_upgrade);
+            get_message_sender_object(td, receiver_dialog_id, "messageRefundedUpgradedGift receiver"),
+            std::move(origin));
       }
       StarGiftId star_gift_id;
       if (m->owner_dialog_id != DialogId() &&
@@ -9897,18 +9907,6 @@ td_api::object_ptr<td_api::MessageContent> get_message_content_object(
           star_gift_id = StarGiftId(message_id.get_server_message_id());
         }
       }
-      auto origin = [&]() -> td_api::object_ptr<td_api::UpgradedGiftOrigin> {
-        if (m->is_prepaid_upgrade) {
-          return td_api::make_object<td_api::upgradedGiftOriginPrepaidUpgrade>();
-        }
-        if (!m->resale_price.is_empty()) {
-          return td_api::make_object<td_api::upgradedGiftOriginResale>(m->resale_price.get_gift_resale_price_object());
-        }
-        if (m->is_upgrade) {
-          return td_api::make_object<td_api::upgradedGiftOriginUpgrade>(m->gift_message_id.get());
-        }
-        return td_api::make_object<td_api::upgradedGiftOriginTransfer>();
-      }();
       return td_api::make_object<td_api::messageUpgradedGift>(
           m->star_gift.get_upgraded_gift_object(td),
           sender_dialog_id == DialogId(UserManager::get_service_notifications_user_id())

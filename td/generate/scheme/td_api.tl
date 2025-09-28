@@ -1907,13 +1907,13 @@ botInfo short_description:string description:string photo:photo animation:animat
 //@gift_settings Settings for gift receiving for the user
 //@bot_verification Information about verification status of the user provided by a bot; may be null if none or unknown
 //@main_profile_tab The main tab chosen by the user; may be null if not chosen manually
-//@first_saved_music The first music file saved to the user's profile; may be null if none
+//@first_profile_audio The first audio file added to the user's profile; may be null if none
 //@rating The current rating of the user; may be null if none
 //@pending_rating The rating of the user after the next change; may be null if the user isn't the current user or there are no pending rating changes
 //@pending_rating_date Unix timestamp when rating of the user will change to pending_rating; 0 if the user isn't the current user or there are no pending rating changes
 //@business_info Information about business settings for Telegram Business accounts; may be null if none
 //@bot_info For bots, information about the bot; may be null if the user isn't a bot
-userFullInfo personal_photo:chatPhoto photo:chatPhoto public_photo:chatPhoto block_list:BlockList can_be_called:Bool supports_video_calls:Bool has_private_calls:Bool has_private_forwards:Bool has_restricted_voice_and_video_note_messages:Bool has_posted_to_profile_stories:Bool has_sponsored_messages_enabled:Bool need_phone_number_privacy_exception:Bool set_chat_background:Bool bio:formattedText birthdate:birthdate personal_chat_id:int53 gift_count:int32 group_in_common_count:int32 incoming_paid_message_star_count:int53 outgoing_paid_message_star_count:int53 gift_settings:giftSettings bot_verification:botVerification main_profile_tab:ProfileTab first_saved_music:audio rating:userRating pending_rating:userRating pending_rating_date:int32 business_info:businessInfo bot_info:botInfo = UserFullInfo;
+userFullInfo personal_photo:chatPhoto photo:chatPhoto public_photo:chatPhoto block_list:BlockList can_be_called:Bool supports_video_calls:Bool has_private_calls:Bool has_private_forwards:Bool has_restricted_voice_and_video_note_messages:Bool has_posted_to_profile_stories:Bool has_sponsored_messages_enabled:Bool need_phone_number_privacy_exception:Bool set_chat_background:Bool bio:formattedText birthdate:birthdate personal_chat_id:int53 gift_count:int32 group_in_common_count:int32 incoming_paid_message_star_count:int53 outgoing_paid_message_star_count:int53 gift_settings:giftSettings bot_verification:botVerification main_profile_tab:ProfileTab first_profile_audio:audio rating:userRating pending_rating:userRating pending_rating_date:int32 business_info:businessInfo bot_info:botInfo = UserFullInfo;
 
 //@description Represents a list of users @total_count Approximate total number of users found @user_ids A list of user identifiers
 users total_count:int32 user_ids:vector<int53> = Users;
@@ -2961,7 +2961,7 @@ videoChat group_call_id:int32 has_participants:Bool default_participant_id:Messa
 //@message_auto_delete_time Current message auto-delete or self-destruct timer setting for the chat, in seconds; 0 if disabled. Self-destruct timer in secret chats starts after the message or its content is viewed. Auto-delete timer in other chats starts from the send date
 //@emoji_status Emoji status to be shown along with chat title; may be null
 //@background Background set for the chat; may be null if none
-//@theme Theme set fot the chat; may be null if none
+//@theme Theme set for the chat; may be null if none
 //@action_bar Information about actions which must be possible to do through the chat action bar; may be null if none
 //@business_bot_manage_bar Information about bar for managing a business bot in the chat; may be null if none
 //@video_chat Information about video chat of the chat
@@ -3323,13 +3323,32 @@ sharedUser user_id:int53 first_name:string last_name:string username:string phot
 sharedChat chat_id:int53 title:string username:string photo:photo = SharedChat;
 
 
+//@class BuiltInTheme @description Describes a built-in theme of an official app
+
+//@description Classic light theme
+builtInThemeClassic = BuiltInTheme;
+
+//@description Regular light theme
+builtInThemeDay = BuiltInTheme;
+
+//@description Regular dark theme
+builtInThemeNight = BuiltInTheme;
+
+//@description Tinted dark theme
+builtInThemeTinted = BuiltInTheme;
+
+//@description Arctic light theme
+builtInThemeArctic = BuiltInTheme;
+
+
 //@description Describes theme settings
+//@base_theme Base theme for this theme
 //@accent_color Theme accent color in ARGB format
 //@background The background to be used in chats; may be null
-//@outgoing_message_fill The fill to be used as a background for outgoing messages
+//@outgoing_message_fill The fill to be used as a background for outgoing messages; may be null if the fill from the base theme must be used instead
 //@animate_outgoing_message_fill If true, the freeform gradient fill needs to be animated on every sent message
 //@outgoing_message_accent_color Accent color of outgoing messages in ARGB format
-themeSettings accent_color:int32 background:background outgoing_message_fill:BackgroundFill animate_outgoing_message_fill:Bool outgoing_message_accent_color:int32 = ThemeSettings;
+themeSettings base_theme:BuiltInTheme accent_color:int32 background:background outgoing_message_fill:BackgroundFill animate_outgoing_message_fill:Bool outgoing_message_accent_color:int32 = ThemeSettings;
 
 
 //@class RichText @description Describes a formatted text object
@@ -4672,8 +4691,8 @@ messageUpgradedGift gift:upgradedGift sender_id:MessageSender receiver_id:Messag
 //@gift The gift
 //@sender_id Sender of the gift
 //@receiver_id Receiver of the gift
-//@is_upgrade True, if the gift was obtained by upgrading of a previously received gift; otherwise, this is a transferred or resold gift
-messageRefundedUpgradedGift gift:gift sender_id:MessageSender receiver_id:MessageSender is_upgrade:Bool = MessageContent;
+//@origin Origin of the upgraded gift
+messageRefundedUpgradedGift gift:gift sender_id:MessageSender receiver_id:MessageSender origin:UpgradedGiftOrigin = MessageContent;
 
 //@description Paid messages were refunded @message_count The number of refunded messages @star_count The number of refunded Telegram Stars
 messagePaidMessagesRefunded message_count:int32 star_count:int53 = MessageContent;
@@ -7209,10 +7228,10 @@ giftChatThemes themes:vector<giftChatTheme> next_offset:string = GiftChatThemes;
 
 //@class ChatTheme @description Describes a chat theme
 
-//@description A theme based on an emoji @name Name of the theme; full theme description is received through updateEmojiChatThemes
+//@description A chat theme based on an emoji @name Name of the theme; full theme description is received through updateEmojiChatThemes
 chatThemeEmoji name:string = ChatTheme;
 
-//@description A theme based on an upgraded gift @gift_theme Description of the theme
+//@description A chat theme based on an upgraded gift @gift_theme The chat theme
 chatThemeGift gift_theme:giftChatTheme = ChatTheme;
 
 
@@ -7347,8 +7366,8 @@ pushMessageContentAudio audio:audio is_pinned:Bool = PushMessageContent;
 //@description A message with a user contact @name Contact's name @is_pinned True, if the message is a pinned message with the specified content
 pushMessageContentContact name:string is_pinned:Bool = PushMessageContent;
 
-//@description A contact has registered with Telegram
-pushMessageContentContactRegistered = PushMessageContent;
+//@description A contact has registered with Telegram @as_premium_account True, if the user joined Telegram as a Telegram Premium account
+pushMessageContentContactRegistered as_premium_account:Bool = PushMessageContent;
 
 //@description A document message (a general file) @document Message content; may be null @is_pinned True, if the message is a pinned message with the specified content
 pushMessageContentDocument document:document is_pinned:Bool = PushMessageContent;
@@ -7392,12 +7411,15 @@ pushMessageContentPremiumGiftCode month_count:int32 = PushMessageContent;
 //@is_pinned True, if the message is a pinned message with the specified content
 pushMessageContentGiveaway winner_count:int32 prize:GiveawayPrize is_pinned:Bool = PushMessageContent;
 
-//@description A message with a gift @star_count Number of Telegram Stars that sender paid for the gift
-pushMessageContentGift star_count:int53 = PushMessageContent;
+//@description A message with a gift
+//@star_count Number of Telegram Stars that sender paid for the gift
+//@is_prepaid_upgrade True, if the message is about prepaid upgrade of the gift by another user instead of actual receiving of a new gift
+pushMessageContentGift star_count:int53 is_prepaid_upgrade:Bool = PushMessageContent;
 
 //@description A message with an upgraded gift
-//@is_upgrade True, if the gift was obtained by upgrading of a previously received gift; otherwise, this is a transferred or resold gift
-pushMessageContentUpgradedGift is_upgrade:Bool = PushMessageContent;
+//@is_upgrade True, if the gift was obtained by upgrading of a previously received gift; otherwise, if is_prepaid_upgrade == false, then this is a transferred or resold gift
+//@is_prepaid_upgrade True, if the message is about completion of prepaid upgrade of the gift instead of actual receiving of a new gift
+pushMessageContentUpgradedGift is_upgrade:Bool is_prepaid_upgrade:Bool = PushMessageContent;
 
 //@description A screenshot of a message in the chat has been taken
 pushMessageContentScreenshotTaken = PushMessageContent;
@@ -7460,8 +7482,8 @@ pushMessageContentChatChangeTitle title:string = PushMessageContent;
 //@description A chat background was edited @is_same True, if the set background is the same as the background of the current user
 pushMessageContentChatSetBackground is_same:Bool = PushMessageContent;
 
-//@description A chat theme was edited @theme_name If non-empty, name of a new theme, set for the chat. Otherwise, the chat theme was reset to the default one
-pushMessageContentChatSetTheme theme_name:string = PushMessageContent;
+//@description A chat theme was edited @name If non-empty, human-readable name of the new theme. Otherwise, the chat theme was reset to the default one
+pushMessageContentChatSetTheme name:string = PushMessageContent;
 
 //@description A chat member was deleted
 //@member_name Name of the deleted member
@@ -8778,7 +8800,7 @@ chatRevenueTransaction cryptocurrency:string cryptocurrency_amount:int64 type:Ch
 chatRevenueTransactions ton_amount:int53 transactions:vector<chatRevenueTransaction> next_offset:string = ChatRevenueTransactions;
 
 
-//@description Contains information about Telegram Stars earned by a bot or a chat
+//@description Contains information about Telegram Stars earned by a user or a chat
 //@total_amount Total amount of Telegram Stars earned
 //@current_amount The amount of Telegram Stars that aren't withdrawn yet
 //@available_amount The amount of Telegram Stars that are available for withdrawal
@@ -8786,11 +8808,24 @@ chatRevenueTransactions ton_amount:int53 transactions:vector<chatRevenueTransact
 //@next_withdrawal_in Time left before the next withdrawal can be started, in seconds; 0 if withdrawal can be started now
 starRevenueStatus total_amount:starAmount current_amount:starAmount available_amount:starAmount withdrawal_enabled:Bool next_withdrawal_in:int32 = StarRevenueStatus;
 
-//@description A detailed statistics about Telegram Stars earned by a bot or a chat
+//@description A detailed statistics about Telegram Stars earned by a user or a chat
 //@revenue_by_day_graph A graph containing amount of revenue in a given day
 //@status Telegram Star revenue status
 //@usd_rate Current conversion rate of a Telegram Star to USD
 starRevenueStatistics revenue_by_day_graph:StatisticalGraph status:starRevenueStatus usd_rate:double = StarRevenueStatistics;
+
+//@description Contains information about Toncoins earned by the current user
+//@total_amount Total amount of Toncoins earned; in the smallest units of the cryptocurrency
+//@balance_amount Amount of Toncoins that aren't withdrawn yet; in the smallest units of the cryptocurrency
+//@available_amount Amount of Toncoins that are available for withdrawal; in the smallest units of the cryptocurrency
+//@withdrawal_enabled True, if Toncoins can be withdrawn
+tonRevenueStatus total_amount:int64 balance_amount:int64 available_amount:int64 withdrawal_enabled:Bool = TonRevenueStatus;
+
+//@description A detailed statistics about Toncoins earned by the current user
+//@revenue_by_day_graph A graph containing amount of revenue in a given day
+//@status Amount of earned revenue
+//@usd_rate Current conversion rate of nanotoncoin to USD cents
+tonRevenueStatistics revenue_by_day_graph:StatisticalGraph status:tonRevenueStatus usd_rate:double = TonRevenueStatistics;
 
 
 //@description A point on a Cartesian plane @x The point's first coordinate @y The point's second coordinate
@@ -9389,10 +9424,14 @@ updateOwnedTonCount ton_amount:int53 = Update;
 //@revenue_amount New amount of earned revenue
 updateChatRevenueAmount chat_id:int53 revenue_amount:chatRevenueAmount = Update;
 
-//@description The Telegram Star revenue earned by a bot or a chat has changed. If Telegram Star transaction screen of the chat is opened, then getStarTransactions may be called to fetch new transactions
+//@description The Telegram Star revenue earned by a user or a chat has changed. If Telegram Star transaction screen of the chat is opened, then getStarTransactions may be called to fetch new transactions
 //@owner_id Identifier of the owner of the Telegram Stars
 //@status New Telegram Star revenue status
 updateStarRevenueStatus owner_id:MessageSender status:starRevenueStatus = Update;
+
+//@description The Toncoin revenue earned by the current user has changed. If Toncoin transaction screen of the chat is opened, then getTonTransactions may be called to fetch new transactions
+//@status New Toncoin revenue status
+updateTonRevenueStatus status:tonRevenueStatus = Update;
 
 //@description The parameters of speech recognition without Telegram Premium subscription has changed
 //@max_media_duration The maximum allowed duration of media for speech recognition without Telegram Premium subscription, in seconds
@@ -12418,19 +12457,26 @@ sharePhoneNumber user_id:int53 = Ok;
 getUserProfilePhotos user_id:int53 offset:int32 limit:int32 = ChatPhotos;
 
 
-//@description Returns the list of saved music files of a user
+//@description Returns the list of profile audio files of a user
 //@user_id User identifier
 //@offset The number of audio files to skip; must be non-negative
 //@limit The maximum number of audio files to be returned; up to 100
-getUserSavedMusic user_id:int53 offset:int32 limit:int32 = Audios;
+getUserProfileAudios user_id:int53 offset:int32 limit:int32 = Audios;
 
-//@description Adds an audio file to the saved music of the current user
-//@file_id Identifier of the audio file to be added. The file must be uploaded to the server
-//@after_file_id Identifier of the file from saved music after which the file will be added; pass 0 to add the audio file in the beginning of the list
-addSavedMusic file_id:int32 after_file_id:int32 = Ok;
+//@description Checks whether a file is in the profile audio files of the current user. Returns a 404 error if it isn't @file_id Identifier of the audio file to check
+isProfileAudio file_id:int32 = Ok;
 
-//@description Removes an audio file from the saved music of the current user @file_id Identifier of the audio file to be removed
-removeSavedMusic file_id:int32 = Ok;
+//@description Adds an audio file to the beginning of the profile audio files of the current user
+//@file_id Identifier of the audio file to be added. The file must have been uploaded to the server
+addProfileAudio file_id:int32 = Ok;
+
+//@description Changes position of an audio file in the profile audio files of the current user
+//@file_id Identifier of the file from profile audio files, which position will be changed
+//@after_file_id Identifier of the file from profile audio files after which the file will be positioned; pass 0 to move the file to the beginning of the list
+setProfileAudioPosition file_id:int32 after_file_id:int32 = Ok;
+
+//@description Removes an audio file from the profile audio files of the current user @file_id Identifier of the audio file to be removed
+removeProfileAudio file_id:int32 = Ok;
 
 
 //@description Returns outline of a sticker. This is an offline method. Returns a 404 error if the outline isn't known
@@ -13456,6 +13502,14 @@ getStarWithdrawalUrl owner_id:MessageSender star_count:int53 password:string = H
 //@description Returns a URL for a Telegram Ad platform account that can be used to set up advertisements for the chat paid in the owned Telegram Stars
 //@owner_id Identifier of the owner of the Telegram Stars; can be identifier of an owned bot, or identifier of an owned channel chat
 getStarAdAccountUrl owner_id:MessageSender = HttpUrl;
+
+//@description Returns detailed Toncoin revenue statistics of the current user @is_dark Pass true if a dark theme is used by the application
+getTonRevenueStatistics is_dark:Bool = TonRevenueStatistics;
+
+//@description Returns a URL for Toncoin withdrawal from the current user's account. The user must have at least 10 toncoins to withdraw
+//-and can withdraw up to 100000 Toncoins in one transaction
+//@password The 2-step verification password of the current user
+getTonWithdrawalUrl password:string = HttpUrl;
 
 
 //@description Returns detailed statistics about a chat. Currently, this method can be used only for supergroups and channels. Can be used only if supergroupFullInfo.can_get_statistics == true @chat_id Chat identifier @is_dark Pass true if a dark theme is used by the application

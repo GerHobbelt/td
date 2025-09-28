@@ -9,6 +9,7 @@
 #include "td/telegram/AuthManager.h"
 #include "td/telegram/BotVerification.h"
 #include "td/telegram/BotVerification.hpp"
+#include "td/telegram/ChatTheme.h"
 #include "td/telegram/Dependencies.h"
 #include "td/telegram/DialogAdministrator.h"
 #include "td/telegram/DialogInviteLink.hpp"
@@ -6192,7 +6193,7 @@ void ChatManager::on_get_chat_participants(tl_object_ptr<telegram_api::ChatParti
 
         LOG_IF(ERROR, !td_->dialog_manager_->have_dialog_info(dialog_participant.dialog_id_))
             << "Have no information about " << dialog_participant.dialog_id_ << " as a member of " << chat_id;
-        LOG_IF(ERROR, !td_->user_manager_->have_user(dialog_participant.inviter_user_id_))
+        LOG_IF(ERROR, !td_->user_manager_->have_min_user(dialog_participant.inviter_user_id_))
             << "Have no information about " << dialog_participant.inviter_user_id_ << " as a member of " << chat_id;
         if (dialog_participant.joined_date_ < c->date) {
           LOG_IF(ERROR, dialog_participant.joined_date_ < c->date - 30 && c->date >= 1486000000)
@@ -6846,11 +6847,11 @@ void ChatManager::on_update_chat_add_user(ChatId chat_id, UserId inviter_user_id
     LOG(ERROR) << "Receive invalid " << chat_id;
     return;
   }
-  if (!td_->user_manager_->have_user(user_id)) {
+  if (!td_->user_manager_->have_min_user(user_id)) {
     LOG(ERROR) << "Can't find " << user_id;
     return;
   }
-  if (!td_->user_manager_->have_user(inviter_user_id)) {
+  if (!td_->user_manager_->have_min_user(inviter_user_id)) {
     LOG(ERROR) << "Can't find " << inviter_user_id;
     return;
   }
@@ -6916,7 +6917,7 @@ void ChatManager::on_update_chat_edit_administrator(ChatId chat_id, UserId user_
     LOG(ERROR) << "Receive invalid " << chat_id;
     return;
   }
-  if (!td_->user_manager_->have_user(user_id)) {
+  if (!td_->user_manager_->have_min_user(user_id)) {
     LOG(ERROR) << "Can't find " << user_id;
     return;
   }
@@ -6985,7 +6986,7 @@ void ChatManager::on_update_chat_delete_user(ChatId chat_id, UserId user_id, int
     LOG(ERROR) << "Receive invalid " << chat_id;
     return;
   }
-  if (!td_->user_manager_->have_user(user_id)) {
+  if (!td_->user_manager_->have_min_user(user_id)) {
     LOG(ERROR) << "Can't find " << user_id;
     return;
   }

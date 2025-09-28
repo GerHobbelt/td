@@ -3851,21 +3851,30 @@ class CliClient final : public Actor {
       string limit;
       get_args(args, user_id, offset, limit);
       send_request(td_api::make_object<td_api::getUserProfilePhotos>(user_id, offset, as_limit(limit)));
-    } else if (op == "gusm") {
+    } else if (op == "gupa") {
       UserId user_id;
       int32 offset;
       string limit;
       get_args(args, user_id, offset, limit);
-      send_request(td_api::make_object<td_api::getUserSavedMusic>(user_id, offset, as_limit(limit)));
-    } else if (op == "asm") {
+      send_request(td_api::make_object<td_api::getUserProfileAudios>(user_id, offset, as_limit(limit)));
+    } else if (op == "ipa") {
+      string file_id;
+      get_args(args, file_id);
+      send_request(td_api::make_object<td_api::isProfileAudio>(as_file_id(file_id)));
+    } else if (op == "apa") {
+      string file_id;
+      get_args(args, file_id);
+      send_request(td_api::make_object<td_api::addProfileAudio>(as_file_id(file_id)));
+    } else if (op == "spap") {
       string file_id;
       string after_file_id;
       get_args(args, file_id, after_file_id);
-      send_request(td_api::make_object<td_api::addSavedMusic>(as_file_id(file_id), as_file_id(after_file_id)));
-    } else if (op == "rsm") {
+      send_request(
+          td_api::make_object<td_api::setProfileAudioPosition>(as_file_id(file_id), as_file_id(after_file_id)));
+    } else if (op == "rpa") {
       string file_id;
       get_args(args, file_id);
-      send_request(td_api::make_object<td_api::removeSavedMusic>(as_file_id(file_id)));
+      send_request(td_api::make_object<td_api::removeProfileAudio>(as_file_id(file_id)));
     } else if (op == "dcrm") {
       ChatId chat_id;
       MessageId message_id;
@@ -7930,7 +7939,7 @@ class CliClient final : public Actor {
       send_request(td_api::make_object<td_api::getStarRevenueStatistics>(as_message_sender(owner_id), is_dark));
     } else if (op == "gswu") {
       string owner_id;
-      int32 star_count;
+      int64 star_count;
       string password;
       get_args(args, owner_id, star_count, password);
       send_request(
@@ -7939,6 +7948,14 @@ class CliClient final : public Actor {
       string owner_id;
       get_args(args, owner_id);
       send_request(td_api::make_object<td_api::getStarAdAccountUrl>(as_message_sender(owner_id)));
+    } else if (op == "gtrs") {
+      bool is_dark;
+      get_args(args, is_dark);
+      send_request(td_api::make_object<td_api::getTonRevenueStatistics>(is_dark));
+    } else if (op == "gtwu") {
+      string password;
+      get_args(args, password);
+      send_request(td_api::make_object<td_api::getTonWithdrawalUrl>(password));
     } else {
       op_not_found_count++;
     }

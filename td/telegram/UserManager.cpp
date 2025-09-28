@@ -24,6 +24,7 @@
 #include "td/telegram/BusinessWorkHours.h"
 #include "td/telegram/ChannelType.h"
 #include "td/telegram/ChatManager.h"
+#include "td/telegram/ChatTheme.h"
 #include "td/telegram/CommonDialogManager.h"
 #include "td/telegram/ConfigManager.h"
 #include "td/telegram/Dependencies.h"
@@ -1578,6 +1579,34 @@ class GetUserSavedMusicByIdQuery final : public Td::ResultHandler {
   }
 };
 
+class GetSavedMusicIdsQuery final : public Td::ResultHandler {
+  Promise<telegram_api::object_ptr<telegram_api::account_SavedMusicIds>> promise_;
+
+ public:
+  explicit GetSavedMusicIdsQuery(Promise<telegram_api::object_ptr<telegram_api::account_SavedMusicIds>> &&promise)
+      : promise_(std::move(promise)) {
+  }
+
+  void send(int64 hash) {
+    send_query(G()->net_query_creator().create(telegram_api::account_getSavedMusicIds(hash)));
+  }
+
+  void on_result(BufferSlice packet) final {
+    auto result_ptr = fetch_result<telegram_api::account_getSavedMusicIds>(packet);
+    if (result_ptr.is_error()) {
+      return on_error(result_ptr.move_as_error());
+    }
+
+    auto ptr = result_ptr.move_as_ok();
+    LOG(INFO) << "Receive result for GetSavedMusicIdsQuery: " << to_string(ptr);
+    promise_.set_value(std::move(ptr));
+  }
+
+  void on_error(Status status) final {
+    promise_.set_error(std::move(status));
+  }
+};
+
 class GetSupportUserQuery final : public Td::ResultHandler {
   Promise<UserId> promise_;
 
@@ -2578,6 +2607,23 @@ void UserManager::tear_down() {
   LOG(DEBUG) << "Have " << users_full_.calc_size() << " full users to free";
 }
 
+void UserManager::start_up() {
+  if (!td_->auth_manager_->is_bot()) {
+    auto my_saved_music_ids_str = G()->td_db()->get_binlog_pmc()->get(get_my_saved_music_ids_database_key());
+    vector<int64> my_saved_music_ids;
+    if (my_saved_music_ids_str.empty() || log_event_parse(my_saved_music_ids, my_saved_music_ids_str).is_error()) {
+      reload_my_saved_music_list(Auto());
+    } else {
+      for (auto saved_music_id : my_saved_music_ids) {
+        if (saved_music_id != 0) {
+          my_saved_music_ids_.insert(saved_music_id);
+        }
+      }
+      are_my_saved_music_ids_inited_ = true;
+    }
+  }
+}
+
 void UserManager::on_user_online_timeout_callback(void *user_manager_ptr, int64 user_id_long) {
   if (G()->close_flag()) {
     return;
@@ -2678,7 +2724,7 @@ vector<UserId> UserManager::get_user_ids(vector<telegram_api::object_ptr<telegra
       continue;
     }
     on_get_user(std::move(user), source);
-    if (have_user(user_id)) {
+    if (have_min_user(user_id)) {
       user_ids.push_back(user_id);
     }
   }
@@ -2879,6 +2925,7 @@ void UserManager::on_get_user(telegram_api::object_ptr<telegram_api::User> &&use
   bool have_access_hash = (flags & telegram_api::user::ACCESS_HASH_MASK) != 0;
   bool is_received = !user->min_;
   bool is_contact = user->contact_;
+  bool is_deleted = user->deleted_;
 
   User *u = get_user(user_id);
   if (u == nullptr) {
@@ -2905,6 +2952,9 @@ void UserManager::on_get_user(telegram_api::object_ptr<telegram_api::User> &&use
     if (unknown_users_.erase(user_id) != 0) {
       u->is_photo_inited = true;
     }
+  } else if (is_deleted && !is_received && user_id == get_my_id()) {
+    LOG(INFO) << "Ignore self as frozen min-user";
+    return;
   }
 
   if (have_access_hash) {  // access_hash must be updated before photo
@@ -2922,7 +2972,6 @@ void UserManager::on_get_user(telegram_api::object_ptr<telegram_api::User> &&use
   bool is_verified = user->verified_;
   bool is_premium = user->premium_;
   bool is_support = user->support_;
-  bool is_deleted = user->deleted_;
   bool can_join_groups = !user->bot_nochats_;
   bool can_read_all_group_messages = user->bot_chat_history_;
   bool can_be_added_to_attach_menu = user->bot_attach_menu_;
@@ -3066,7 +3115,7 @@ void UserManager::on_get_user(telegram_api::object_ptr<telegram_api::User> &&use
   }
 
   bool is_me_regular_user = !td_->auth_manager_->is_bot();
-  if (is_received || u->need_apply_min_photo || !u->is_received) {
+  if (is_received || u->need_apply_min_photo || !u->is_received || u->is_deleted) {
     on_update_user_photo(u, user_id, std::move(user->photo_), source);
   }
   if (is_me_regular_user) {
@@ -3389,7 +3438,7 @@ void UserManager::register_user_photo(User *u, UserId user_id, const Photo &phot
     if (file_source_id.is_valid()) {
       VLOG(file_references)
           << "Forget " << file_source_id << " for photo " << photo_id << " of " << user_id
-          << ", because the photo is immutable, fully received and all its files has already been registered";
+          << ", because the photo is immutable, fully received and all its files have already been registered";
       user_profile_photo_file_source_ids_.erase(std::make_pair(user_id, photo_id));
     } else {
       VLOG(file_references) << "Need to create new file source for photo " << photo_id << " of " << user_id;
@@ -4249,6 +4298,29 @@ void UserManager::on_update_user_full_first_saved_music_file_id(UserFull *user_f
   }
 }
 
+std::pair<int64, int64> UserManager::get_saved_music_document_id(FileId saved_music_file_id, bool from_server) const {
+  auto file_view = td_->file_manager_->get_file_view(saved_music_file_id);
+  if (file_view.empty() || file_view.get_type() != FileType::Audio) {
+    CHECK(!from_server);
+    return {};
+  }
+  const auto *full_remote_location = file_view.get_full_remote_location();
+  if (full_remote_location == nullptr) {
+    if (from_server) {
+      LOG(ERROR) << "Saved music " << saved_music_file_id << " has no remote location";
+    }
+    return {};
+  }
+  if (full_remote_location->is_web()) {
+    if (from_server) {
+      LOG(ERROR) << "Have a web saved music " << saved_music_file_id;
+    }
+    return {};
+  }
+
+  return {full_remote_location->get_id(), full_remote_location->get_access_hash()};
+}
+
 void UserManager::register_user_saved_music(UserId user_id, FileId saved_music_file_id) {
   if (!saved_music_file_id.is_valid() || td_->auth_manager_->is_bot()) {
     return;
@@ -4256,19 +4328,12 @@ void UserManager::register_user_saved_music(UserId user_id, FileId saved_music_f
   auto file_ids = Document{Document::Type::Audio, saved_music_file_id}.get_file_ids(td_);
   CHECK(!file_ids.empty());
 
-  auto file_view = td_->file_manager_->get_file_view(saved_music_file_id);
-  const auto *full_remote_location = file_view.get_full_remote_location();
-  if (full_remote_location == nullptr) {
-    LOG(ERROR) << "Saved music " << saved_music_file_id << " of " << user_id << " has no remote location";
-    return;
-  }
-  if (full_remote_location->is_web()) {
-    LOG(ERROR) << "Have a web saved music " << saved_music_file_id << " of " << user_id;
+  auto document_id = get_saved_music_document_id(saved_music_file_id);
+  if (document_id.first == 0) {
     return;
   }
 
-  auto file_source_id = get_user_saved_music_file_source_id(user_id, full_remote_location->get_id(),
-                                                            full_remote_location->get_access_hash());
+  auto file_source_id = get_user_saved_music_file_source_id(user_id, document_id.first, document_id.second);
   for (auto file_id : file_ids) {
     td_->file_manager_->add_file_source(file_id, file_source_id, "register_user_saved_music");
   }
@@ -4382,7 +4447,7 @@ void UserManager::invalidate_user_full(UserId user_id) {
   }
 }
 
-bool UserManager::have_user(UserId user_id) const {
+bool UserManager::have_accessible_user(UserId user_id) const {
   auto u = get_user(user_id);
   return u != nullptr && u->is_received;
 }
@@ -4729,7 +4794,7 @@ bool UserManager::get_user(UserId user_id, int left_tries, Promise<Unit> &&promi
     get_user_force(user_id, "get_user");
   }
 
-  if (td_->auth_manager_->is_bot() ? !have_user(user_id) : !have_min_user(user_id)) {
+  if (td_->auth_manager_->is_bot() ? !have_accessible_user(user_id) : !have_min_user(user_id)) {
     if (left_tries > 2 && G()->use_chat_info_database()) {
       send_closure_later(actor_id(this), &UserManager::load_user_from_database, nullptr, user_id, std::move(promise));
       return false;
@@ -6312,7 +6377,7 @@ void UserManager::on_get_user_profile_photos(UserId user_id, Result<Unit> &&resu
     return;
   }
   if (user_photos->count == -1) {
-    CHECK(have_user(user_id));
+    CHECK(have_min_user(user_id));
     // received result has just been dropped; resend request
     if (++pending_requests[0].retry_count >= 3) {
       pending_requests[0].promise.set_error(500, "Failed to return profile photos");
@@ -6537,11 +6602,35 @@ Result<telegram_api::object_ptr<telegram_api::inputDocument>> UserManager::check
   return full_remote_location->as_input_document();
 }
 
+void UserManager::is_saved_music(FileId file_id, Promise<Unit> &&promise) {
+  if (!are_my_saved_music_ids_inited_) {
+    return reload_my_saved_music_list(
+        [actor_id = actor_id(this), file_id, promise = std::move(promise)](Result<Unit> &&result) mutable {
+          if (result.is_error()) {
+            return promise.set_error(result.move_as_error());
+          }
+          send_closure(actor_id, &UserManager::check_is_saved_music, file_id, std::move(promise));
+        });
+  }
+
+  check_is_saved_music(file_id, std::move(promise));
+}
+
+void UserManager::check_is_saved_music(FileId file_id, Promise<Unit> &&promise) {
+  TRY_STATUS_PROMISE(promise, G()->close_status());
+  CHECK(are_my_saved_music_ids_inited_);
+  auto document_id = get_saved_music_document_id(file_id, false).first;
+  if (my_saved_music_ids_.count(document_id) == 0) {
+    return promise.set_error(404, "Not Found");
+  }
+  return promise.set_value(Unit());
+}
+
 void UserManager::add_saved_music(FileId file_id, FileId after_file_id, Promise<Unit> &&promise) {
   TRY_RESULT_PROMISE(promise, input_document, check_saved_music_file_id(file_id, false));
   TRY_RESULT_PROMISE(promise, after_input_document, check_saved_music_file_id(after_file_id, true));
   if (file_id == after_file_id) {
-    return promise.set_error(Status::Error(400, "Can't place saved music after self"));
+    return promise.set_error(400, "Can't place saved music after self");
   }
 
   td_->create_handler<SaveMusicQuery>(std::move(promise))
@@ -6549,6 +6638,12 @@ void UserManager::add_saved_music(FileId file_id, FileId after_file_id, Promise<
 }
 
 void UserManager::on_add_saved_music(FileId file_id, FileId after_file_id, Promise<Unit> &&promise) {
+  auto document_id = get_saved_music_document_id(file_id).first;
+  if (document_id != 0 && my_saved_music_ids_.count(document_id) == 0) {
+    my_saved_music_ids_.insert(document_id);
+    save_my_saved_music_ids();
+  }
+
   auto user_id = get_my_id();
   auto user_saved_music = user_saved_music_.get_pointer(user_id);
   if (user_saved_music != nullptr && user_saved_music->count != -1 && user_saved_music->offset != -1) {
@@ -6591,6 +6686,11 @@ void UserManager::remove_saved_music(FileId file_id, Promise<Unit> &&promise) {
 }
 
 void UserManager::on_remove_saved_music(FileId file_id, Promise<Unit> &&promise) {
+  auto document_id = get_saved_music_document_id(file_id).first;
+  if (my_saved_music_ids_.erase(document_id) > 0) {
+    save_my_saved_music_ids();
+  }
+
   auto user_id = get_my_id();
   auto user_saved_music = user_saved_music_.get_pointer(user_id);
   if (user_saved_music != nullptr && user_saved_music->count != -1 && user_saved_music->offset != -1) {
@@ -6716,7 +6816,7 @@ void UserManager::finish_get_user_saved_music(UserId user_id, Result<Unit> &&res
     return;
   }
   if (user_saved_music->count == -1) {
-    CHECK(have_user(user_id));
+    CHECK(have_min_user(user_id));
     // received result has just been dropped; resend request
     if (++pending_requests[0].retry_count >= 3) {
       pending_requests[0].promise.set_error(500, "Failed to return saved music");
@@ -6818,6 +6918,8 @@ void UserManager::on_get_user_saved_music(UserId user_id, int32 offset, int32 li
     user_saved_music->offset = offset;
   }
 
+  bool need_update_my_saved_music_ids = user_id == get_my_id() && are_my_saved_music_ids_inited_;
+  bool need_save_my_saved_music_ids = false;
   for (auto &document : documents) {
     if (document->get_id() != telegram_api::document::ID) {
       LOG(ERROR) << "Receive as saved music of " << user_id << ": " << to_string(document);
@@ -6833,12 +6935,25 @@ void UserManager::on_get_user_saved_music(UserId user_id, int32 offset, int32 li
       CHECK(user_saved_music->count >= 0);
       continue;
     }
+    auto document_id = get_saved_music_document_id(parsed_document.file_id).first;
+    if (document_id == 0) {
+      user_saved_music->count--;
+      CHECK(user_saved_music->count >= 0);
+      continue;
+    }
+    if (need_update_my_saved_music_ids && my_saved_music_ids_.count(document_id) == 0) {
+      my_saved_music_ids_.insert(document_id);
+      need_save_my_saved_music_ids = true;
+    }
     user_saved_music->saved_music_file_ids.push_back(parsed_document.file_id);
     register_user_saved_music(user_id, user_saved_music->saved_music_file_ids.back());
   }
   if (user_saved_music->offset > user_saved_music->count) {
     user_saved_music->offset = user_saved_music->count;
     user_saved_music->saved_music_file_ids.clear();
+  }
+  if (need_save_my_saved_music_ids) {
+    save_my_saved_music_ids();
   }
 
   auto known_saved_music_count = narrow_cast<int32>(user_saved_music->saved_music_file_ids.size());
@@ -6877,6 +6992,70 @@ FileSourceId UserManager::get_user_saved_music_file_source_id(UserId user_id, in
   }
   VLOG(file_references) << "Return " << source_id << " for saved music " << document_id << " of " << user_id;
   return source_id;
+}
+
+void UserManager::reload_my_saved_music_list(Promise<Unit> &&promise) {
+  reload_my_saved_music_queries_.push_back(std::move(promise));
+  if (reload_my_saved_music_queries_.size() != 1u) {
+    return;
+  }
+  vector<uint64> numbers;
+  for (auto saved_music_id : my_saved_music_ids_) {
+    numbers.push_back(static_cast<uint64>(saved_music_id));
+  }
+  std::sort(numbers.begin(), numbers.end());
+  auto query_promise = PromiseCreator::lambda(
+      [actor_id =
+           actor_id(this)](Result<telegram_api::object_ptr<telegram_api::account_SavedMusicIds>> &&r_saved_music_ids) {
+        send_closure(actor_id, &UserManager::on_get_my_saved_music_list, std::move(r_saved_music_ids));
+      });
+  td_->create_handler<GetSavedMusicIdsQuery>(std::move(query_promise))->send(get_vector_hash(numbers));
+}
+
+void UserManager::on_get_my_saved_music_list(
+    Result<telegram_api::object_ptr<telegram_api::account_SavedMusicIds>> &&r_saved_music_ids) {
+  if (G()->close_flag() && r_saved_music_ids.is_ok()) {
+    r_saved_music_ids = Global::request_aborted_error();
+  }
+
+  auto promises = std::move(reload_my_saved_music_queries_);
+  reset_to_empty(reload_my_saved_music_queries_);
+  if (r_saved_music_ids.is_error()) {
+    return fail_promises(promises, r_saved_music_ids.move_as_error());
+  }
+  auto saved_music_ids = r_saved_music_ids.move_as_ok();
+  switch (saved_music_ids->get_id()) {
+    case telegram_api::account_savedMusicIdsNotModified::ID:
+      break;
+    case telegram_api::account_savedMusicIds::ID:
+      my_saved_music_ids_.clear();
+      for (auto saved_music_id : static_cast<telegram_api::account_savedMusicIds *>(saved_music_ids.get())->ids_) {
+        if (saved_music_id == 0 || my_saved_music_ids_.count(saved_music_id) != 0) {
+          LOG(ERROR) << "Receive " << saved_music_id;
+          continue;
+        }
+        my_saved_music_ids_.insert(saved_music_id);
+      }
+      save_my_saved_music_ids();
+      break;
+    default:
+      UNREACHABLE();
+  }
+  set_promises(promises);
+}
+
+string UserManager::get_my_saved_music_ids_database_key() {
+  return "my_saved_music_ids";
+}
+
+void UserManager::save_my_saved_music_ids() {
+  are_my_saved_music_ids_inited_ = true;
+  vector<uint64> my_saved_music_ids;
+  for (auto saved_music_id : my_saved_music_ids_) {
+    my_saved_music_ids.push_back(saved_music_id);
+  }
+  G()->td_db()->get_binlog_pmc()->set(get_my_saved_music_ids_database_key(),
+                                      log_event_store(my_saved_music_ids).as_slice().str());
 }
 
 void UserManager::register_message_users(MessageFullId message_full_id, vector<UserId> user_ids) {
@@ -7935,7 +8114,7 @@ vector<UserId> UserManager::get_close_friends(Promise<Unit> &&promise) {
 
 void UserManager::set_close_friends(vector<UserId> user_ids, Promise<Unit> &&promise) {
   for (auto &user_id : user_ids) {
-    if (!have_user(user_id)) {
+    if (!have_min_user(user_id)) {
       return promise.set_error(400, "User not found");
     }
   }
