@@ -131,7 +131,9 @@ authorizationStateWaitPhoneNumber = AuthorizationState;
 
 //@description The user must buy Telegram Premium as an in-store purchase to log in. Call checkAuthenticationPremiumPurchase and then setAuthenticationPremiumPurchaseTransaction
 //@store_product_id Identifier of the store product that must be bought
-authorizationStateWaitPremiumPurchase store_product_id:string = AuthorizationState;
+//@support_email_address Email address to use for support if the user has issues with Telegram Premium purchase
+//@support_email_subject Subject for the email sent to the support email address
+authorizationStateWaitPremiumPurchase store_product_id:string support_email_address:string support_email_subject:string = AuthorizationState;
 
 //@description TDLib needs the user's email address to authorize. Call setAuthenticationEmailAddress to provide the email address, or directly call checkAuthenticationEmailCode with Apple ID/Google ID token if allowed
 //@allow_apple_id True, if authorization through Apple ID is allowed
@@ -440,6 +442,9 @@ animation duration:int32 width:int32 height:int32 file_name:string mime_type:str
 //@audio File containing the audio
 audio duration:int32 title:string performer:string file_name:string mime_type:string album_cover_minithumbnail:minithumbnail album_cover_thumbnail:thumbnail external_album_covers:vector<thumbnail> audio:file = Audio;
 
+//@description Contains a list of audio files @total_count Approximate total number of audio files found @audios List of audio files
+audios total_count:int32 audios:vector<audio> = Audios;
+
 //@description Describes a document of any type
 //@file_name Original name of the file; as defined by the sender
 //@mime_type MIME type of the file; as defined by the sender
@@ -609,6 +614,33 @@ profilePhoto id:int64 small:file big:file minithumbnail:minithumbnail has_animat
 //@has_animation True, if the photo has animated variant
 //@is_personal True, if the photo is visible only for the current user
 chatPhotoInfo small:file big:file minithumbnail:minithumbnail has_animation:Bool is_personal:Bool = ChatPhotoInfo;
+
+
+//@class ProfileTab @description Describes a tab shown in a user or a chat profile
+
+//@description A tab with stories posted by the user or the channel chat and saved to profile
+profileTabPosts = ProfileTab;
+
+//@description A tab with gifts received by the user or the channel chat
+profileTabGifts = ProfileTab;
+
+//@description A tab with photos and videos posted by the channel
+profileTabMedia = ProfileTab;
+
+//@description A tab with documents posted by the channel
+profileTabFiles = ProfileTab;
+
+//@description A tab with messages posted by the channel and containing links
+profileTabLinks = ProfileTab;
+
+//@description A tab with audio messages posted by the channel
+profileTabMusic = ProfileTab;
+
+//@description A tab with voice notes posted by the channel
+profileTabVoice = ProfileTab;
+
+//@description A tab with animations posted by the channel
+profileTabGifs = ProfileTab;
 
 
 //@class UserType @description Represents the type of user. The following types are possible: regular users, deleted users and bots
@@ -1192,6 +1224,15 @@ giftCollection id:int32 name:string icon:sticker gift_count:int32 = GiftCollecti
 giftCollections collections:vector<giftCollection> = GiftCollections;
 
 
+//@class CanSendGiftResult @description Describes whether a gift can be sent now by the current user
+
+//@description The gift can be sent now by the current user
+canSendGiftResultOk = CanSendGiftResult;
+
+//@description The gift can't be sent now by the current user @reason Reason to be shown to the user
+canSendGiftResultFail reason:formattedText = CanSendGiftResult;
+
+
 //@class UpgradedGiftOrigin @description Describes origin from which the upgraded gift was obtained
 
 //@description The gift was obtained by upgrading of a previously received gift
@@ -1250,11 +1291,13 @@ upgradedGiftOriginalDetails sender_id:MessageSender receiver_id:MessageSender te
 //@upgrade_star_count Number of Telegram Stars that must be paid to upgrade the gift; 0 if upgrade isn't possible
 //@is_for_birthday True, if the gift is a birthday gift
 //@is_premium True, if the gift can be bought only by Telegram Premium subscribers
+//@next_send_date Point in time (Unix timestamp) when the gift can be sent next time by the current user; can be 0 or a date in the past.
+//-If the date is in the future, then call canSendGift to get the reason, why the gift can't be sent now
 //@user_limits Number of times the gift can be purchased by the current user; may be null if not limited
 //@overall_limits Number of times the gift can be purchased all users; may be null if not limited
 //@first_send_date Point in time (Unix timestamp) when the gift was send for the first time; for sold out gifts only
 //@last_send_date Point in time (Unix timestamp) when the gift was send for the last time; for sold out gifts only
-gift id:int64 publisher_chat_id:int53 sticker:sticker star_count:int53 default_sell_star_count:int53 upgrade_star_count:int53 is_for_birthday:Bool is_premium:Bool user_limits:giftPurchaseLimits overall_limits:giftPurchaseLimits first_send_date:int32 last_send_date:int32 = Gift;
+gift id:int64 publisher_chat_id:int53 sticker:sticker star_count:int53 default_sell_star_count:int53 upgrade_star_count:int53 is_for_birthday:Bool is_premium:Bool next_send_date:int32 user_limits:giftPurchaseLimits overall_limits:giftPurchaseLimits first_send_date:int32 last_send_date:int32 = Gift;
 
 //@description Describes an upgraded gift that can be transferred to another owner or transferred to the TON blockchain as an NFT
 //@id Unique identifier of the gift
@@ -1266,6 +1309,8 @@ gift id:int64 publisher_chat_id:int53 sticker:sticker star_count:int53 default_s
 //@total_upgraded_count Total number of gifts that were upgraded from the same gift
 //@max_upgraded_count The maximum number of gifts that can be upgraded from the same gift
 //@is_premium True, if the original gift could have been bought only by Telegram Premium subscribers
+//@is_theme_available True, if the gift can be used to set a theme in a chat
+//@used_theme_chat_id Identifier of the chat for which the gift is used to set a theme; 0 if none or the gift isn't owned by the current user
 //@owner_id Identifier of the user or the chat that owns the upgraded gift; may be null if none or unknown
 //@owner_address Address of the gift NFT owner in TON blockchain; may be empty if none. Append the address to getOption("ton_blockchain_explorer_url") to get a link with information about the address
 //@owner_name Name of the owner for the case when owner identifier and address aren't known
@@ -1277,7 +1322,7 @@ gift id:int64 publisher_chat_id:int53 sticker:sticker star_count:int53 default_s
 //@resale_parameters Resale parameters of the gift; may be null if resale isn't possible
 //@value_currency ISO 4217 currency code of the currency in which value of the gift is represented; may be empty if unavailable
 //@value_amount Estimated value of the gift; in the smallest units of the currency; 0 if unavailable
-upgradedGift id:int64 regular_gift_id:int64 publisher_chat_id:int53 title:string name:string number:int32 total_upgraded_count:int32 max_upgraded_count:int32 is_premium:Bool owner_id:MessageSender owner_address:string owner_name:string gift_address:string model:upgradedGiftModel symbol:upgradedGiftSymbol backdrop:upgradedGiftBackdrop original_details:upgradedGiftOriginalDetails resale_parameters:giftResaleParameters value_currency:string value_amount:int53 = UpgradedGift;
+upgradedGift id:int64 regular_gift_id:int64 publisher_chat_id:int53 title:string name:string number:int32 total_upgraded_count:int32 max_upgraded_count:int32 is_premium:Bool is_theme_available:Bool used_theme_chat_id:int53 owner_id:MessageSender owner_address:string owner_name:string gift_address:string model:upgradedGiftModel symbol:upgradedGiftSymbol backdrop:upgradedGiftBackdrop original_details:upgradedGiftOriginalDetails resale_parameters:giftResaleParameters value_currency:string value_amount:int53 = UpgradedGift;
 
 //@description Contains information about value of an upgraded gift
 //@currency ISO 4217 currency code of the currency in which the prices are represented
@@ -1400,12 +1445,13 @@ sentGiftUpgraded gift:upgradedGift = SentGift;
 //@collection_ids Identifiers of collections to which the gift is added; only for the receiver of the gift
 //@sell_star_count Number of Telegram Stars that can be claimed by the receiver instead of the regular gift; 0 if the gift can't be sold by the current user
 //@prepaid_upgrade_star_count Number of Telegram Stars that were paid by the sender for the ability to upgrade the gift
+//@is_upgrade_separate True, if the upgrade was bought after the gift was sent. In this case, prepaid upgrade cost must not be added to the gift cost
 //@transfer_star_count Number of Telegram Stars that must be paid to transfer the upgraded gift; only for the receiver of the gift
 //@next_transfer_date Point in time (Unix timestamp) when the gift can be transferred to another owner; can be in the past; 0 if the gift can be transferred immediately or transfer isn't possible; only for the receiver of the gift
 //@next_resale_date Point in time (Unix timestamp) when the gift can be resold to another user; can be in the past; 0 if the gift can't be resold; only for the receiver of the gift
 //@export_date Point in time (Unix timestamp) when the upgraded gift can be transferred to the TON blockchain as an NFT; can be in the past; 0 if NFT export isn't possible; only for the receiver of the gift
 //@prepaid_upgrade_hash If non-empty, then the user can pay for an upgrade of the gift using buyGiftUpgrade
-receivedGift received_gift_id:string sender_id:MessageSender text:formattedText is_private:Bool is_saved:Bool is_pinned:Bool can_be_upgraded:Bool can_be_transferred:Bool was_refunded:Bool date:int32 gift:SentGift collection_ids:vector<int32> sell_star_count:int53 prepaid_upgrade_star_count:int53 transfer_star_count:int53 next_transfer_date:int32 next_resale_date:int32 export_date:int32 prepaid_upgrade_hash:string = ReceivedGift;
+receivedGift received_gift_id:string sender_id:MessageSender text:formattedText is_private:Bool is_saved:Bool is_pinned:Bool can_be_upgraded:Bool can_be_transferred:Bool was_refunded:Bool date:int32 gift:SentGift collection_ids:vector<int32> sell_star_count:int53 prepaid_upgrade_star_count:int53 is_upgrade_separate:Bool transfer_star_count:int53 next_transfer_date:int32 next_resale_date:int32 export_date:int32 prepaid_upgrade_hash:string = ReceivedGift;
 
 //@description Represents a list of gifts received by a user or a chat
 //@total_count The total number of received gifts
@@ -1860,12 +1906,14 @@ botInfo short_description:string description:string photo:photo animation:animat
 //@outgoing_paid_message_star_count Number of Telegram Stars that must be paid by the current user for each sent message to the user
 //@gift_settings Settings for gift receiving for the user
 //@bot_verification Information about verification status of the user provided by a bot; may be null if none or unknown
+//@main_profile_tab The main tab chosen by the user; may be null if not chosen manually
+//@first_saved_music The first music file saved to the user's profile; may be null if none
 //@rating The current rating of the user; may be null if none
 //@pending_rating The rating of the user after the next change; may be null if the user isn't the current user or there are no pending rating changes
 //@pending_rating_date Unix timestamp when rating of the user will change to pending_rating; 0 if the user isn't the current user or there are no pending rating changes
 //@business_info Information about business settings for Telegram Business accounts; may be null if none
 //@bot_info For bots, information about the bot; may be null if the user isn't a bot
-userFullInfo personal_photo:chatPhoto photo:chatPhoto public_photo:chatPhoto block_list:BlockList can_be_called:Bool supports_video_calls:Bool has_private_calls:Bool has_private_forwards:Bool has_restricted_voice_and_video_note_messages:Bool has_posted_to_profile_stories:Bool has_sponsored_messages_enabled:Bool need_phone_number_privacy_exception:Bool set_chat_background:Bool bio:formattedText birthdate:birthdate personal_chat_id:int53 gift_count:int32 group_in_common_count:int32 incoming_paid_message_star_count:int53 outgoing_paid_message_star_count:int53 gift_settings:giftSettings bot_verification:botVerification rating:userRating pending_rating:userRating pending_rating_date:int32 business_info:businessInfo bot_info:botInfo = UserFullInfo;
+userFullInfo personal_photo:chatPhoto photo:chatPhoto public_photo:chatPhoto block_list:BlockList can_be_called:Bool supports_video_calls:Bool has_private_calls:Bool has_private_forwards:Bool has_restricted_voice_and_video_note_messages:Bool has_posted_to_profile_stories:Bool has_sponsored_messages_enabled:Bool need_phone_number_privacy_exception:Bool set_chat_background:Bool bio:formattedText birthdate:birthdate personal_chat_id:int53 gift_count:int32 group_in_common_count:int32 incoming_paid_message_star_count:int53 outgoing_paid_message_star_count:int53 gift_settings:giftSettings bot_verification:botVerification main_profile_tab:ProfileTab first_saved_music:audio rating:userRating pending_rating:userRating pending_rating_date:int32 business_info:businessInfo bot_info:botInfo = UserFullInfo;
 
 //@description Represents a list of users @total_count Approximate total number of users found @user_ids A list of user identifiers
 users total_count:int32 user_ids:vector<int53> = Users;
@@ -2154,9 +2202,10 @@ supergroup id:int53 usernames:usernames date:int32 status:ChatMemberStatus membe
 //@invite_link Primary invite link for the chat; may be null. For chat administrators with can_invite_users right only
 //@bot_commands List of commands of bots in the group
 //@bot_verification Information about verification status of the supergroup or the channel provided by a bot; may be null if none or unknown
+//@main_profile_tab The main tab chosen by the administrators of the channel; may be null if not chosen manually
 //@upgraded_from_basic_group_id Identifier of the basic group from which supergroup was upgraded; 0 if none
 //@upgraded_from_max_message_id Identifier of the last message in the basic group from which supergroup was upgraded; 0 if none
-supergroupFullInfo photo:chatPhoto description:string member_count:int32 administrator_count:int32 restricted_count:int32 banned_count:int32 linked_chat_id:int53 direct_messages_chat_id:int53 slow_mode_delay:int32 slow_mode_delay_expires_in:double can_enable_paid_messages:Bool can_enable_paid_reaction:Bool can_get_members:Bool has_hidden_members:Bool can_hide_members:Bool can_set_sticker_set:Bool can_set_location:Bool can_get_statistics:Bool can_get_revenue_statistics:Bool can_get_star_revenue_statistics:Bool can_send_gift:Bool can_toggle_aggressive_anti_spam:Bool is_all_history_available:Bool can_have_sponsored_messages:Bool has_aggressive_anti_spam_enabled:Bool has_paid_media_allowed:Bool has_pinned_stories:Bool gift_count:int32 my_boost_count:int32 unrestrict_boost_count:int32 outgoing_paid_message_star_count:int53 sticker_set_id:int64 custom_emoji_sticker_set_id:int64 location:chatLocation invite_link:chatInviteLink bot_commands:vector<botCommands> bot_verification:botVerification upgraded_from_basic_group_id:int53 upgraded_from_max_message_id:int53 = SupergroupFullInfo;
+supergroupFullInfo photo:chatPhoto description:string member_count:int32 administrator_count:int32 restricted_count:int32 banned_count:int32 linked_chat_id:int53 direct_messages_chat_id:int53 slow_mode_delay:int32 slow_mode_delay_expires_in:double can_enable_paid_messages:Bool can_enable_paid_reaction:Bool can_get_members:Bool has_hidden_members:Bool can_hide_members:Bool can_set_sticker_set:Bool can_set_location:Bool can_get_statistics:Bool can_get_revenue_statistics:Bool can_get_star_revenue_statistics:Bool can_send_gift:Bool can_toggle_aggressive_anti_spam:Bool is_all_history_available:Bool can_have_sponsored_messages:Bool has_aggressive_anti_spam_enabled:Bool has_paid_media_allowed:Bool has_pinned_stories:Bool gift_count:int32 my_boost_count:int32 unrestrict_boost_count:int32 outgoing_paid_message_star_count:int53 sticker_set_id:int64 custom_emoji_sticker_set_id:int64 location:chatLocation invite_link:chatInviteLink bot_commands:vector<botCommands> bot_verification:botVerification main_profile_tab:ProfileTab upgraded_from_basic_group_id:int53 upgraded_from_max_message_id:int53 = SupergroupFullInfo;
 
 
 //@class SecretChatState @description Describes the current secret chat state
@@ -2912,7 +2961,7 @@ videoChat group_call_id:int32 has_participants:Bool default_participant_id:Messa
 //@message_auto_delete_time Current message auto-delete or self-destruct timer setting for the chat, in seconds; 0 if disabled. Self-destruct timer in secret chats starts after the message or its content is viewed. Auto-delete timer in other chats starts from the send date
 //@emoji_status Emoji status to be shown along with chat title; may be null
 //@background Background set for the chat; may be null if none
-//@theme_name If non-empty, name of a theme, set for the chat
+//@theme Theme set fot the chat; may be null if none
 //@action_bar Information about actions which must be possible to do through the chat action bar; may be null if none
 //@business_bot_manage_bar Information about bar for managing a business bot in the chat; may be null if none
 //@video_chat Information about video chat of the chat
@@ -2920,7 +2969,7 @@ videoChat group_call_id:int32 has_participants:Bool default_participant_id:Messa
 //@reply_markup_message_id Identifier of the message from which reply markup needs to be used; 0 if there is no default custom reply markup in the chat
 //@draft_message A draft of a message in the chat; may be null if none
 //@client_data Application-specific data associated with the chat. (For example, the chat scroll position or local chat notification settings can be stored here.) Persistent if the message database is used
-chat id:int53 type:ChatType title:string photo:chatPhotoInfo accent_color_id:int32 background_custom_emoji_id:int64 profile_accent_color_id:int32 profile_background_custom_emoji_id:int64 permissions:chatPermissions last_message:message positions:vector<chatPosition> chat_lists:vector<ChatList> message_sender_id:MessageSender block_list:BlockList has_protected_content:Bool is_translatable:Bool is_marked_as_unread:Bool view_as_topics:Bool has_scheduled_messages:Bool can_be_deleted_only_for_self:Bool can_be_deleted_for_all_users:Bool can_be_reported:Bool default_disable_notification:Bool unread_count:int32 last_read_inbox_message_id:int53 last_read_outbox_message_id:int53 unread_mention_count:int32 unread_reaction_count:int32 notification_settings:chatNotificationSettings available_reactions:ChatAvailableReactions message_auto_delete_time:int32 emoji_status:emojiStatus background:chatBackground theme_name:string action_bar:ChatActionBar business_bot_manage_bar:businessBotManageBar video_chat:videoChat pending_join_requests:chatJoinRequestsInfo reply_markup_message_id:int53 draft_message:draftMessage client_data:string = Chat;
+chat id:int53 type:ChatType title:string photo:chatPhotoInfo accent_color_id:int32 background_custom_emoji_id:int64 profile_accent_color_id:int32 profile_background_custom_emoji_id:int64 permissions:chatPermissions last_message:message positions:vector<chatPosition> chat_lists:vector<ChatList> message_sender_id:MessageSender block_list:BlockList has_protected_content:Bool is_translatable:Bool is_marked_as_unread:Bool view_as_topics:Bool has_scheduled_messages:Bool can_be_deleted_only_for_self:Bool can_be_deleted_for_all_users:Bool can_be_reported:Bool default_disable_notification:Bool unread_count:int32 last_read_inbox_message_id:int53 last_read_outbox_message_id:int53 unread_mention_count:int32 unread_reaction_count:int32 notification_settings:chatNotificationSettings available_reactions:ChatAvailableReactions message_auto_delete_time:int32 emoji_status:emojiStatus background:chatBackground theme:ChatTheme action_bar:ChatActionBar business_bot_manage_bar:businessBotManageBar video_chat:videoChat pending_join_requests:chatJoinRequestsInfo reply_markup_message_id:int53 draft_message:draftMessage client_data:string = Chat;
 
 //@description Represents a list of chats @total_count Approximate total number of chats found @chat_ids List of chat identifiers
 chats total_count:int32 chat_ids:vector<int53> = Chats;
@@ -4431,8 +4480,8 @@ messageScreenshotTaken = MessageContent;
 //@only_for_self True, if the background was set only for self
 messageChatSetBackground old_background_message_id:int53 background:chatBackground only_for_self:Bool = MessageContent;
 
-//@description A theme in the chat has been changed @theme_name If non-empty, name of a new theme, set for the chat. Otherwise, chat theme was reset to the default one
-messageChatSetTheme theme_name:string = MessageContent;
+//@description A theme in the chat has been changed @theme New theme for the chat; may be null if chat theme was reset to the default one
+messageChatSetTheme theme:ChatTheme = MessageContent;
 
 //@description The auto-delete or self-destruct timer for messages in the chat has been changed @message_auto_delete_time New value auto-delete or self-destruct time, in seconds; 0 if disabled @from_user_id If not 0, a user identifier, which default setting was automatically applied
 messageChatSetMessageAutoDeleteTime message_auto_delete_time:int32 from_user_id:int53 = MessageContent;
@@ -4592,6 +4641,7 @@ messageGiveawayPrizeStars star_count:int53 transaction_id:string boosted_chat_id
 //@text Message added to the gift
 //@sell_star_count Number of Telegram Stars that can be claimed by the receiver instead of the regular gift; 0 if the gift can't be sold by the receiver
 //@prepaid_upgrade_star_count Number of Telegram Stars that were paid by the sender for the ability to upgrade the gift
+//@is_upgrade_separate True, if the upgrade was bought after the gift was sent. In this case, prepaid upgrade cost must not be added to the gift cost
 //@is_private True, if the sender and gift text are shown only to the gift receiver; otherwise, everyone will be able to see them
 //@is_saved True, if the gift is displayed on the user's or the channel's profile page; only for the receiver of the gift
 //@is_prepaid_upgrade True, if the message is about prepaid upgrade of the gift by another user
@@ -4601,7 +4651,7 @@ messageGiveawayPrizeStars star_count:int53 transaction_id:string boosted_chat_id
 //@was_refunded True, if the gift was refunded and isn't available anymore
 //@upgraded_received_gift_id Identifier of the corresponding upgraded gift; may be empty if unknown. Use getReceivedGift to get information about the gift
 //@prepaid_upgrade_hash If non-empty, then the user can pay for an upgrade of the gift using buyGiftUpgrade
-messageGift gift:gift sender_id:MessageSender receiver_id:MessageSender received_gift_id:string text:formattedText sell_star_count:int53 prepaid_upgrade_star_count:int53 is_private:Bool is_saved:Bool is_prepaid_upgrade:Bool can_be_upgraded:Bool was_converted:Bool was_upgraded:Bool was_refunded:Bool upgraded_received_gift_id:string prepaid_upgrade_hash:string = MessageContent;
+messageGift gift:gift sender_id:MessageSender receiver_id:MessageSender received_gift_id:string text:formattedText sell_star_count:int53 prepaid_upgrade_star_count:int53 is_upgrade_separate:Bool is_private:Bool is_saved:Bool is_prepaid_upgrade:Bool can_be_upgraded:Bool was_converted:Bool was_upgraded:Bool was_refunded:Bool upgraded_received_gift_id:string prepaid_upgrade_hash:string = MessageContent;
 
 //@description An upgraded gift was received or sent by the current user, or the current user was notified about a channel gift
 //@gift The gift
@@ -6967,7 +7017,8 @@ storePaymentPurposeStarGiveaway parameters:giveawayParameters currency:string am
 //@currency ISO 4217 currency code of the payment currency
 //@amount Paid amount, in the smallest units of the currency
 //@star_count Number of bought Telegram Stars
-storePaymentPurposeStars currency:string amount:int53 star_count:int53 = StorePaymentPurpose;
+//@chat_id Identifier of the chat that is supposed to receive the Telegram Stars; pass 0 if none
+storePaymentPurposeStars currency:string amount:int53 star_count:int53 chat_id:int53 = StorePaymentPurpose;
 
 //@description The user buying Telegram Stars for other users
 //@user_id Identifier of the user to which Telegram Stars are gifted
@@ -7020,7 +7071,8 @@ telegramPaymentPurposePremiumGiveaway parameters:giveawayParameters currency:str
 //@currency ISO 4217 currency code of the payment currency
 //@amount Paid amount, in the smallest units of the currency
 //@star_count Number of bought Telegram Stars
-telegramPaymentPurposeStars currency:string amount:int53 star_count:int53 = TelegramPaymentPurpose;
+//@chat_id Identifier of the chat that is supposed to receive the Telegram Stars; pass 0 if none
+telegramPaymentPurposeStars currency:string amount:int53 star_count:int53 chat_id:int53 = TelegramPaymentPurpose;
 
 //@description The user buying Telegram Stars for other users
 //@user_id Identifier of the user to which Telegram Stars are gifted
@@ -7120,7 +7172,7 @@ backgroundTypePattern fill:BackgroundFill intensity:int32 is_inverted:Bool is_mo
 //@description A filled background @fill The background fill
 backgroundTypeFill fill:BackgroundFill = BackgroundType;
 
-//@description A background from a chat theme; can be used only as a chat background in channels @theme_name Name of the chat theme
+//@description A background from a chat theme based on an emoji; can be used only as a chat background in channels @theme_name Name of the emoji chat theme
 backgroundTypeChatTheme theme_name:string = BackgroundType;
 
 
@@ -7137,11 +7189,41 @@ inputBackgroundRemote background_id:int64 = InputBackground;
 inputBackgroundPrevious message_id:int53 = InputBackground;
 
 
-//@description Describes a chat theme
+//@description Describes a chat theme based on an emoji
 //@name Theme name
 //@light_settings Theme settings for a light chat theme
 //@dark_settings Theme settings for a dark chat theme
-chatTheme name:string light_settings:themeSettings dark_settings:themeSettings = ChatTheme;
+emojiChatTheme name:string light_settings:themeSettings dark_settings:themeSettings = EmojiChatTheme;
+
+//@description Describes a chat theme based on an upgraded gift
+//@gift The gift
+//@light_settings Theme settings for a light chat theme
+//@dark_settings Theme settings for a dark chat theme
+giftChatTheme gift:upgradedGift light_settings:themeSettings dark_settings:themeSettings = GiftChatTheme;
+
+//@description Contains a list of chat themes based on upgraded gifts
+//@themes A list of chat themes
+//@next_offset The offset for the next request. If empty, then there are no more results
+giftChatThemes themes:vector<giftChatTheme> next_offset:string = GiftChatThemes;
+
+
+//@class ChatTheme @description Describes a chat theme
+
+//@description A theme based on an emoji @name Name of the theme; full theme description is received through updateEmojiChatThemes
+chatThemeEmoji name:string = ChatTheme;
+
+//@description A theme based on an upgraded gift @gift_theme Description of the theme
+chatThemeGift gift_theme:giftChatTheme = ChatTheme;
+
+
+//@class InputChatTheme @description Describes a chat theme to set
+
+//@description A theme based on an emoji @name Name of the theme
+inputChatThemeEmoji name:string = InputChatTheme;
+
+//@description A theme based on an upgraded gift @name Name of the upgraded gift. A gift can be used only in one chat in a time.
+//-When the same gift is used in another chat, theme in the previous chat is reset to default
+inputChatThemeGift name:string = InputChatTheme;
 
 
 //@description Describes a time zone
@@ -8921,8 +9003,8 @@ updateChatReplyMarkup chat_id:int53 reply_markup_message_id:int53 = Update;
 //@description The chat background was changed @chat_id Chat identifier @background The new chat background; may be null if background was reset to default
 updateChatBackground chat_id:int53 background:chatBackground = Update;
 
-//@description The chat theme was changed @chat_id Chat identifier @theme_name The new name of the chat theme; may be empty if theme was reset to default
-updateChatTheme chat_id:int53 theme_name:string = Update;
+//@description The chat theme was changed @chat_id Chat identifier @theme The new theme of the chat; may be null if theme was reset to default
+updateChatTheme chat_id:int53 theme:ChatTheme = Update;
 
 //@description The chat unread_mention_count has changed @chat_id Chat identifier @unread_mention_count The number of unread mention messages left in the chat
 updateChatUnreadMentionCount chat_id:int53 unread_mention_count:int32 = Update;
@@ -9230,8 +9312,8 @@ updateSavedNotificationSounds notification_sound_ids:vector<int64> = Update;
 //@description The default background has changed @for_dark_theme True, if default background for dark theme has changed @background The new default background; may be null
 updateDefaultBackground for_dark_theme:Bool background:background = Update;
 
-//@description The list of available chat themes has changed @chat_themes The new list of chat themes
-updateChatThemes chat_themes:vector<chatTheme> = Update;
+//@description The list of available emoji chat themes has changed @chat_themes The new list of emoji chat themes
+updateEmojiChatThemes chat_themes:vector<emojiChatTheme> = Update;
 
 //@description The list of supported accent colors has changed
 //@colors Information about supported colors; colors with identifiers 0 (red), 1 (orange), 2 (purple/violet), 3 (green), 4 (cyan), 5 (blue), 6 (pink) must always be supported
@@ -11336,8 +11418,13 @@ setChatBackground chat_id:int53 background:InputBackground type:BackgroundType d
 //-Supposed to be used from messageChatSetBackground messages with the currently set background that was set for both sides by the other user
 deleteChatBackground chat_id:int53 restore_previous:Bool = Ok;
 
-//@description Changes the chat theme. Supported only in private and secret chats @chat_id Chat identifier @theme_name Name of the new chat theme; pass an empty string to return the default theme
-setChatTheme chat_id:int53 theme_name:string = Ok;
+//@description Returns available to the current user gift chat themes
+//@offset Offset of the first entry to return as received from the previous request; use empty string to get the first chunk of results
+//@limit The maximum number of chat themes to return
+getGiftChatThemes offset:string limit:int32 = GiftChatThemes;
+
+//@description Changes the chat theme. Supported only in private and secret chats @chat_id Chat identifier @theme New chat theme; pass null to return the default theme
+setChatTheme chat_id:int53 theme:InputChatTheme = Ok;
 
 //@description Changes the draft message in a chat
 //@chat_id Chat identifier
@@ -12319,12 +12406,31 @@ setUserEmojiStatus user_id:int53 emoji_status:emojiStatus = Ok;
 //@only_local Pass true to get only locally available information without sending network requests
 searchUserByPhoneNumber phone_number:string only_local:Bool = User;
 
-//@description Shares the phone number of the current user with a mutual contact. Supposed to be called when the user clicks on chatActionBarSharePhoneNumber @user_id Identifier of the user with whom to share the phone number. The user must be a mutual contact
+//@description Shares the phone number of the current user with a mutual contact. Supposed to be called when the user clicks on chatActionBarSharePhoneNumber
+//@user_id Identifier of the user with whom to share the phone number. The user must be a mutual contact
 sharePhoneNumber user_id:int53 = Ok;
 
 
-//@description Returns the profile photos of a user. Personal and public photo aren't returned @user_id User identifier @offset The number of photos to skip; must be non-negative @limit The maximum number of photos to be returned; up to 100
+//@description Returns the profile photos of a user. Personal and public photo aren't returned
+//@user_id User identifier
+//@offset The number of photos to skip; must be non-negative
+//@limit The maximum number of photos to be returned; up to 100
 getUserProfilePhotos user_id:int53 offset:int32 limit:int32 = ChatPhotos;
+
+
+//@description Returns the list of saved music files of a user
+//@user_id User identifier
+//@offset The number of audio files to skip; must be non-negative
+//@limit The maximum number of audio files to be returned; up to 100
+getUserSavedMusic user_id:int53 offset:int32 limit:int32 = Audios;
+
+//@description Adds an audio file to the saved music of the current user
+//@file_id Identifier of the audio file to be added. The file must be uploaded to the server
+//@after_file_id Identifier of the file from saved music after which the file will be added; pass 0 to add the audio file in the beginning of the list
+addSavedMusic file_id:int32 after_file_id:int32 = Ok;
+
+//@description Removes an audio file from the saved music of the current user @file_id Identifier of the audio file to be removed
+removeSavedMusic file_id:int32 = Ok;
 
 
 //@description Returns outline of a sticker. This is an offline method. Returns a 404 error if the outline isn't known
@@ -12544,6 +12650,9 @@ reorderActiveUsernames usernames:vector<string> = Ok;
 
 //@description Changes the birthdate of the current user @birthdate The new value of the current user's birthdate; pass null to remove the birthdate
 setBirthdate birthdate:birthdate = Ok;
+
+//@description Changes the main profile tab of the current user @main_profile_tab The new value of the main profile tab
+setMainProfileTab main_profile_tab:ProfileTab = Ok;
 
 //@description Changes the personal chat of the current user @chat_id Identifier of the new personal chat; pass 0 to remove the chat. Use getSuitablePersonalChats to get suitable chats
 setPersonalChat chat_id:int53 = Ok;
@@ -12838,6 +12947,11 @@ setSupergroupCustomEmojiStickerSet supergroup_id:int53 custom_emoji_sticker_set_
 //@unrestrict_boost_count New value of the unrestrict_boost_count supergroup setting; 0-8. Use 0 to remove the setting
 setSupergroupUnrestrictBoostCount supergroup_id:int53 unrestrict_boost_count:int32 = Ok;
 
+//@description Changes the main profile tab of the channel; requires can_change_info administrator right
+//@supergroup_id Identifier of the channel
+//@main_profile_tab The new value of the main profile tab
+setSupergroupMainProfileTab supergroup_id:int53 main_profile_tab:ProfileTab = Ok;
+
 //@description Toggles whether sender signature or link to the account is added to sent messages in a channel; requires can_change_info member right
 //@supergroup_id Identifier of the channel
 //@sign_messages New value of sign_messages
@@ -12962,9 +13076,13 @@ setGiftSettings settings:giftSettings = Ok;
 //@description Returns gifts that can be sent to other users and channel chats
 getAvailableGifts = AvailableGifts;
 
+//@description Checks whether a gift with next_send_date in the future can be sent already
+//@gift_id Identifier of the gift to send
+canSendGift gift_id:int64 = CanSendGiftResult;
+
 //@description Sends a gift to another user or channel chat. May return an error with a message "STARGIFT_USAGE_LIMITED" if the gift was sold out
 //@gift_id Identifier of the gift to send
-//@owner_id Identifier of the user or the channel chat that will receive the gift
+//@owner_id Identifier of the user or the channel chat that will receive the gift; limited gifts can't be sent to channel chats
 //@text Text to show along with the gift; 0-getOption("gift_text_length_max") characters. Only Bold, Italic, Underline, Strikethrough, Spoiler, and CustomEmoji entities are allowed.
 //-Must be empty if the receiver enabled paid messages
 //@is_private Pass true to show gift text and sender only to the gift receiver; otherwise, everyone will be able to see them
