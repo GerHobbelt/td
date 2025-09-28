@@ -6866,6 +6866,8 @@ void register_quick_reply_message_content(Td *td, const MessageContent *content,
       }
       return;
     }
+    case MessageContentType::Poll:
+      return td->poll_manager_->register_reply_poll(static_cast<const MessagePoll *>(content)->poll_id);
     case MessageContentType::Dice: {
       auto dice = static_cast<const MessageDice *>(content);
       return td->stickers_manager_->register_dice(dice->emoji, dice->dice_value, {}, message_full_id, source);
@@ -6891,6 +6893,8 @@ void unregister_quick_reply_message_content(Td *td, const MessageContent *conten
       }
       return;
     }
+    case MessageContentType::Poll:
+      return td->poll_manager_->unregister_reply_poll(static_cast<const MessagePoll *>(content)->poll_id);
     case MessageContentType::Dice: {
       auto dice = static_cast<const MessageDice *>(content);
       return td->stickers_manager_->unregister_dice(dice->emoji, dice->dice_value, {}, message_full_id, source);
@@ -7600,6 +7604,8 @@ unique_ptr<MessageContent> get_message_content(Td *td, FormattedText message,
       return td::make_unique<MessagePaidMedia>(std::move(extended_media), std::move(message),
                                                StarManager::get_star_count(media->stars_amount_), string());
     }
+    case telegram_api::messageMediaToDo::ID:
+      return make_unique<MessageUnsupported>();
     case telegram_api::messageMediaUnsupported::ID:
       return make_unique<MessageUnsupported>();
     default:
@@ -7913,6 +7919,8 @@ unique_ptr<MessageContent> get_action_message_content(Td *td, tl_object_ptr<tele
       case telegram_api::messageActionStarGiftUnique::ID:
       case telegram_api::messageActionPaidMessagesRefunded::ID:
       case telegram_api::messageActionConferenceCall::ID:
+      case telegram_api::messageActionTodoCompletions::ID:
+      case telegram_api::messageActionTodoAppendTasks::ID:
         // ok
         break;
       default:
@@ -8457,6 +8465,12 @@ unique_ptr<MessageContent> get_action_message_content(Td *td, tl_object_ptr<tele
       return td::make_unique<MessageConferenceCall>(action->call_id_, max(0, action->duration_),
                                                     std::move(other_participant_dialog_ids), action->active_,
                                                     action->video_, action->missed_);
+    }
+    case telegram_api::messageActionTodoCompletions::ID: {
+      return make_unique<MessageUnsupported>();
+    }
+    case telegram_api::messageActionTodoAppendTasks::ID: {
+      return make_unique<MessageUnsupported>();
     }
     default:
       UNREACHABLE();
@@ -9042,7 +9056,7 @@ td_api::object_ptr<td_api::upgradeGiftResult> get_message_content_upgrade_gift_r
       StarGiftId star_gift_id;
       if (m->owner_dialog_id != DialogId()) {
         star_gift_id = StarGiftId(m->owner_dialog_id, m->saved_id);
-      } else if (dialog_id.get_type() == DialogType::User && message_id.is_valid() && message_id.is_server()) {
+      } else if (dialog_id.get_type() == DialogType::User && message_id.is_server()) {
         star_gift_id = StarGiftId(message_id.get_server_message_id());
       }
       return td_api::make_object<td_api::upgradeGiftResult>(
@@ -9786,12 +9800,12 @@ void set_message_content_video_start_timestamp(MessageContent *content, int32 st
 void get_message_content_animated_emoji_click_sticker(const MessageContent *content, MessageFullId message_full_id,
                                                       Td *td, Promise<td_api::object_ptr<td_api::sticker>> &&promise) {
   if (content->get_type() != MessageContentType::Text) {
-    return promise.set_error(Status::Error(400, "Message is not an animated emoji message"));
+    return promise.set_error(400, "Message is not an animated emoji message");
   }
 
   const auto &text = static_cast<const MessageText *>(content)->text;
   if (!can_be_animated_emoji(text)) {
-    return promise.set_error(Status::Error(400, "Message is not an animated emoji message"));
+    return promise.set_error(400, "Message is not an animated emoji message");
   }
   td->stickers_manager_->get_animated_emoji_click_sticker(text.text, message_full_id, std::move(promise));
 }

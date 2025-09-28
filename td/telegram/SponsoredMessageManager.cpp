@@ -47,7 +47,8 @@ class GetSponsoredMessagesQuery final : public Td::ResultHandler {
     dialog_id_ = dialog_id;
     auto input_peer = td_->dialog_manager_->get_input_peer(dialog_id, AccessRights::Read);
     CHECK(input_peer != nullptr);
-    send_query(G()->net_query_creator().create(telegram_api::messages_getSponsoredMessages(std::move(input_peer))));
+    send_query(
+        G()->net_query_creator().create(telegram_api::messages_getSponsoredMessages(0, std::move(input_peer), 0)));
   }
 
   void on_result(BufferSlice packet) final {
@@ -514,7 +515,7 @@ void SponsoredMessageManager::click_sponsored_message(DialogId dialog_id, Messag
                                                       bool is_media_click, bool from_fullscreen,
                                                       Promise<Unit> &&promise) {
   if (!dialog_id.is_valid() || !sponsored_message_id.is_valid_sponsored()) {
-    return promise.set_error(Status::Error(400, "Invalid message specified"));
+    return promise.set_error(400, "Invalid message specified");
   }
   auto it = dialog_sponsored_messages_.find(dialog_id);
   if (it == dialog_sponsored_messages_.end()) {
@@ -534,7 +535,7 @@ void SponsoredMessageManager::report_sponsored_message(
     DialogId dialog_id, MessageId sponsored_message_id, const string &option_id,
     Promise<td_api::object_ptr<td_api::ReportSponsoredResult>> &&promise) {
   if (!dialog_id.is_valid() || !sponsored_message_id.is_valid_sponsored()) {
-    return promise.set_error(Status::Error(400, "Invalid message specified"));
+    return promise.set_error(400, "Invalid message specified");
   }
   auto it = dialog_sponsored_messages_.find(dialog_id);
   if (it == dialog_sponsored_messages_.end()) {
