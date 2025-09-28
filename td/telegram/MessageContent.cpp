@@ -567,7 +567,7 @@ class MessagePaymentSuccessful final : public MessageContent {
   string currency;
   int64 total_amount = 0;
   string invoice_payload;  // or invoice_slug for users
-  int32 subscription_until_date = false;
+  int32 subscription_until_date = 0;
   bool is_recurring = false;
   bool is_first_recurring = false;
 
@@ -1351,9 +1351,11 @@ class MessagePaidMessagesRefunded final : public MessageContent {
 class MessagePaidMessagesPrice final : public MessageContent {
  public:
   int64 star_count = 0;
+  bool broadcast_messages_allowed = false;
 
   MessagePaidMessagesPrice() = default;
-  explicit MessagePaidMessagesPrice(int64 star_count) : star_count(star_count) {
+  MessagePaidMessagesPrice(int64 star_count, bool broadcast_messages_allowed)
+      : star_count(star_count), broadcast_messages_allowed(broadcast_messages_allowed) {
   }
 
   MessageContentType get_type() const final {
@@ -2183,6 +2185,7 @@ static void store(const MessageContent *content, StorerT &storer) {
     case MessageContentType::PaidMessagesPrice: {
       const auto *m = static_cast<const MessagePaidMessagesPrice *>(content);
       BEGIN_STORE_FLAGS();
+      STORE_FLAG(m->broadcast_messages_allowed);
       END_STORE_FLAGS();
       store(m->star_count, storer);
       break;
@@ -3227,6 +3230,7 @@ static void parse(unique_ptr<MessageContent> &content, ParserT &parser) {
     case MessageContentType::PaidMessagesPrice: {
       auto m = make_unique<MessagePaidMessagesPrice>();
       BEGIN_PARSE_FLAGS();
+      PARSE_FLAG(m->broadcast_messages_allowed);
       END_PARSE_FLAGS();
       parse(m->star_count, parser);
       content = std::move(m);
@@ -3733,7 +3737,7 @@ static Result<InputMessageContent> create_input_message_content(
     case td_api::inputMessagePoll::ID: {
       const size_t MAX_POLL_QUESTION_LENGTH = is_bot ? 300 : 255;  // server-side limit
       constexpr size_t MAX_POLL_OPTION_LENGTH = 100;               // server-side limit
-      constexpr size_t MAX_POLL_OPTIONS = 10;                      // server-side limit
+      constexpr size_t MAX_POLL_OPTIONS = 12;                      // server-side limit
       auto input_poll = static_cast<td_api::inputMessagePoll *>(input_message_content.get());
       TRY_RESULT(question,
                  get_formatted_text(td, dialog_id, std::move(input_poll->question_), is_bot, false, true, false));
@@ -4732,7 +4736,8 @@ Status can_send_message_content(DialogId dialog_id, const MessageContent *conten
         return Status::Error(400, "Non-anonymous polls can't be sent to channel chats");
       }
       if (dialog_type == DialogType::User && !is_forward && !td->auth_manager_->is_bot() &&
-          !td->user_manager_->is_user_bot(dialog_id.get_user_id())) {
+          !td->user_manager_->is_user_bot(dialog_id.get_user_id()) &&
+          dialog_id != td->dialog_manager_->get_my_dialog_id()) {
         return Status::Error(400, "Polls can't be sent to the private chat");
       }
       break;
@@ -5483,8 +5488,8 @@ static void merge_location_access_hash(const Location &first, const Location &se
 }
 
 static bool need_message_text_changed_warning(const MessageText *old_content, const MessageText *new_content) {
-  const int32 MAX_CUSTOM_ENTITIES_COUNT = 100;  // server-side limit
-  if (old_content->text.entities.size() > MAX_CUSTOM_ENTITIES_COUNT) {
+  const int32 MAX_CUSTOM_ENTITY_COUNT = 100;  // server-side limit
+  if (old_content->text.entities.size() > MAX_CUSTOM_ENTITY_COUNT) {
     return false;
   }
   if (new_content->text.text == "Unsupported characters" ||
@@ -6553,7 +6558,7 @@ void compare_message_contents(Td *td, const MessageContent *old_content, const M
     case MessageContentType::PaidMessagesPrice: {
       const auto *lhs = static_cast<const MessagePaidMessagesPrice *>(old_content);
       const auto *rhs = static_cast<const MessagePaidMessagesPrice *>(new_content);
-      if (lhs->star_count != rhs->star_count) {
+      if (lhs->star_count != rhs->star_count || lhs->broadcast_messages_allowed != rhs->broadcast_messages_allowed) {
         need_update = true;
       }
       break;
@@ -8106,15 +8111,15 @@ unique_ptr<MessageContent> get_action_message_content(Td *td, tl_object_ptr<tele
       return td::make_unique<MessageContactRegistered>();
     case telegram_api::messageActionGeoProximityReached::ID: {
       auto action = telegram_api::move_object_as<telegram_api::messageActionGeoProximityReached>(action_ptr);
-      DialogId traveler_id(action->from_id_);
-      DialogId watcher_id(action->to_id_);
+      DialogId traveler_dialog_id(action->from_id_);
+      DialogId watcher_dialog_id(action->to_id_);
       int32 distance = action->distance_;
-      if (!traveler_id.is_valid() || !watcher_id.is_valid() || distance < 0) {
+      if (!traveler_dialog_id.is_valid() || !watcher_dialog_id.is_valid() || distance < 0) {
         LOG(ERROR) << "Receive invalid " << oneline(to_string(action));
         break;
       }
 
-      return make_unique<MessageProximityAlertTriggered>(traveler_id, watcher_id, distance);
+      return make_unique<MessageProximityAlertTriggered>(traveler_dialog_id, watcher_dialog_id, distance);
     }
     case telegram_api::messageActionGroupCall::ID: {
       auto action = telegram_api::move_object_as<telegram_api::messageActionGroupCall>(action_ptr);
@@ -8427,7 +8432,8 @@ unique_ptr<MessageContent> get_action_message_content(Td *td, tl_object_ptr<tele
     }
     case telegram_api::messageActionPaidMessagesPrice::ID: {
       auto action = move_tl_object_as<telegram_api::messageActionPaidMessagesPrice>(action_ptr);
-      return td::make_unique<MessagePaidMessagesPrice>(StarManager::get_star_count(action->stars_));
+      return td::make_unique<MessagePaidMessagesPrice>(StarManager::get_star_count(action->stars_),
+                                                       action->broadcast_messages_allowed_);
     }
     case telegram_api::messageActionConferenceCall::ID: {
       auto action = move_tl_object_as<telegram_api::messageActionConferenceCall>(action_ptr);
@@ -8985,6 +8991,10 @@ td_api::object_ptr<td_api::MessageContent> get_message_content_object(
     }
     case MessageContentType::PaidMessagesPrice: {
       const auto *m = static_cast<const MessagePaidMessagesPrice *>(content);
+      if (td->dialog_manager_->is_broadcast_channel(dialog_id)) {
+        return td_api::make_object<td_api::messageFeedbackMessagePriceChanged>(
+            m->broadcast_messages_allowed, !m->broadcast_messages_allowed ? 0 : m->star_count);
+      }
       return td_api::make_object<td_api::messagePaidMessagePriceChanged>(m->star_count);
     }
     case MessageContentType::ConferenceCall: {

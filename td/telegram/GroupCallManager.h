@@ -179,7 +179,7 @@ class GroupCallManager final : public Actor {
                                          vector<tl_object_ptr<telegram_api::groupCallParticipant>> &&participants,
                                          int32 version, bool is_recursive = false);
 
-  void process_join_voice_chat_response(InputGroupCallId input_group_call_id, uint64 generation,
+  void process_join_video_chat_response(InputGroupCallId input_group_call_id, uint64 generation,
                                         tl_object_ptr<telegram_api::Updates> &&updates, Promise<Unit> &&promise);
 
   void process_join_group_call_presentation_response(InputGroupCallId input_group_call_id, uint64 generation,
@@ -194,6 +194,7 @@ class GroupCallManager final : public Actor {
   struct GroupCallParticipants;
   struct GroupCallRecentSpeakers;
   struct PendingJoinRequest;
+  struct PendingJoinPresentationRequest;
 
   static constexpr int32 RECENT_SPEAKER_TIMEOUT = 60 * 60;
   static constexpr int32 UPDATE_GROUP_CALL_PARTICIPANT_ORDER_TIMEOUT = 10;
@@ -321,7 +322,7 @@ class GroupCallManager final : public Actor {
   void on_sync_group_call_participants(InputGroupCallId input_group_call_id,
                                        Result<tl_object_ptr<telegram_api::phone_groupCall>> &&result);
 
-  static GroupCallParticipantOrder get_real_participant_order(bool can_self_unmute,
+  static GroupCallParticipantOrder get_real_participant_order(bool my_can_self_unmute,
                                                               const GroupCallParticipant &participant,
                                                               const GroupCallParticipants *participants);
 
@@ -332,12 +333,12 @@ class GroupCallManager final : public Actor {
                                        int32 version, const string &offset, bool is_load, bool is_sync);
 
   static bool update_group_call_participant_can_be_muted(bool can_manage, const GroupCallParticipants *participants,
-                                                         GroupCallParticipant &participant);
+                                                         GroupCallParticipant &participant, bool force_is_admin);
 
   void update_group_call_participants_can_be_muted(InputGroupCallId input_group_call_id, bool can_manage,
-                                                   GroupCallParticipants *participants);
+                                                   GroupCallParticipants *participants, bool force_is_admin);
 
-  void update_group_call_participants_order(InputGroupCallId input_group_call_id, bool can_self_unmute,
+  void update_group_call_participants_order(InputGroupCallId input_group_call_id, bool my_can_self_unmute,
                                             GroupCallParticipants *participants, const char *source);
 
   // returns participant_count_diff and video_participant_count_diff
@@ -535,7 +536,7 @@ class GroupCallManager final : public Actor {
       load_group_call_queries_;
 
   FlatHashMap<InputGroupCallId, unique_ptr<PendingJoinRequest>, InputGroupCallIdHash> pending_join_requests_;
-  FlatHashMap<InputGroupCallId, unique_ptr<PendingJoinRequest>, InputGroupCallIdHash>
+  FlatHashMap<InputGroupCallId, unique_ptr<PendingJoinPresentationRequest>, InputGroupCallIdHash>
       pending_join_presentation_requests_;
   uint64 join_group_request_generation_ = 0;
 

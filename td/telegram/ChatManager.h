@@ -278,6 +278,9 @@ class ChatManager final : public Actor {
 
   void set_channel_discussion_group(DialogId dialog_id, DialogId discussion_dialog_id, Promise<Unit> &&promise);
 
+  void set_channel_feedback_group(DialogId dialog_id, bool is_enabled, int64 paid_message_star_count,
+                                  Promise<Unit> &&promise);
+
   void set_channel_location(ChannelId dialog_id, const DialogLocation &location, Promise<Unit> &&promise);
 
   void set_channel_slow_mode_delay(DialogId dialog_id, int32 slow_mode_delay, Promise<Unit> &&promise);
@@ -286,8 +289,8 @@ class ChatManager final : public Actor {
 
   void report_channel_anti_spam_false_positive(ChannelId channel_id, MessageId message_id, Promise<Unit> &&promise);
 
-  void set_channel_send_paid_messages_star_count(DialogId dialog_id, int64 send_paid_messages_star_count,
-                                                 Promise<Unit> &&promise);
+  void set_channel_send_paid_message_star_count(DialogId dialog_id, int64 send_paid_message_star_count,
+                                                Promise<Unit> &&promise);
 
   void delete_chat(ChatId chat_id, Promise<Unit> &&promise);
 
@@ -355,6 +358,8 @@ class ChatManager final : public Actor {
   bool is_broadcast_channel(ChannelId channel_id) const;
   bool is_megagroup_channel(ChannelId channel_id) const;
   bool is_forum_channel(ChannelId channel_id) const;
+  bool is_monoforum_channel(ChannelId channel_id) const;
+  ChannelId get_monoforum_channel_id(ChannelId channel_id) const;
   int32 get_channel_date(ChannelId channel_id) const;
   DialogParticipantStatus get_channel_status(ChannelId channel_id) const;
   DialogParticipantStatus get_channel_permissions(ChannelId channel_id) const;
@@ -499,6 +504,8 @@ class ChatManager final : public Actor {
     StoryId max_active_story_id;
     StoryId max_read_story_id;
 
+    ChannelId monoforum_channel_id;
+
     static constexpr uint32 CACHE_VERSION = 10;
     uint32 cache_version = 0;
 
@@ -513,10 +520,12 @@ class ChatManager final : public Actor {
     bool join_request = false;
     bool stories_hidden = false;
     bool autotranslation = false;
+    bool broadcast_messages_allowed = false;
 
     bool is_megagroup = false;
     bool is_gigagroup = false;
     bool is_forum = false;
+    bool is_monoforum = false;
     bool is_verified = false;
     bool is_scam = false;
     bool is_fake = false;
@@ -581,6 +590,7 @@ class ChatManager final : public Actor {
     StickerSetId emoji_sticker_set_id;
 
     ChannelId linked_channel_id;
+    ChannelId monoforum_channel_id;
 
     DialogLocation location;
 
@@ -738,6 +748,8 @@ class ChatManager final : public Actor {
                                           tl_object_ptr<telegram_api::ExportedChatInvite> &&invite_link);
   void on_update_channel_full_linked_channel_id(ChannelFull *channel_full, ChannelId channel_id,
                                                 ChannelId linked_channel_id);
+  void on_update_channel_full_monoforum_channel_id(ChannelFull *channel_full, ChannelId channel_id,
+                                                   ChannelId monoforum_channel_id);
   void on_update_channel_full_location(ChannelFull *channel_full, ChannelId channel_id, const DialogLocation &location);
   void on_update_channel_full_slow_mode_delay(ChannelFull *channel_full, ChannelId channel_id, int32 slow_mode_delay,
                                               int32 slow_mode_next_send_date);
@@ -752,6 +764,9 @@ class ChatManager final : public Actor {
                                     const Usernames &new_usernames);
 
   void remove_linked_channel_id(ChannelId channel_id);
+
+  void remove_monoforum_channel_id(ChannelId channel_id);
+
   ChannelId get_linked_channel_id(ChannelId channel_id) const;
 
   static bool speculative_add_count(int32 &count, int32 delta_count, int32 min_count = 0);
@@ -924,6 +939,7 @@ class ChatManager final : public Actor {
   FlatHashMap<ChannelId, FlatHashSet<MessageFullId, MessageFullIdHash>, ChannelIdHash> channel_messages_;
 
   WaitFreeHashMap<ChannelId, ChannelId, ChannelIdHash> linked_channel_ids_;
+  WaitFreeHashMap<ChannelId, ChannelId, ChannelIdHash> monoforum_channel_ids_;
 
   WaitFreeHashSet<ChannelId, ChannelIdHash> restricted_channel_ids_;
 

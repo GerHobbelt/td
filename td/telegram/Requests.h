@@ -98,6 +98,8 @@ class Requests {
 
   Promise<string> create_http_url_request_promise(uint64 id);
 
+  Promise<int32> create_count_request_promise(uint64 id);
+
   template <class T>
   void on_request(uint64 id, const T &) = delete;
 
@@ -954,6 +956,8 @@ class Requests {
   void on_request(uint64 id, td_api::setChatDescription &request);
 
   void on_request(uint64 id, const td_api::setChatDiscussionGroup &request);
+
+  void on_request(uint64 id, const td_api::setChatFeedbackGroup &request);
 
   void on_request(uint64 id, td_api::setChatLocation &request);
 
