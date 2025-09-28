@@ -1312,7 +1312,13 @@ class UpdatePaidMessagesPriceQuery final : public Td::ResultHandler {
   }
 
   void on_error(Status status) final {
-    td_->chat_manager_->on_get_channel_error(channel_id_, status, "UpdatePaidMessagesPriceQuery");
+    if (status.message() == "CHAT_NOT_MODIFIED") {
+      if (!td_->auth_manager_->is_bot()) {
+        return promise_.set_value(Unit());
+      }
+    } else {
+      td_->chat_manager_->on_get_channel_error(channel_id_, status, "UpdatePaidMessagesPriceQuery");
+    }
     promise_.set_error(std::move(status));
   }
 };
@@ -2749,7 +2755,7 @@ bool ChatManager::have_input_peer_channel(const Channel *c, ChannelId channel_id
   }
 
   if (!from_linked && c->is_monoforum) {
-    auto monoforum_channel_id = get_monoforum_channel_id(channel_id);
+    auto monoforum_channel_id = c->monoforum_channel_id;
     auto *monoforum_channel = get_channel(monoforum_channel_id);
     if (monoforum_channel != nullptr) {
       return have_input_peer_channel(monoforum_channel, monoforum_channel_id, access_rights, true);
@@ -3345,7 +3351,8 @@ void ChatManager::toggle_channel_is_all_history_available(ChannelId channel_id, 
     return promise.set_error(Status::Error(400, "Message history can be hidden in supergroups only"));
   }
   if ((c->is_forum || c->is_monoforum) && !is_all_history_available) {
-    return promise.set_error(Status::Error(400, "Message history can't be hidden in forum and feedback supergroups"));
+    return promise.set_error(
+        Status::Error(400, "Message history can't be hidden in forum and channel direct messages supergroups"));
   }
   if (c->has_linked_channel && !is_all_history_available) {
     return promise.set_error(Status::Error(400, "Message history can't be hidden in discussion supergroups"));
@@ -3596,12 +3603,12 @@ void ChatManager::set_channel_discussion_group(DialogId dialog_id, DialogId disc
              std::move(group_input_channel));
 }
 
-void ChatManager::set_channel_feedback_group(DialogId dialog_id, bool is_enabled, int64 paid_message_star_count,
-                                             Promise<Unit> &&promise) {
+void ChatManager::set_channel_monoforum_group(DialogId dialog_id, bool is_enabled, int64 paid_message_star_count,
+                                              Promise<Unit> &&promise) {
   if (!dialog_id.is_valid()) {
     return promise.set_error(Status::Error(400, "Invalid chat identifier specified"));
   }
-  if (!td_->dialog_manager_->have_dialog_force(dialog_id, "set_channel_feedback_group")) {
+  if (!td_->dialog_manager_->have_dialog_force(dialog_id, "set_channel_monoforum_group")) {
     return promise.set_error(Status::Error(400, "Chat not found"));
   }
 
@@ -4760,16 +4767,17 @@ void ChatManager::on_load_channel_from_database(ChannelId channel_id, string val
   }
 
   if (c != nullptr && c->monoforum_channel_id.is_valid() && !have_channel(c->monoforum_channel_id)) {
-    if (is_recursive || loaded_from_database_channels_.count(channel_id) != 0) {
+    if (is_recursive || loaded_from_database_channels_.count(c->monoforum_channel_id) != 0) {
       LOG(INFO) << "Can't find " << c->monoforum_channel_id << " from " << channel_id;
     } else {
       if (force) {
         if (get_channel_force(c->monoforum_channel_id, "on_load_channel_from_database", true) == nullptr) {
-          LOG(INFO) << "Can't find " << c->monoforum_channel_id << " from " << channel_id;
+          LOG(INFO) << "Can't load " << c->monoforum_channel_id << " from " << channel_id;
         }
       } else {
-        for (auto &promise : promises)
-          load_channel_from_database_impl(channel_id, true, std::move(promise));
+        for (auto &promise : promises) {
+          load_channel_from_database_impl(c->monoforum_channel_id, true, std::move(promise));
+        }
       }
       return;
     }
@@ -5285,8 +5293,7 @@ void ChatManager::update_channel(Channel *c, ChannelId channel_id, bool from_bin
   }
   if (c->is_is_forum_changed) {
     update_dialogs_for_discussion(DialogId(channel_id), is_suitable_discussion_channel(c));
-    send_closure_later(G()->messages_manager(), &MessagesManager::on_update_dialog_is_forum, DialogId(channel_id),
-                       c->is_forum, c->is_forum_tabs);
+    td_->messages_manager_->on_update_dialog_is_forum(DialogId(channel_id), c->is_forum, c->is_forum_tabs);
     c->is_is_forum_changed = false;
   }
   if (c->is_stories_hidden_changed) {
@@ -6165,13 +6172,21 @@ bool ChatManager::on_get_channel_error(ChannelId channel_id, const Status &statu
     }
 
     auto c = get_channel(channel_id);
+
+    auto initial_channel_id = channel_id;
+    auto initial_c = c;
+    if (c != nullptr && c->is_monoforum) {
+      channel_id = c->monoforum_channel_id;
+      c = get_channel(channel_id);
+    }
     if (c == nullptr) {
       if (Slice(source) == Slice("GetChannelDifferenceQuery") || Slice(source) == Slice("GetChannelsQuery")) {
         // get channel difference after restart
         // get channel from server by its identifier
         return true;
       }
-      LOG(ERROR) << "Receive " << status.message() << " in not found " << channel_id << " from " << source;
+      LOG(ERROR) << "Receive " << status.message() << " in not found " << initial_channel_id << '/' << channel_id
+                 << " from " << source;
       return false;
     }
 
@@ -6197,8 +6212,11 @@ bool ChatManager::on_get_channel_error(ChannelId channel_id, const Status &statu
       td_->dialog_invite_link_manager_->remove_dialog_access_by_invite_link(DialogId(channel_id));
     }
     invalidate_channel_full(channel_id, !c->is_slow_mode_enabled, source);
-    LOG_IF(ERROR, have_input_peer_channel(c, channel_id, AccessRights::Read))
-        << "Have read access to channel after receiving CHANNEL_PRIVATE. Channel state: "
+    if (channel_id != initial_channel_id) {
+      invalidate_channel_full(initial_channel_id, !initial_c->is_slow_mode_enabled, source);
+    }
+    LOG_IF(ERROR, have_input_peer_channel(initial_c, initial_channel_id, AccessRights::Read))
+        << "Have read access to " << initial_channel_id << " after receiving CHANNEL_PRIVATE. Channel state: "
         << oneline(to_string(get_supergroup_object(channel_id, c)))
         << ". Previous channel state: " << debug_channel_object;
 
@@ -8909,7 +8927,7 @@ void ChatManager::on_get_channel(telegram_api::channel &channel, const char *sou
   bool broadcast_messages_allowed = channel.broadcast_messages_allowed_;
   auto monoforum_channel_id = ChannelId(channel.linked_monoforum_id_);
   if ((monoforum_channel_id != ChannelId() && !monoforum_channel_id.is_valid()) || monoforum_channel_id == channel_id) {
-    LOG(ERROR) << "Receive feedback " << monoforum_channel_id << " for " << channel_id;
+    LOG(ERROR) << "Receive channel direct messages " << monoforum_channel_id << " for " << channel_id;
     monoforum_channel_id = ChannelId();
   }
 
@@ -8932,16 +8950,16 @@ void ChatManager::on_get_channel(telegram_api::channel &channel, const char *sou
   if (is_megagroup) {
     LOG_IF(ERROR, sign_messages) << "Need to sign messages in the " << channel_id << " from " << source;
     LOG_IF(ERROR, broadcast_messages_allowed)
-        << "Receive supergroup with feedback group as " << channel_id << " from " << source;
+        << "Receive supergroup with channel direct messages group as " << channel_id << " from " << source;
     sign_messages = true;
     show_message_sender = true;
     broadcast_messages_allowed = false;
   } else {
     LOG_IF(ERROR, is_slow_mode_enabled && channel_id.get() >= 8000000000)
         << "Slow mode enabled in the " << channel_id << " from " << source;
-    LOG_IF(ERROR, is_gigagroup) << "Receive broadcast group as " << channel_id << " from " << source;
+    LOG_IF(ERROR, is_gigagroup) << "Receive broadcast gigagroup as " << channel_id << " from " << source;
     LOG_IF(ERROR, is_forum) << "Receive broadcast forum as " << channel_id << " from " << source;
-    LOG_IF(ERROR, is_monoforum) << "Receive broadcast feedback group as " << channel_id << " from " << source;
+    LOG_IF(ERROR, is_monoforum) << "Receive broadcast monoforum group as " << channel_id << " from " << source;
     is_slow_mode_enabled = false;
     is_gigagroup = false;
     is_forum = false;

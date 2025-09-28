@@ -2043,7 +2043,7 @@ class MessagesManager final : public Actor {
 
   bool read_message_content(Dialog *d, Message *m, bool is_local_read, int32 read_date, const char *source);
 
-  bool has_incoming_notification(DialogId dialog_id, const Message *m) const;
+  bool has_incoming_notification(const Dialog *d, const Message *m) const;
 
   void read_history_outbox(Dialog *d, MessageId max_message_id, int32 read_date = -1);
 
@@ -2328,6 +2328,8 @@ class MessagesManager final : public Actor {
   void send_update_message_interaction_info(DialogId dialog_id, const Message *m) const;
 
   void send_update_message_fact_check(DialogId dialog_id, const Message *m) const;
+
+  void send_update_message_mention_read(DialogId dialog_id, const Message *m, int32 unread_mention_count) const;
 
   void send_update_message_unread_reactions(DialogId dialog_id, const Message *m, int32 unread_reaction_count) const;
 

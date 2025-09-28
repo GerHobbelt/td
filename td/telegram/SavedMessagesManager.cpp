@@ -150,7 +150,8 @@ class GetSavedDialogsByIdQuery final : public Td::ResultHandler {
     }
 
     send_query(G()->net_query_creator().create(
-        telegram_api::messages_getSavedDialogsByID(flags, std::move(parent_input_peer), std::move(saved_input_peers))));
+        telegram_api::messages_getSavedDialogsByID(flags, std::move(parent_input_peer), std::move(saved_input_peers)),
+        {{dialog_id}}));
   }
 
   void on_result(BufferSlice packet) final {
@@ -515,6 +516,9 @@ int64 SavedMessagesManager::get_saved_messages_topic_id_object(DialogId dialog_i
   }
   auto *topic_list = add_topic_list(dialog_id);
   if (topic_list == nullptr) {
+    if (td_->auth_manager_->is_bot()) {
+      return saved_messages_topic_id.get_unique_id();
+    }
     return 0;
   }
 
@@ -566,6 +570,7 @@ const SavedMessagesManager::SavedMessagesTopic *SavedMessagesManager::get_topic(
 SavedMessagesManager::SavedMessagesTopic *SavedMessagesManager::add_topic(TopicList *topic_list,
                                                                           SavedMessagesTopicId saved_messages_topic_id,
                                                                           bool from_server) {
+  CHECK(!td_->auth_manager_->is_bot());
   CHECK(saved_messages_topic_id.is_valid());
   auto my_dialog_id = td_->dialog_manager_->get_my_dialog_id();
   bool is_saved_messages = topic_list->dialog_id_ == DialogId();
@@ -604,6 +609,10 @@ void SavedMessagesManager::do_set_topic_last_message_id(SavedMessagesTopic *topi
   topic->last_message_id_ = last_message_id;
   topic->last_message_date_ = last_message_date;
   topic->is_changed_ = true;
+
+  if (last_message_id != MessageId()) {
+    CHECK(topic->ordered_messages_.get_last_message_id() == last_message_id);
+  }
 }
 
 void SavedMessagesManager::do_set_topic_read_inbox_max_message_id(SavedMessagesTopic *topic,
@@ -682,8 +691,9 @@ void SavedMessagesManager::do_set_topic_unread_reaction_count(SavedMessagesTopic
   }
 
   if (unread_reaction_count < 0) {
-    LOG(ERROR) << "Receive " << unread_reaction_count << " unread reactions in " << topic->saved_messages_topic_id_
-               << " of " << topic->dialog_id_;
+    // can happen after local read of all reactions in the topic or chat
+    LOG(INFO) << "Receive " << unread_reaction_count << " unread reactions in " << topic->saved_messages_topic_id_
+              << " of " << topic->dialog_id_;
     unread_reaction_count = 0;
   }
   if (topic->unread_reaction_count_ == unread_reaction_count) {
@@ -716,32 +726,35 @@ void SavedMessagesManager::on_topic_message_added(DialogId dialog_id, SavedMessa
   if (td_->auth_manager_->is_bot()) {
     return;
   }
+  CHECK(message_id.is_valid());
 
   LOG(INFO) << "Add " << message_id << " to " << saved_messages_topic_id << " of " << dialog_id
-            << " with need_update = " << need_update << " and is_new = " << is_new;
+            << " with from_update = " << from_update << ", need_update = " << need_update << " and is_new = " << is_new;
   auto *topic_list = add_topic_list(dialog_id);
   if (topic_list == nullptr) {
     return;
   }
   auto *topic = add_topic(topic_list, saved_messages_topic_id, false);
 
-  auto old_last_message_id = topic->last_message_id_;
-  if (topic->dialog_id_.is_valid() && need_update && message_id > topic->read_inbox_max_message_id_ &&
-      td_->messages_manager_->get_is_counted_as_unread(dialog_id, MessageType::Server)(message_id)) {
-    do_set_topic_read_inbox_max_message_id(topic, topic->read_inbox_max_message_id_, topic->unread_count_ + 1,
-                                           "on_topic_message_added");
-  }
+  topic->ordered_messages_.insert(message_id, from_update, topic->last_message_id_, source);
+
   if (from_update && is_new && message_id > topic->last_message_id_) {
     do_set_topic_last_message_id(topic, message_id, message_date);
   }
-  topic->ordered_messages_.insert(message_id, from_update, old_last_message_id, source);
+  if (topic->dialog_id_.is_valid() && need_update && message_id > topic->read_inbox_max_message_id_ &&
+      td_->messages_manager_->get_is_counted_as_unread(dialog_id, MessageType::Server)(message_id)) {
+    // must be called after update of last_message_id
+    do_set_topic_read_inbox_max_message_id(topic, topic->read_inbox_max_message_id_, topic->unread_count_ + 1,
+                                           "on_topic_message_added");
+  }
 
-  if (from_update) {
-    if (message_id.is_server()) {
+  if (message_id.is_server()) {
+    if (from_update && topic->is_server_message_count_inited_) {
       topic->server_message_count_++;
-    } else {
-      topic->local_message_count_++;
+      on_topic_message_count_changed(topic, "on_topic_message_added");
     }
+  } else {
+    topic->local_message_count_++;
     on_topic_message_count_changed(topic, "on_topic_message_added");
   }
 
@@ -753,6 +766,7 @@ void SavedMessagesManager::on_topic_message_updated(DialogId dialog_id, SavedMes
   if (td_->auth_manager_->is_bot()) {
     return;
   }
+  CHECK(message_id.is_valid());
 
   auto *topic_list = get_topic_list(dialog_id);
   if (topic_list == nullptr) {
@@ -771,6 +785,7 @@ void SavedMessagesManager::on_topic_message_deleted(DialogId dialog_id, SavedMes
   if (td_->auth_manager_->is_bot()) {
     return;
   }
+  CHECK(message_id.is_valid());
 
   LOG(INFO) << "Delete " << message_id << " from " << saved_messages_topic_id << " of " << dialog_id;
   auto *topic_list = get_topic_list(dialog_id);
@@ -778,42 +793,45 @@ void SavedMessagesManager::on_topic_message_deleted(DialogId dialog_id, SavedMes
   auto *topic = get_topic(topic_list, saved_messages_topic_id);
   CHECK(topic != nullptr);
 
+  topic->ordered_messages_.erase(message_id, only_from_memory);
+
   if (message_id == topic->last_message_id_) {
     CHECK(!only_from_memory);
 
-    auto it = topic->ordered_messages_.get_const_iterator(message_id);
-    CHECK(*it != nullptr);
-    CHECK((*it)->get_message_id() == message_id);
-    --it;
-    MessageId new_last_message_id;
+    MessageId new_last_message_id = topic->ordered_messages_.get_last_message_id();
     int32 new_last_message_date = 0;
-    if (*it != nullptr) {
-      new_last_message_id = (*it)->get_message_id();
+    if (new_last_message_id != MessageId()) {
       new_last_message_date = td_->messages_manager_->get_get_message_date(dialog_id)(new_last_message_id);
     } else {
       new_last_message_date = topic->last_message_date_;
       get_topic_history(dialog_id, saved_messages_topic_id, MessageId(), 0, 1, 2, Auto());
     }
     do_set_topic_last_message_id(topic, new_last_message_id, new_last_message_date);
-
-    on_topic_changed(topic_list, topic, "on_topic_message_deleted");
   }
-
-  topic->ordered_messages_.erase(message_id, only_from_memory);
-
   if (!only_from_memory) {
     if (message_id.is_server()) {
-      if (topic->server_message_count_ > 0) {
-        topic->server_message_count_--;
-      } else if (topic->is_server_message_count_inited_) {
-        LOG(ERROR) << "Server message count become negative in " << saved_messages_topic_id << " of " << dialog_id;
+      if (topic->is_server_message_count_inited_) {
+        if (topic->server_message_count_ > 0) {
+          topic->server_message_count_--;
+          on_topic_message_count_changed(topic, "on_topic_message_deleted");
+        } else {
+          LOG(ERROR) << "Server message count become negative in " << saved_messages_topic_id << " of " << dialog_id;
+        }
       }
     } else {
       CHECK(topic->local_message_count_ > 0);
       topic->local_message_count_--;
+      on_topic_message_count_changed(topic, "on_topic_message_deleted");
     }
-    on_topic_message_count_changed(topic, "on_topic_message_deleted");
+
+    if (message_id > topic->read_inbox_max_message_id_ && topic->read_inbox_max_message_id_.is_valid() &&
+        td_->messages_manager_->get_is_counted_as_unread(dialog_id, MessageType::Server)(message_id)) {
+      do_set_topic_read_inbox_max_message_id(topic, topic->read_inbox_max_message_id_, topic->unread_count_ - 1,
+                                             "on_topic_message_deleted");
+    }
   }
+
+  on_topic_changed(topic_list, topic, "on_topic_message_deleted");
 }
 
 void SavedMessagesManager::on_all_dialog_messages_deleted(DialogId dialog_id) {
@@ -900,6 +918,7 @@ void SavedMessagesManager::clear_monoforum_topic_draft_by_sent_message(DialogId 
     return;
   }
 
+  LOG(INFO) << "Clear draft in " << saved_messages_topic_id << " of " << dialog_id << " by sent message";
   if (!message_clear_draft) {
     const auto *draft_message = topic->draft_message_.get();
     if (draft_message == nullptr || !draft_message->need_clear_local(message_content_type)) {
@@ -907,6 +926,7 @@ void SavedMessagesManager::clear_monoforum_topic_draft_by_sent_message(DialogId 
     }
   }
   do_set_topic_draft_message(topic, nullptr, false);
+  on_topic_changed(topic_list, topic, "clear_monoforum_topic_draft_by_sent_message");
 }
 
 void SavedMessagesManager::repair_topic_unread_count(const SavedMessagesTopic *topic) {
@@ -919,7 +939,7 @@ void SavedMessagesManager::repair_topic_unread_count(const SavedMessagesTopic *t
   // }
 
   LOG(INFO) << "Repair unread count in " << topic->saved_messages_topic_id_ << " of " << topic->dialog_id_;
-  create_actor<SleepActor>("RepairTopicUnreadCountSleepActor", 0.2,
+  create_actor<SleepActor>("RepairTopicUnreadCountSleepActor", 0.05,
                            PromiseCreator::lambda([actor_id = actor_id(this), dialog_id = topic->dialog_id_,
                                                    saved_messages_topic_id = topic->saved_messages_topic_id_](Unit) {
                              send_closure(actor_id, &SavedMessagesManager::reload_monoforum_topic, dialog_id,
@@ -945,6 +965,8 @@ void SavedMessagesManager::read_topic_messages(SavedMessagesTopic *topic, Messag
     }
   }
   do_set_topic_read_inbox_max_message_id(topic, read_inbox_max_message_id, unread_count, "read_topic_messages");
+
+  // on_topic_changed must be called by the caller
 }
 
 void SavedMessagesManager::read_monoforum_topic_messages(DialogId dialog_id,
@@ -1270,6 +1292,9 @@ const SavedMessagesManager::TopicList *SavedMessagesManager::get_topic_list(Dial
 }
 
 SavedMessagesManager::TopicList *SavedMessagesManager::add_topic_list(DialogId dialog_id) {
+  if (td_->auth_manager_->is_bot()) {
+    return nullptr;
+  }
   if (dialog_id == DialogId() || dialog_id == td_->dialog_manager_->get_my_dialog_id()) {
     return &topic_list_;
   }
@@ -1436,6 +1461,37 @@ void SavedMessagesManager::on_get_saved_messages_topics(
   td_->user_manager_->on_get_users(std::move(users), "on_get_saved_messages_topics");
   td_->chat_manager_->on_get_chats(std::move(chats), "on_get_saved_messages_topics");
 
+  MessagesInfo messages_info;
+  messages_info.messages = std::move(messages);
+  td_->messages_manager_->get_channel_difference_if_needed(
+      dialog_id, std::move(messages_info),
+      PromiseCreator::lambda([actor_id = actor_id(this), dialog_id, generation, expected_saved_messages_topic_id,
+                              is_pinned, limit, total_count, dialogs = std::move(dialogs), is_last,
+                              promise = std::move(promise)](Result<MessagesInfo> &&r_info) mutable {
+        if (r_info.is_error()) {
+          return promise.set_error(r_info.move_as_error());
+        }
+        auto info = r_info.move_as_ok();
+        send_closure(actor_id, &SavedMessagesManager::process_saved_messages_topics, dialog_id, generation,
+                     expected_saved_messages_topic_id, is_pinned, limit, total_count, std::move(dialogs),
+                     std::move(info.messages), is_last, std::move(promise));
+      }),
+      "on_get_saved_messages_topics");
+}
+
+void SavedMessagesManager::process_saved_messages_topics(
+    DialogId dialog_id, uint32 generation, SavedMessagesTopicId expected_saved_messages_topic_id, bool is_pinned,
+    int32 limit, int32 total_count, vector<telegram_api::object_ptr<telegram_api::SavedDialog>> &&dialogs,
+    vector<telegram_api::object_ptr<telegram_api::Message>> &&messages, bool is_last, Promise<Unit> &&promise) {
+  TRY_STATUS_PROMISE(promise, G()->close_status());
+  auto *topic_list = get_topic_list(dialog_id);
+  if (topic_list == nullptr) {
+    return promise.set_error(Status::Error(400, "Chat has no topics"));
+  }
+  if (topic_list->generation_ != generation) {
+    return promise.set_error(Status::Error(400, "Topic was deleted"));
+  }
+
   FlatHashMap<MessageId, telegram_api::object_ptr<telegram_api::Message>, MessageIdHash> message_id_to_message;
   for (auto &message : messages) {
     auto message_id = MessageId::get_message_id(message, false);
@@ -1511,7 +1567,8 @@ void SavedMessagesManager::on_get_saved_messages_topics(
 
     auto *topic = add_topic(topic_list, saved_messages_topic_id, true);
     if (!td_->auth_manager_->is_bot()) {
-      if (topic->last_message_id_ == MessageId() && last_topic_message_id.is_valid()) {
+      if (topic->last_message_id_ == MessageId() && last_topic_message_id.is_valid() &&
+          topic->ordered_messages_.get_last_message_id() == last_topic_message_id) {
         do_set_topic_last_message_id(topic, last_topic_message_id, message_date);
       }
       if (topic->read_inbox_max_message_id_ == MessageId() || topic->need_repair_unread_count_) {
@@ -1529,7 +1586,9 @@ void SavedMessagesManager::on_get_saved_messages_topics(
           topic->need_repair_unread_count_ = false;
         }
         if (topic->need_repair_unread_count_) {
-          LOG(ERROR) << "Failed to repair server unread count in " << saved_messages_topic_id << " of " << dialog_id;
+          LOG(INFO) << "Failed to repair server unread count in " << saved_messages_topic_id << " of " << dialog_id
+                    << ", because locally read messages up to " << topic->read_inbox_max_message_id_
+                    << ", but server-side only up to " << read_inbox_max_message_id;
           topic->need_repair_unread_count_ = false;
         }
         do_set_topic_read_inbox_max_message_id(topic, topic_info.read_inbox_max_message_id_, topic_info.unread_count_,
@@ -1610,27 +1669,29 @@ td_api::object_ptr<td_api::updateSavedMessagesTopic> SavedMessagesManager::get_u
   return td_api::make_object<td_api::updateSavedMessagesTopic>(get_saved_messages_topic_object(topic));
 }
 
-td_api::object_ptr<td_api::feedbackChatTopic> SavedMessagesManager::get_feedback_chat_topic_object(
+td_api::object_ptr<td_api::directMessagesChatTopic> SavedMessagesManager::get_direct_messages_chat_topic_object(
     const TopicList *topic_list, const SavedMessagesTopic *topic) const {
   CHECK(topic != nullptr);
   CHECK(topic->dialog_id_ != DialogId());
   td_api::object_ptr<td_api::message> last_message_object;
   if (topic->last_message_id_ != MessageId()) {
     last_message_object = td_->messages_manager_->get_message_object({topic->dialog_id_, topic->last_message_id_},
-                                                                     "get_feedback_chat_topic_object");
+                                                                     "get_direct_messages_chat_topic_object");
   }
-  return td_api::make_object<td_api::feedbackChatTopic>(
-      td_->dialog_manager_->get_chat_id_object(topic->dialog_id_, "feedbackChatTopic"),
+  return td_api::make_object<td_api::directMessagesChatTopic>(
+      td_->dialog_manager_->get_chat_id_object(topic->dialog_id_, "directMessagesChatTopic"),
       topic->saved_messages_topic_id_.get_unique_id(),
-      topic->saved_messages_topic_id_.get_feedback_message_sender_object(td_),
+      topic->saved_messages_topic_id_.get_monoforum_message_sender_object(td_),
       get_topic_public_order(topic_list, topic), topic->is_marked_as_unread_, topic->unread_count_,
       topic->read_inbox_max_message_id_.get(), topic->read_outbox_max_message_id_.get(), topic->unread_reaction_count_,
       std::move(last_message_object), get_draft_message_object(td_, topic->draft_message_));
 }
 
-td_api::object_ptr<td_api::updateFeedbackChatTopic> SavedMessagesManager::get_update_feedback_chat_topic_object(
-    const TopicList *topic_list, const SavedMessagesTopic *topic) const {
-  return td_api::make_object<td_api::updateFeedbackChatTopic>(get_feedback_chat_topic_object(topic_list, topic));
+td_api::object_ptr<td_api::updateDirectMessagesChatTopic>
+SavedMessagesManager::get_update_direct_messages_chat_topic_object(const TopicList *topic_list,
+                                                                   const SavedMessagesTopic *topic) const {
+  return td_api::make_object<td_api::updateDirectMessagesChatTopic>(
+      get_direct_messages_chat_topic_object(topic_list, topic));
 }
 
 void SavedMessagesManager::send_update_saved_messages_topic(const TopicList *topic_list,
@@ -1642,7 +1703,7 @@ void SavedMessagesManager::send_update_saved_messages_topic(const TopicList *top
   if (topic->dialog_id_ == DialogId()) {
     send_closure(G()->td(), &Td::send_update, get_update_saved_messages_topic_object(topic));
   } else {
-    send_closure(G()->td(), &Td::send_update, get_update_feedback_chat_topic_object(topic_list, topic));
+    send_closure(G()->td(), &Td::send_update, get_update_direct_messages_chat_topic_object(topic_list, topic));
   }
 }
 
@@ -1780,7 +1841,7 @@ void SavedMessagesManager::set_last_topic_date(TopicList *topic_list, TopicDate 
 }
 
 void SavedMessagesManager::get_monoforum_topic(DialogId dialog_id, SavedMessagesTopicId saved_messages_topic_id,
-                                               Promise<td_api::object_ptr<td_api::feedbackChatTopic>> &&promise) {
+                                               Promise<td_api::object_ptr<td_api::directMessagesChatTopic>> &&promise) {
   TRY_RESULT_PROMISE(promise, topic_list, get_monoforum_topic_list(dialog_id));
   TRY_STATUS_PROMISE(promise, saved_messages_topic_id.is_valid_in(td_, dialog_id));
 
@@ -1789,14 +1850,15 @@ void SavedMessagesManager::get_monoforum_topic(DialogId dialog_id, SavedMessages
     if (!promise) {
       return promise.set_value(nullptr);
     }
-    return promise.set_value(get_feedback_chat_topic_object(topic_list, topic));
+    return promise.set_value(get_direct_messages_chat_topic_object(topic_list, topic));
   }
 
   reload_monoforum_topic(dialog_id, saved_messages_topic_id, std::move(promise));
 }
 
-void SavedMessagesManager::reload_monoforum_topic(DialogId dialog_id, SavedMessagesTopicId saved_messages_topic_id,
-                                                  Promise<td_api::object_ptr<td_api::feedbackChatTopic>> &&promise) {
+void SavedMessagesManager::reload_monoforum_topic(
+    DialogId dialog_id, SavedMessagesTopicId saved_messages_topic_id,
+    Promise<td_api::object_ptr<td_api::directMessagesChatTopic>> &&promise) {
   CHECK(dialog_id != DialogId());
   auto topic_list = get_topic_list(dialog_id);
   if (topic_list == nullptr) {
@@ -1846,7 +1908,7 @@ void SavedMessagesManager::on_get_monoforum_topic(DialogId dialog_id, uint32 gen
     if (!promise) {
       return promise.set_value(nullptr);
     }
-    promise.set_value(get_feedback_chat_topic_object(topic_list, topic));
+    promise.set_value(get_direct_messages_chat_topic_object(topic_list, topic));
   }
 }
 
@@ -1910,8 +1972,15 @@ void SavedMessagesManager::do_get_topic_history(const TopicList *topic_list, con
                                                 Promise<td_api::object_ptr<td_api::messages>> &&promise) {
   int32 total_count = -1;
   vector<MessageId> message_ids;
-  if (topic != nullptr) {
+  auto initial_from_message_id = from_message_id;
+  auto initial_offset = offset;
+  auto initial_limit = limit;
+  bool from_the_end = from_message_id == MessageId::max();
+  if (topic != nullptr && topic->is_server_message_count_inited_) {
     total_count = topic->server_message_count_ + topic->local_message_count_;
+    LOG(INFO) << "Have local last " << topic->last_message_id_ << " and " << total_count
+              << " messages. Get history from " << from_message_id << " with offset " << offset << " and limit "
+              << limit;
     message_ids = topic->ordered_messages_.get_history(topic->last_message_id_, from_message_id, offset, limit,
                                                        left_tries == 0 /* && !only_local*/);
   }
@@ -1920,14 +1989,14 @@ void SavedMessagesManager::do_get_topic_history(const TopicList *topic_list, con
         td_->messages_manager_->get_messages_object(total_count, dialog_id, message_ids, true, "do_get_topic_history"));
   }
 
-  auto query_promise = PromiseCreator::lambda([actor_id = actor_id(this), dialog_id,
-                                               generation = topic_list->generation_, saved_messages_topic_id,
-                                               from_message_id, offset, limit, left_tries,
-                                               promise = std::move(promise)](Result<MessagesInfo> &&r_info) mutable {
-    send_closure(actor_id, &SavedMessagesManager::on_get_topic_history, dialog_id, generation, saved_messages_topic_id,
-                 from_message_id, offset, limit, left_tries, std::move(r_info), std::move(promise));
-  });
-  bool from_the_end = from_message_id == MessageId::max();
+  auto query_promise = PromiseCreator::lambda(
+      [actor_id = actor_id(this), dialog_id, generation = topic_list->generation_, saved_messages_topic_id,
+       from_message_id = initial_from_message_id, offset = initial_offset, limit = initial_limit, left_tries,
+       promise = std::move(promise)](Result<MessagesInfo> &&r_info) mutable {
+        send_closure(actor_id, &SavedMessagesManager::on_get_topic_history, dialog_id, generation,
+                     saved_messages_topic_id, from_message_id, offset, limit, left_tries, std::move(r_info),
+                     std::move(promise));
+      });
   if (from_the_end) {
     // load only 10 messages when repairing the last message
     limit = !promise ? max(limit, 10) : MAX_GET_HISTORY;
@@ -2004,7 +2073,8 @@ void SavedMessagesManager::on_get_topic_history(DialogId dialog_id, uint32 gener
     }
     first_message_id = message_id;
   }
-  if (from_the_end && last_message_id.is_valid() && last_message_id > topic->last_message_id_) {
+  if (from_the_end && last_message_id.is_valid() && last_message_id > topic->last_message_id_ &&
+      topic->ordered_messages_.get_last_message_id() == last_message_id) {
     do_set_topic_last_message_id(topic, last_message_id, last_message_date);
     on_topic_changed(topic_list, topic, "on_get_topic_history");
   }
@@ -2194,6 +2264,7 @@ void SavedMessagesManager::set_monoforum_topic_is_marked_as_unread(DialogId dial
                                                                       is_marked_as_unread, 0);
     on_topic_changed(topic_list, topic, "set_monoforum_topic_is_marked_as_unread");
   }
+  promise.set_value(Unit());
 }
 
 Status SavedMessagesManager::set_monoforum_topic_draft_message(
@@ -2269,6 +2340,8 @@ void SavedMessagesManager::read_all_monoforum_topic_reactions(DialogId dialog_id
 
   td_->message_query_manager_->read_all_topic_reactions_on_server(dialog_id, MessageId(), saved_messages_topic_id, 0,
                                                                   std::move(promise));
+
+  on_topic_changed(topic_list, topic, "read_all_monoforum_topic_reactions");
 }
 
 void SavedMessagesManager::get_monoforum_message_author(MessageFullId message_full_id,
@@ -2304,7 +2377,7 @@ void SavedMessagesManager::get_current_state(vector<td_api::object_ptr<td_api::U
     const auto *topic_list = dialog_it.second.get();
     for (const auto &it : topic_list->topics_) {
       const auto *topic = it.second.get();
-      updates.push_back(get_update_feedback_chat_topic_object(topic_list, topic));
+      updates.push_back(get_update_direct_messages_chat_topic_object(topic_list, topic));
       if (topic->sent_message_count_ >= 0) {
         updates.push_back(get_update_topic_message_count_object(topic));
       }
