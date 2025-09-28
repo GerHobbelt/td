@@ -7667,6 +7667,60 @@ bool MessagesManager::get_message_has_protected_content(DialogId dialog_id, cons
   return m->noforwards || td_->dialog_manager_->get_dialog_has_protected_content(dialog_id);
 }
 
+bool MessagesManager::can_add_message_tasks(MessageFullId message_full_id) {
+  return can_add_message_tasks(message_full_id.get_dialog_id(),
+                               get_message_force(message_full_id, "can_add_message_tasks"));
+}
+
+bool MessagesManager::can_add_message_tasks(DialogId dialog_id, const Message *m) const {
+  if (m == nullptr) {
+    return false;
+  }
+  if (!m->message_id.is_server() || m->content->get_type() != MessageContentType::ToDoList) {
+    return false;
+  }
+  if (m->forward_info != nullptr || m->had_forward_info) {
+    return false;
+  }
+  if (m->had_reply_markup) {
+    return false;
+  }
+  if (m->reply_markup != nullptr && m->reply_markup->type != ReplyMarkup::Type::InlineKeyboard) {
+    return false;
+  }
+  if (!m->is_outgoing && !get_message_content_to_do_list_others_can_append(m->content.get())) {
+    return false;
+  }
+  if (!td_->dialog_manager_->have_input_peer(dialog_id, false, AccessRights::Read)) {
+    return false;
+  }
+  return true;
+}
+
+bool MessagesManager::can_mark_message_tasks_as_done(MessageFullId message_full_id) {
+  return can_mark_message_tasks_as_done(message_full_id.get_dialog_id(),
+                                        get_message_force(message_full_id, "can_mark_message_tasks_as_done"));
+}
+
+bool MessagesManager::can_mark_message_tasks_as_done(DialogId dialog_id, const Message *m) const {
+  if (td_->auth_manager_->is_bot()) {
+    return false;
+  }
+  if (m == nullptr) {
+    return false;
+  }
+  if (!m->message_id.is_server() || m->content->get_type() != MessageContentType::ToDoList) {
+    return false;
+  }
+  if (!m->is_outgoing && !get_message_content_to_do_list_others_can_complete(m->content.get())) {
+    return false;
+  }
+  if (!td_->dialog_manager_->have_input_peer(dialog_id, false, AccessRights::Read)) {
+    return false;
+  }
+  return true;
+}
+
 bool MessagesManager::can_forward_message(DialogId from_dialog_id, const Message *m, bool is_copy) const {
   if (m == nullptr) {
     return false;
@@ -14246,6 +14300,28 @@ void MessagesManager::get_message_read_date(MessageFullId message_full_id,
   td_->message_query_manager_->get_message_read_date_from_server(message_full_id, std::move(promise));
 }
 
+bool MessagesManager::can_get_message_video_advertisements(MessageFullId message_full_id) {
+  auto m = get_message_force(message_full_id, "can_get_message_video_advertisements");
+  if (m == nullptr) {
+    return false;
+  }
+
+  return can_get_message_video_advertisements(message_full_id.get_dialog_id(), m);
+}
+
+bool MessagesManager::can_get_message_video_advertisements(DialogId dialog_id, const Message *m) const {
+  if (td_->auth_manager_->is_bot()) {
+    return false;
+  }
+  CHECK(m != nullptr);
+  if (!td_->dialog_manager_->is_broadcast_channel(dialog_id) ||
+      !td_->dialog_manager_->have_input_peer(dialog_id, false, AccessRights::Read) ||
+      m->content->get_type() != MessageContentType::Video || !m->message_id.is_server()) {
+    return false;
+  }
+  return true;
+}
+
 Status MessagesManager::can_get_message_viewers(MessageFullId message_full_id) {
   auto dialog_id = message_full_id.get_dialog_id();
   Dialog *d = get_dialog_force(dialog_id, "can_get_message_viewers");
@@ -14576,6 +14652,7 @@ void MessagesManager::get_message_properties(DialogId dialog_id, MessageId messa
   }
 
   auto is_bot = td_->auth_manager_->is_bot();
+  auto can_add_tasks = can_add_message_tasks(dialog_id, m);
   auto can_be_copied = can_forward_message(dialog_id, m, true);
   auto can_be_saved = can_save_message(dialog_id, m);
   auto can_be_edited = can_edit_message(dialog_id, m, false, is_bot);
@@ -14592,10 +14669,12 @@ void MessagesManager::get_message_properties(DialogId dialog_id, MessageId messa
   auto can_get_statistics = can_get_message_statistics(dialog_id, m);
   auto can_get_message_thread = get_top_thread_message_full_id(dialog_id, m, false).is_ok();
   auto can_get_read_date = can_get_message_read_date(dialog_id, m).is_ok();
+  auto can_get_video_advertisements = can_get_message_video_advertisements(dialog_id, m);
   auto can_get_viewers = can_get_message_viewers(dialog_id, m).is_ok();
   auto can_get_media_timestamp_links = can_get_media_timestamp_link(dialog_id, m).is_ok();
   auto can_get_link = can_get_media_timestamp_links && dialog_type == DialogType::Channel;
   auto can_get_embedding_code = can_get_message_embedding_code(dialog_id, m).is_ok();
+  auto can_mark_tasks_as_done = can_mark_message_tasks_as_done(dialog_id, m);
   auto can_recognize_speech = can_recognize_message_speech(dialog_id, m);
   auto can_report_chat = td_->dialog_manager_->can_report_dialog(dialog_id) && can_report_message(message_id).is_ok();
   auto can_report_reactions = can_report_message_reactions(dialog_id, m);
@@ -14608,12 +14687,12 @@ void MessagesManager::get_message_properties(DialogId dialog_id, MessageId messa
   auto can_set_fact_check = can_set_message_fact_check(dialog_id, m);
   auto need_show_statistics = can_get_statistics && (m->view_count >= 100 || m->forward_count > 0);
   promise.set_value(td_api::make_object<td_api::messageProperties>(
-      can_be_copied, can_be_copied_to_secret_chat, can_delete_for_self, can_delete_for_all_users, can_be_edited,
-      can_be_forwarded, can_be_paid, can_be_pinned, can_be_replied, can_be_replied_in_another_chat, can_be_saved,
-      can_be_shared_in_story, can_edit_media, can_edit_scheduling_state, can_get_author, can_get_embedding_code,
-      can_get_link, can_get_media_timestamp_links, can_get_message_thread, can_get_read_date, can_get_statistics,
-      can_get_viewers, can_recognize_speech, can_report_chat, can_report_reactions, can_report_supergroup_spam,
-      can_set_fact_check, need_show_statistics));
+      can_add_tasks, can_be_copied, can_be_copied_to_secret_chat, can_delete_for_self, can_delete_for_all_users,
+      can_be_edited, can_be_forwarded, can_be_paid, can_be_pinned, can_be_replied, can_be_replied_in_another_chat,
+      can_be_saved, can_be_shared_in_story, can_edit_media, can_edit_scheduling_state, can_get_author,
+      can_get_embedding_code, can_get_link, can_get_media_timestamp_links, can_get_message_thread, can_get_read_date,
+      can_get_statistics, can_get_video_advertisements, can_get_viewers, can_mark_tasks_as_done, can_recognize_speech,
+      can_report_chat, can_report_reactions, can_report_supergroup_spam, can_set_fact_check, need_show_statistics));
 }
 
 bool MessagesManager::is_message_edited_recently(MessageFullId message_full_id, int32 seconds) {
@@ -22286,7 +22365,7 @@ bool MessagesManager::can_edit_message(DialogId dialog_id, const Message *m, boo
   auto content_type = m->content->get_type();
   DialogId my_dialog_id(my_id);
   bool has_edit_time_limit = !(is_bot && m->is_outgoing) && dialog_id != my_dialog_id &&
-                             content_type != MessageContentType::Poll &&
+                             content_type != MessageContentType::Poll && content_type != MessageContentType::ToDoList &&
                              content_type != MessageContentType::LiveLocation && !m->message_id.is_scheduled();
   switch (dialog_id.get_type()) {
     case DialogType::User:
@@ -30988,12 +31067,21 @@ bool MessagesManager::update_message(Dialog *d, Message *old_message, unique_ptr
   }
   if (old_message->saved_messages_topic_id != new_message->saved_messages_topic_id) {
     if (!(message_id.is_yet_unsent() && (old_message->saved_messages_topic_id.is_author_hidden() ||
-                                         new_message->saved_messages_topic_id.is_author_hidden()))) {
+                                         new_message->saved_messages_topic_id.is_author_hidden())) &&
+        !is_service_message_content(new_content_type)) {
       LOG(ERROR) << "Saved Messages topic for " << message_id << " in " << dialog_id << " changed from "
                  << old_message->saved_messages_topic_id << " to " << new_message->saved_messages_topic_id;
     }
     if (is_message_in_dialog) {
-      LOG(ERROR) << "Ignore change of message topic for " << message_id << " in " << dialog_id;
+      if (!old_message->saved_messages_topic_id.is_valid()) {
+        old_message->saved_messages_topic_id = new_message->saved_messages_topic_id;
+        need_send_update = true;
+        td_->saved_messages_manager_->on_topic_message_added(dialog_id, old_message->saved_messages_topic_id,
+                                                             message_id, old_message->date, false, false, false,
+                                                             "fix saved_messages_topic_id");
+      } else {
+        LOG(ERROR) << "Ignore change of message topic for " << message_id << " in " << dialog_id;
+      }
     } else {
       old_message->saved_messages_topic_id = new_message->saved_messages_topic_id;
       need_send_update = true;
@@ -34173,17 +34261,31 @@ void MessagesManager::after_get_channel_difference(DialogId dialog_id, bool succ
   }
 }
 
-void MessagesManager::reget_message_from_server_if_needed(DialogId dialog_id, const Message *m) {
+bool MessagesManager::need_reload_message_from_server(DialogId dialog_id, const Message *m) const {
   if (!m->message_id.is_any_server() || dialog_id.get_type() == DialogType::SecretChat) {
+    return false;
+  }
+  if (need_reget_message_content(m->content.get()) || m->reply_info.need_reget(td_) ||
+      m->replied_message_info.need_reget()) {
+    return true;
+  }
+  if (m->legacy_layer != 0 && m->legacy_layer < MTPROTO_LAYER) {
+    return true;
+  }
+  if (m->saved_messages_topic_id == SavedMessagesTopicId() &&
+      td_->dialog_manager_->is_admined_monoforum_channel(dialog_id)) {
+    return true;
+  }
+  return false;
+}
+
+void MessagesManager::reget_message_from_server_if_needed(DialogId dialog_id, const Message *m) {
+  if (!need_reload_message_from_server(dialog_id, m)) {
     return;
   }
-
-  if (need_reget_message_content(m->content.get()) || (m->legacy_layer != 0 && m->legacy_layer < MTPROTO_LAYER) ||
-      m->reply_info.need_reget(td_) || m->replied_message_info.need_reget()) {
-    MessageFullId message_full_id{dialog_id, m->message_id};
-    LOG(INFO) << "Reget from server " << message_full_id;
-    get_message_from_server(message_full_id, Auto(), "reget_message_from_server_if_needed");
-  }
+  MessageFullId message_full_id{dialog_id, m->message_id};
+  LOG(INFO) << "Reget from server " << message_full_id;
+  get_message_from_server(message_full_id, Auto(), "reget_message_from_server_if_needed");
 }
 
 void MessagesManager::speculatively_update_active_group_call_id(Dialog *d, const Message *m) {

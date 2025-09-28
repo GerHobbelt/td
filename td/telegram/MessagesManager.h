@@ -561,9 +561,15 @@ class MessagesManager final : public Actor {
 
   bool can_share_message_in_story(MessageFullId message_full_id);
 
+  bool can_get_message_video_advertisements(MessageFullId message_full_id);
+
   Status can_get_message_viewers(MessageFullId message_full_id) TD_WARN_UNUSED_RESULT;
 
   bool can_get_message_statistics(MessageFullId message_full_id);
+
+  bool can_add_message_tasks(MessageFullId message_full_id);
+
+  bool can_mark_message_tasks_as_done(MessageFullId message_full_id);
 
   DialogId get_dialog_message_sender(MessageFullId message_full_id);
 
@@ -1733,6 +1739,8 @@ class MessagesManager final : public Actor {
 
   Status can_get_message_read_date(DialogId dialog_id, const Message *m) const TD_WARN_UNUSED_RESULT;
 
+  bool can_get_message_video_advertisements(DialogId dialog_id, const Message *m) const;
+
   Status can_get_message_viewers(DialogId dialog_id, const Message *m) const TD_WARN_UNUSED_RESULT;
 
   void cancel_edit_message_media(DialogId dialog_id, Message *m, Slice error_message);
@@ -1916,6 +1924,10 @@ class MessagesManager final : public Actor {
   int64 generate_new_media_album_id();
 
   bool get_message_has_protected_content(DialogId dialog_id, const Message *m) const;
+
+  bool can_add_message_tasks(DialogId dialog_id, const Message *m) const;
+
+  bool can_mark_message_tasks_as_done(DialogId dialog_id, const Message *m) const;
 
   bool can_forward_message(DialogId from_dialog_id, const Message *m, bool is_copy) const;
 
@@ -3028,6 +3040,8 @@ class MessagesManager final : public Actor {
   MessageId get_next_yet_unsent_message_id(Dialog *d) const;
 
   static MessageId get_next_yet_unsent_scheduled_message_id(Dialog *d, int32 date);
+
+  bool need_reload_message_from_server(DialogId dialog_id, const Message *m) const;
 
   void reget_message_from_server_if_needed(DialogId dialog_id, const Message *m);
 

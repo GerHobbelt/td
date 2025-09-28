@@ -87,6 +87,12 @@
 #include "td/telegram/StoryManager.h"
 #include "td/telegram/Td.h"
 #include "td/telegram/telegram_api.h"
+#include "td/telegram/ToDoCompletion.h"
+#include "td/telegram/ToDoCompletion.hpp"
+#include "td/telegram/ToDoItem.h"
+#include "td/telegram/ToDoItem.hpp"
+#include "td/telegram/ToDoList.h"
+#include "td/telegram/ToDoList.hpp"
 #include "td/telegram/TopDialogManager.h"
 #include "td/telegram/TranscriptionManager.h"
 #include "td/telegram/UserId.h"
@@ -518,7 +524,7 @@ class MessageChatSetTtl final : public MessageContent {
 
 class MessageUnsupported final : public MessageContent {
  public:
-  static constexpr int32 CURRENT_VERSION = 43;
+  static constexpr int32 CURRENT_VERSION = 46;
   int32 version = CURRENT_VERSION;
 
   MessageUnsupported() = default;
@@ -1388,6 +1394,55 @@ class MessageConferenceCall final : public MessageContent {
   }
 };
 
+class MessageToDoList final : public MessageContent {
+ public:
+  ToDoList list;
+  vector<ToDoCompletion> completions;
+
+  MessageToDoList() = default;
+  MessageToDoList(ToDoList &&list, vector<ToDoCompletion> &&completions)
+      : list(std::move(list)), completions(std::move(completions)) {
+  }
+
+  MessageContentType get_type() const final {
+    return MessageContentType::ToDoList;
+  }
+};
+
+class MessageTodoCompletions final : public MessageContent {
+ public:
+  MessageId to_do_message_id;
+  vector<int32> completed_task_ids;
+  vector<int32> incompleted_task_ids;
+
+  MessageTodoCompletions() = default;
+  MessageTodoCompletions(MessageId to_do_message_id, vector<int32> &&completed_task_ids,
+                         vector<int32> &&incompleted_task_ids)
+      : to_do_message_id(to_do_message_id)
+      , completed_task_ids(std::move(completed_task_ids))
+      , incompleted_task_ids(std::move(incompleted_task_ids)) {
+  }
+
+  MessageContentType get_type() const final {
+    return MessageContentType::TodoCompletions;
+  }
+};
+
+class MessageTodoAppendTasks final : public MessageContent {
+ public:
+  MessageId to_do_message_id;
+  vector<ToDoItem> items;
+
+  MessageTodoAppendTasks() = default;
+  MessageTodoAppendTasks(MessageId to_do_message_id, vector<ToDoItem> &&items)
+      : to_do_message_id(to_do_message_id), items(std::move(items)) {
+  }
+
+  MessageContentType get_type() const final {
+    return MessageContentType::TodoAppendTasks;
+  }
+};
+
 template <class StorerT>
 static void store(const MessageContent *content, StorerT &storer) {
   CHECK(content != nullptr);
@@ -2207,6 +2262,51 @@ static void store(const MessageContent *content, StorerT &storer) {
       }
       if (has_other_participant_dialog_ids) {
         store(m->other_participant_dialog_ids, storer);
+      }
+      break;
+    }
+    case MessageContentType::ToDoList: {
+      const auto *m = static_cast<const MessageToDoList *>(content);
+      BEGIN_STORE_FLAGS();
+      END_STORE_FLAGS();
+      store(m->list, storer);
+      store(m->completions, storer);
+      break;
+    }
+    case MessageContentType::TodoCompletions: {
+      const auto *m = static_cast<const MessageTodoCompletions *>(content);
+      bool has_to_do_message_id = m->to_do_message_id.is_valid();
+      bool has_completed_task_ids = !m->completed_task_ids.empty();
+      bool has_incompleted_task_ids = !m->incompleted_task_ids.empty();
+      BEGIN_STORE_FLAGS();
+      STORE_FLAG(has_to_do_message_id);
+      STORE_FLAG(has_completed_task_ids);
+      STORE_FLAG(has_incompleted_task_ids);
+      END_STORE_FLAGS();
+      if (has_to_do_message_id) {
+        store(m->to_do_message_id, storer);
+      }
+      if (has_completed_task_ids) {
+        store(m->completed_task_ids, storer);
+      }
+      if (has_incompleted_task_ids) {
+        store(m->incompleted_task_ids, storer);
+      }
+      break;
+    }
+    case MessageContentType::TodoAppendTasks: {
+      const auto *m = static_cast<const MessageTodoAppendTasks *>(content);
+      bool has_to_do_message_id = m->to_do_message_id.is_valid();
+      bool has_items = !m->items.empty();
+      BEGIN_STORE_FLAGS();
+      STORE_FLAG(has_to_do_message_id);
+      STORE_FLAG(has_items);
+      END_STORE_FLAGS();
+      if (has_to_do_message_id) {
+        store(m->to_do_message_id, storer);
+      }
+      if (has_items) {
+        store(m->items, storer);
       }
       break;
     }
@@ -3257,6 +3357,54 @@ static void parse(unique_ptr<MessageContent> &content, ParserT &parser) {
       content = std::move(m);
       break;
     }
+    case MessageContentType::ToDoList: {
+      auto m = make_unique<MessageToDoList>();
+      BEGIN_PARSE_FLAGS();
+      END_PARSE_FLAGS();
+      parse(m->list, parser);
+      parse(m->completions, parser);
+      content = std::move(m);
+      break;
+    }
+    case MessageContentType::TodoCompletions: {
+      auto m = make_unique<MessageTodoCompletions>();
+      bool has_to_do_message_id;
+      bool has_completed_task_ids;
+      bool has_incompleted_task_ids;
+      BEGIN_PARSE_FLAGS();
+      PARSE_FLAG(has_to_do_message_id);
+      PARSE_FLAG(has_completed_task_ids);
+      PARSE_FLAG(has_incompleted_task_ids);
+      END_PARSE_FLAGS();
+      if (has_to_do_message_id) {
+        parse(m->to_do_message_id, parser);
+      }
+      if (has_completed_task_ids) {
+        parse(m->completed_task_ids, parser);
+      }
+      if (has_incompleted_task_ids) {
+        parse(m->incompleted_task_ids, parser);
+      }
+      content = std::move(m);
+      break;
+    }
+    case MessageContentType::TodoAppendTasks: {
+      auto m = make_unique<MessageTodoAppendTasks>();
+      bool has_to_do_message_id;
+      bool has_items;
+      BEGIN_PARSE_FLAGS();
+      PARSE_FLAG(has_to_do_message_id);
+      PARSE_FLAG(has_items);
+      END_PARSE_FLAGS();
+      if (has_to_do_message_id) {
+        parse(m->to_do_message_id, parser);
+      }
+      if (has_items) {
+        parse(m->items, parser);
+      }
+      content = std::move(m);
+      break;
+    }
 
     default:
       is_bad = true;
@@ -3815,6 +3963,12 @@ static Result<InputMessageContent> create_input_message_content(
       content = make_unique<MessageStory>(story_full_id, false);
       break;
     }
+    case td_api::inputMessageToDoList::ID: {
+      auto input_to_do_list = static_cast<td_api::inputMessageToDoList *>(input_message_content.get());
+      TRY_RESULT(to_do_list, ToDoList::get_to_do_list(td, dialog_id, std::move(input_to_do_list->to_do_list_)));
+      content = td::make_unique<MessageToDoList>(std::move(to_do_list), vector<ToDoCompletion>());
+      break;
+    }
     default:
       UNREACHABLE();
   }
@@ -4043,6 +4197,8 @@ bool can_message_content_have_input_media(const Td *td, const MessageContent *co
     case MessageContentType::PaidMessagesRefunded:
     case MessageContentType::PaidMessagesPrice:
     case MessageContentType::ConferenceCall:
+    case MessageContentType::TodoCompletions:
+    case MessageContentType::TodoAppendTasks:
       return false;
     case MessageContentType::Animation:
     case MessageContentType::Audio:
@@ -4055,6 +4211,7 @@ bool can_message_content_have_input_media(const Td *td, const MessageContent *co
     case MessageContentType::Photo:
     case MessageContentType::Sticker:
     case MessageContentType::Text:
+    case MessageContentType::ToDoList:
     case MessageContentType::Venue:
     case MessageContentType::Video:
     case MessageContentType::VideoNote:
@@ -4137,6 +4294,7 @@ SecretInputMedia get_message_content_secret_input_media(
     case MessageContentType::LiveLocation:
     case MessageContentType::Poll:
     case MessageContentType::Story:
+    case MessageContentType::ToDoList:
     case MessageContentType::Unsupported:
     case MessageContentType::ChatCreate:
     case MessageContentType::ChatChangeTitle:
@@ -4194,6 +4352,8 @@ SecretInputMedia get_message_content_secret_input_media(
     case MessageContentType::PaidMessagesRefunded:
     case MessageContentType::PaidMessagesPrice:
     case MessageContentType::ConferenceCall:
+    case MessageContentType::TodoCompletions:
+    case MessageContentType::TodoAppendTasks:
       break;
     default:
       UNREACHABLE();
@@ -4296,6 +4456,11 @@ static telegram_api::object_ptr<telegram_api::InputMedia> get_message_content_in
       const auto *m = static_cast<const MessageStory *>(content);
       return td->story_manager_->get_input_media(m->story_full_id);
     }
+    case MessageContentType::ToDoList: {
+      const auto *m = static_cast<const MessageToDoList *>(content);
+      return telegram_api::make_object<telegram_api::inputMediaTodo>(
+          m->list.get_input_todo_list(td->user_manager_.get()));
+    }
     case MessageContentType::Venue: {
       const auto *m = static_cast<const MessageVenue *>(content);
       return m->venue.get_input_media_venue();
@@ -4372,6 +4537,8 @@ static telegram_api::object_ptr<telegram_api::InputMedia> get_message_content_in
     case MessageContentType::PaidMessagesRefunded:
     case MessageContentType::PaidMessagesPrice:
     case MessageContentType::ConferenceCall:
+    case MessageContentType::TodoCompletions:
+    case MessageContentType::TodoAppendTasks:
       break;
     default:
       UNREACHABLE();
@@ -4617,6 +4784,9 @@ void delete_message_content_thumbnail(MessageContent *content, Td *td, int32 med
     case MessageContentType::PaidMessagesRefunded:
     case MessageContentType::PaidMessagesPrice:
     case MessageContentType::ConferenceCall:
+    case MessageContentType::ToDoList:
+    case MessageContentType::TodoCompletions:
+    case MessageContentType::TodoAppendTasks:
       break;
     default:
       UNREACHABLE();
@@ -4765,6 +4935,20 @@ Status can_send_message_content(DialogId dialog_id, const MessageContent *conten
         return Status::Error(400, "Not enough rights to send text messages to the chat");
       }
       break;
+    case MessageContentType::ToDoList:
+      if (!permissions.can_send_polls()) {
+        return Status::Error(400, "Not enough rights to send to do lists to the chat");
+      }
+      if (dialog_type == DialogType::Channel) {
+        auto channel_id = dialog_id.get_channel_id();
+        if (td->chat_manager_->is_broadcast_channel(channel_id)) {
+          return Status::Error(400, "To do lists can't be sent to channel chats");
+        }
+        if (td->chat_manager_->is_monoforum_channel(channel_id)) {
+          return Status::Error(400, "To do lists can't be sent to channel direct messages chats");
+        }
+      }
+      break;
     case MessageContentType::Venue:
       if (!permissions.can_send_messages()) {
         return Status::Error(400, "Not enough rights to send venues to the chat");
@@ -4849,6 +5033,8 @@ Status can_send_message_content(DialogId dialog_id, const MessageContent *conten
     case MessageContentType::PaidMessagesRefunded:
     case MessageContentType::PaidMessagesPrice:
     case MessageContentType::ConferenceCall:
+    case MessageContentType::TodoCompletions:
+    case MessageContentType::TodoAppendTasks:
       UNREACHABLE();
   }
   return Status::OK();
@@ -5013,6 +5199,9 @@ static int32 get_message_content_media_index_mask(const MessageContent *content,
     case MessageContentType::StarGiftUnique:
     case MessageContentType::PaidMessagesRefunded:
     case MessageContentType::PaidMessagesPrice:
+    case MessageContentType::ToDoList:
+    case MessageContentType::TodoCompletions:
+    case MessageContentType::TodoAppendTasks:
       return 0;
     default:
       UNREACHABLE();
@@ -5100,6 +5289,23 @@ MessageFullId get_message_content_replied_message_id(DialogId dialog_id, const M
 
       return {dialog_id, m->giveaway_message_id};
     }
+    case MessageContentType::TodoCompletions: {
+      auto *m = static_cast<const MessageTodoCompletions *>(content);
+      if (!m->to_do_message_id.is_valid()) {
+        return MessageFullId();
+      }
+
+      return {dialog_id, m->to_do_message_id};
+    }
+    case MessageContentType::TodoAppendTasks: {
+      auto *m = static_cast<const MessageTodoAppendTasks *>(content);
+      if (!m->to_do_message_id.is_valid()) {
+        return MessageFullId();
+      }
+
+      return {dialog_id, m->to_do_message_id};
+    }
+    // update getRepliedMessage documentation
     default:
       return MessageFullId();
   }
@@ -5328,6 +5534,12 @@ vector<UserId> get_message_content_min_user_ids(const Td *td, const MessageConte
     case MessageContentType::ConferenceCall:
       // private chats only
       break;
+    case MessageContentType::ToDoList:
+      break;
+    case MessageContentType::TodoCompletions:
+      break;
+    case MessageContentType::TodoAppendTasks:
+      break;
     default:
       UNREACHABLE();
       break;
@@ -5416,6 +5628,24 @@ bool get_message_content_poll_is_closed(const Td *td, const MessageContent *cont
       return td->poll_manager_->get_poll_is_closed(static_cast<const MessagePoll *>(content)->poll_id);
     default:
       return true;
+  }
+}
+
+bool get_message_content_to_do_list_others_can_append(const MessageContent *content) {
+  switch (content->get_type()) {
+    case MessageContentType::ToDoList:
+      return static_cast<const MessageToDoList *>(content)->list.get_others_can_append();
+    default:
+      return false;
+  }
+}
+
+bool get_message_content_to_do_list_others_can_complete(const MessageContent *content) {
+  switch (content->get_type()) {
+    case MessageContentType::ToDoList:
+      return static_cast<const MessageToDoList *>(content)->list.get_others_can_complete();
+    default:
+      return false;
   }
 }
 
@@ -5762,6 +5992,9 @@ void merge_message_contents(Td *td, const MessageContent *old_content, MessageCo
     case MessageContentType::PaidMessagesRefunded:
     case MessageContentType::PaidMessagesPrice:
     case MessageContentType::ConferenceCall:
+    case MessageContentType::ToDoList:
+    case MessageContentType::TodoCompletions:
+    case MessageContentType::TodoAppendTasks:
       break;
     default:
       UNREACHABLE();
@@ -5922,6 +6155,9 @@ bool merge_message_content_file_id(Td *td, MessageContent *message_content, File
     case MessageContentType::PaidMessagesRefunded:
     case MessageContentType::PaidMessagesPrice:
     case MessageContentType::ConferenceCall:
+    case MessageContentType::ToDoList:
+    case MessageContentType::TodoCompletions:
+    case MessageContentType::TodoAppendTasks:
       LOG(ERROR) << "Receive new file " << new_file_id << " in a sent message of the type " << content_type;
       break;
     default:
@@ -6577,6 +6813,31 @@ void compare_message_contents(Td *td, const MessageContent *old_content, const M
         need_update = true;
       } else if (lhs->call_id != rhs->call_id) {
         is_content_changed = true;
+      }
+      break;
+    }
+    case MessageContentType::ToDoList: {
+      const auto *lhs = static_cast<const MessageToDoList *>(old_content);
+      const auto *rhs = static_cast<const MessageToDoList *>(new_content);
+      if (lhs->list != rhs->list || lhs->completions != rhs->completions) {
+        need_update = true;
+      }
+      break;
+    }
+    case MessageContentType::TodoCompletions: {
+      const auto *lhs = static_cast<const MessageTodoCompletions *>(old_content);
+      const auto *rhs = static_cast<const MessageTodoCompletions *>(new_content);
+      if (lhs->to_do_message_id != rhs->to_do_message_id || lhs->completed_task_ids != rhs->completed_task_ids ||
+          lhs->incompleted_task_ids != rhs->incompleted_task_ids) {
+        need_update = true;
+      }
+      break;
+    }
+    case MessageContentType::TodoAppendTasks: {
+      const auto *lhs = static_cast<const MessageTodoAppendTasks *>(old_content);
+      const auto *rhs = static_cast<const MessageTodoAppendTasks *>(new_content);
+      if (lhs->to_do_message_id != rhs->to_do_message_id || lhs->items != rhs->items) {
+        need_update = true;
       }
       break;
     }
@@ -7604,8 +7865,14 @@ unique_ptr<MessageContent> get_message_content(Td *td, FormattedText message,
       return td::make_unique<MessagePaidMedia>(std::move(extended_media), std::move(message),
                                                StarManager::get_star_count(media->stars_amount_), string());
     }
-    case telegram_api::messageMediaToDo::ID:
-      return make_unique<MessageUnsupported>();
+    case telegram_api::messageMediaToDo::ID: {
+      auto media = telegram_api::move_object_as<telegram_api::messageMediaToDo>(media_ptr);
+      auto completions = transform(std::move(media->completions_),
+                                   [](auto &&completion) { return ToDoCompletion(std::move(completion)); });
+      td::remove_if(completions, [](const auto &completion) { return !completion.is_valid(); });
+      return td::make_unique<MessageToDoList>(ToDoList(td->user_manager_.get(), std::move(media->todo_)),
+                                              std::move(completions));
+    }
     case telegram_api::messageMediaUnsupported::ID:
       return make_unique<MessageUnsupported>();
     default:
@@ -7762,6 +8029,13 @@ unique_ptr<MessageContent> dup_message_content(Td *td, DialogId dialog_id, const
       }
       return std::move(result);
     }
+    case MessageContentType::ToDoList: {
+      auto result = make_unique<MessageToDoList>(*static_cast<const MessageToDoList *>(content));
+      if (type == MessageContentDupType::Copy || type == MessageContentDupType::ServerCopy) {
+        result->completions.clear();
+      }
+      return result;
+    }
     case MessageContentType::Venue:
       return make_unique<MessageVenue>(*static_cast<const MessageVenue *>(content));
     case MessageContentType::Video: {
@@ -7851,6 +8125,8 @@ unique_ptr<MessageContent> dup_message_content(Td *td, DialogId dialog_id, const
     case MessageContentType::PaidMessagesRefunded:
     case MessageContentType::PaidMessagesPrice:
     case MessageContentType::ConferenceCall:
+    case MessageContentType::TodoCompletions:
+    case MessageContentType::TodoAppendTasks:
       return nullptr;
     default:
       UNREACHABLE();
@@ -8467,10 +8743,28 @@ unique_ptr<MessageContent> get_action_message_content(Td *td, tl_object_ptr<tele
                                                     action->video_, action->missed_);
     }
     case telegram_api::messageActionTodoCompletions::ID: {
-      return make_unique<MessageUnsupported>();
+      auto action = telegram_api::move_object_as<telegram_api::messageActionTodoCompletions>(action_ptr);
+      auto reply_to_message_id = replied_message_info.get_same_chat_reply_to_message_id(true);
+      if (!reply_to_message_id.is_valid() && reply_to_message_id != MessageId()) {
+        LOG(ERROR) << "Receive to do list task marks change message with " << reply_to_message_id << " in "
+                   << owner_dialog_id;
+        reply_to_message_id = MessageId();
+      }
+      return td::make_unique<MessageTodoCompletions>(reply_to_message_id, std::move(action->completed_),
+                                                     std::move(action->incompleted_));
     }
     case telegram_api::messageActionTodoAppendTasks::ID: {
-      return make_unique<MessageUnsupported>();
+      auto action = telegram_api::move_object_as<telegram_api::messageActionTodoAppendTasks>(action_ptr);
+      auto reply_to_message_id = replied_message_info.get_same_chat_reply_to_message_id(true);
+      if (!reply_to_message_id.is_valid() && reply_to_message_id != MessageId()) {
+        LOG(ERROR) << "Receive to do list task addition message with " << reply_to_message_id << " in "
+                   << owner_dialog_id;
+        reply_to_message_id = MessageId();
+      }
+      auto items = transform(std::move(action->list_), [user_manager = td->user_manager_.get()](auto &&item) {
+        return ToDoItem(user_manager, std::move(item));
+      });
+      return td::make_unique<MessageTodoAppendTasks>(reply_to_message_id, std::move(items));
     }
     default:
       UNREACHABLE();
@@ -9039,6 +9333,22 @@ td_api::object_ptr<td_api::MessageContent> get_message_content_object(
       }
       return td_api::make_object<td_api::messageGroupCall>(m->is_active, m->was_missed, m->is_video, m->duration,
                                                            std::move(other_participant_ids));
+    }
+    case MessageContentType::ToDoList: {
+      const auto *m = static_cast<const MessageToDoList *>(content);
+      return td_api::make_object<td_api::messageToDoList>(
+          m->list.get_to_do_list_object(td, m->completions, message_id, is_outgoing));
+    }
+    case MessageContentType::TodoCompletions: {
+      const auto *m = static_cast<const MessageTodoCompletions *>(content);
+      return td_api::make_object<td_api::messageToDoTasksDone>(
+          m->to_do_message_id.get(), vector<int32>(m->completed_task_ids), vector<int32>(m->incompleted_task_ids));
+    }
+    case MessageContentType::TodoAppendTasks: {
+      const auto *m = static_cast<const MessageTodoAppendTasks *>(content);
+      return td_api::make_object<td_api::messageToDoTasksAdded>(
+          m->to_do_message_id.get(),
+          transform(m->items, [td](const ToDoItem &item) { return item.get_to_do_list_task_object(td, {}); }));
     }
     default:
       UNREACHABLE();
@@ -9717,6 +10027,9 @@ string get_message_content_search_text(const Td *td, const MessageContent *conte
     case MessageContentType::PaidMessagesRefunded:
     case MessageContentType::PaidMessagesPrice:
     case MessageContentType::ConferenceCall:
+    case MessageContentType::ToDoList:
+    case MessageContentType::TodoCompletions:
+    case MessageContentType::TodoAppendTasks:
       return string();
     default:
       UNREACHABLE();
@@ -10167,6 +10480,18 @@ void add_message_content_dependencies(Dependencies &dependencies, const MessageC
       }
       break;
     }
+    case MessageContentType::ToDoList: {
+      const auto *content = static_cast<const MessageToDoList *>(message_content);
+      content->list.add_dependencies(dependencies);
+      for (const auto &completion : content->completions) {
+        completion.add_dependencies(dependencies);
+      }
+      break;
+    }
+    case MessageContentType::TodoCompletions:
+      break;
+    case MessageContentType::TodoAppendTasks:
+      break;
     default:
       UNREACHABLE();
       break;

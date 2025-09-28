@@ -293,6 +293,14 @@ class Requests {
 
   void on_request(uint64 id, const td_api::reportSponsoredChat &request);
 
+  void on_request(uint64 id, const td_api::getVideoMessageAdvertisements &request);
+
+  void on_request(uint64 id, const td_api::viewVideoMessageAdvertisement &request);
+
+  void on_request(uint64 id, const td_api::clickVideoMessageAdvertisement &request);
+
+  void on_request(uint64 id, const td_api::reportVideoMessageAdvertisement &request);
+
   void on_request(uint64 id, const td_api::getMessageLink &request);
 
   void on_request(uint64 id, const td_api::getMessageEmbeddingCode &request);
@@ -378,6 +386,10 @@ class Requests {
   void on_request(uint64 id, const td_api::unpinAllDirectMessagesChatTopicMessages &request);
 
   void on_request(uint64 id, const td_api::readAllDirectMessagesChatTopicReactions &request);
+
+  void on_request(uint64 id, const td_api::getDirectMessagesChatTopicRevenue &request);
+
+  void on_request(uint64 id, const td_api::toggleDirectMessagesChatTopicCanSendUnpaidMessages &request);
 
   void on_request(uint64 id, const td_api::loadSavedMessagesTopics &request);
 
@@ -1494,6 +1506,10 @@ class Requests {
   void on_request(uint64 id, const td_api::getPollVoters &request);
 
   void on_request(uint64 id, td_api::stopPoll &request);
+
+  void on_request(uint64 id, td_api::addToDoListTasks &request);
+
+  void on_request(uint64 id, td_api::markToDoListTasksAsDone &request);
 
   void on_request(uint64 id, td_api::hideSuggestedAction &request);
 

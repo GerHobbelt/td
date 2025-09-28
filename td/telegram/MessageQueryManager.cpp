@@ -35,6 +35,7 @@
 #include "td/telegram/Td.h"
 #include "td/telegram/TdDb.h"
 #include "td/telegram/telegram_api.h"
+#include "td/telegram/ToDoItem.h"
 #include "td/telegram/UpdatesManager.h"
 #include "td/telegram/UserId.h"
 #include "td/telegram/UserManager.h"
@@ -803,6 +804,81 @@ class GetMessagesReactionsQuery final : public Td::ResultHandler {
   void on_error(Status status) final {
     td_->dialog_manager_->on_get_dialog_error(dialog_id_, status, "GetMessagesReactionsQuery");
     td_->message_query_manager_->try_reload_message_reactions(dialog_id_, true);
+  }
+};
+
+class AppendToDoListQuery final : public Td::ResultHandler {
+  Promise<Unit> promise_;
+  DialogId dialog_id_;
+  MessageId message_id_;
+
+ public:
+  explicit AppendToDoListQuery(Promise<Unit> &&promise) : promise_(std::move(promise)) {
+  }
+
+  void send(DialogId dialog_id, MessageId message_id, const vector<ToDoItem> &items) {
+    dialog_id_ = dialog_id;
+    message_id_ = message_id;
+    auto input_peer = td_->dialog_manager_->get_input_peer(dialog_id, AccessRights::Read);
+    CHECK(input_peer != nullptr);
+    send_query(G()->net_query_creator().create(telegram_api::messages_appendTodoList(
+        std::move(input_peer), message_id.get_server_message_id().get(),
+        transform(items, [user_manager = td_->user_manager_.get()](const auto &item) {
+          return item.get_input_todo_item(user_manager);
+        }))));
+  }
+
+  void on_result(BufferSlice packet) final {
+    auto result_ptr = fetch_result<telegram_api::messages_appendTodoList>(packet);
+    if (result_ptr.is_error()) {
+      return on_error(result_ptr.move_as_error());
+    }
+
+    auto ptr = result_ptr.move_as_ok();
+    LOG(INFO) << "Receive result for AppendToDoListQuery: " << to_string(ptr);
+    td_->updates_manager_->on_get_updates(std::move(ptr), std::move(promise_));
+  }
+
+  void on_error(Status status) final {
+    td_->messages_manager_->on_get_message_error(dialog_id_, message_id_, status, "AppendToDoListQuery");
+    promise_.set_error(std::move(status));
+  }
+};
+
+class ToggleToDoCompletedQuery final : public Td::ResultHandler {
+  Promise<Unit> promise_;
+  DialogId dialog_id_;
+  MessageId message_id_;
+
+ public:
+  explicit ToggleToDoCompletedQuery(Promise<Unit> &&promise) : promise_(std::move(promise)) {
+  }
+
+  void send(DialogId dialog_id, MessageId message_id, vector<int32> &&done_task_ids,
+            vector<int32> &&not_done_task_ids) {
+    dialog_id_ = dialog_id;
+    message_id_ = message_id;
+    auto input_peer = td_->dialog_manager_->get_input_peer(dialog_id, AccessRights::Read);
+    CHECK(input_peer != nullptr);
+    send_query(G()->net_query_creator().create(
+        telegram_api::messages_toggleTodoCompleted(std::move(input_peer), message_id.get_server_message_id().get(),
+                                                   std::move(done_task_ids), std::move(not_done_task_ids))));
+  }
+
+  void on_result(BufferSlice packet) final {
+    auto result_ptr = fetch_result<telegram_api::messages_toggleTodoCompleted>(packet);
+    if (result_ptr.is_error()) {
+      return on_error(result_ptr.move_as_error());
+    }
+
+    auto ptr = result_ptr.move_as_ok();
+    LOG(INFO) << "Receive result for ToggleToDoCompletedQuery: " << to_string(ptr);
+    td_->updates_manager_->on_get_updates(std::move(ptr), std::move(promise_));
+  }
+
+  void on_error(Status status) final {
+    td_->messages_manager_->on_get_message_error(dialog_id_, message_id_, status, "ToggleToDoCompletedQuery");
+    promise_.set_error(std::move(status));
   }
 };
 
@@ -2157,6 +2233,32 @@ void MessageQueryManager::get_paid_message_reaction_senders(
     }
   });
   td_->chat_manager_->get_created_public_dialogs(PublicDialogType::ForPersonalDialog, std::move(new_promise), true);
+}
+
+void MessageQueryManager::add_to_do_list_tasks(MessageFullId message_full_id,
+                                               vector<td_api::object_ptr<td_api::inputToDoListTask>> &&tasks,
+                                               Promise<Unit> &&promise) {
+  auto dialog_id = message_full_id.get_dialog_id();
+  if (!td_->messages_manager_->can_add_message_tasks(message_full_id)) {
+    return promise.set_error(400, "Can't add to-do list tasks to the message");
+  }
+  vector<ToDoItem> items;
+  for (auto &task : tasks) {
+    TRY_RESULT_PROMISE(promise, item, ToDoItem::get_to_do_item(td_, dialog_id, std::move(task)));
+    items.push_back(std::move(item));
+  }
+  td_->create_handler<AppendToDoListQuery>(std::move(promise))
+      ->send(dialog_id, message_full_id.get_message_id(), items);
+}
+
+void MessageQueryManager::mark_to_do_list_tasks_as_done(MessageFullId message_full_id, vector<int32> done_task_ids,
+                                                        vector<int32> not_done_task_ids, Promise<Unit> &&promise) {
+  auto dialog_id = message_full_id.get_dialog_id();
+  if (!td_->messages_manager_->can_mark_message_tasks_as_done(message_full_id)) {
+    return promise.set_error(400, "Can't mark tasks as done in the message");
+  }
+  td_->create_handler<ToggleToDoCompletedQuery>(std::move(promise))
+      ->send(dialog_id, message_full_id.get_message_id(), std::move(done_task_ids), std::move(not_done_task_ids));
 }
 
 void MessageQueryManager::get_discussion_message(DialogId dialog_id, MessageId message_id, DialogId expected_dialog_id,

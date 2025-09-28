@@ -3237,6 +3237,18 @@ class CliClient final : public Actor {
       get_args(args, chat_id);
       send_request(td_api::make_object<td_api::readAllDirectMessagesChatTopicReactions>(
           chat_id, direct_messages_chat_topic_id_));
+    } else if (op == "gdmctr") {
+      ChatId chat_id;
+      get_args(args, chat_id);
+      send_request(
+          td_api::make_object<td_api::getDirectMessagesChatTopicRevenue>(chat_id, direct_messages_chat_topic_id_));
+    } else if (op == "tdmctcsum") {
+      ChatId chat_id;
+      bool can_send_unpaid_messages;
+      bool refund_payments;
+      get_args(args, chat_id, can_send_unpaid_messages, refund_payments);
+      send_request(td_api::make_object<td_api::toggleDirectMessagesChatTopicCanSendUnpaidMessages>(
+          chat_id, direct_messages_chat_topic_id_, can_send_unpaid_messages, refund_payments));
     } else if (op == "lsmt") {
       string limit;
       get_args(args, limit);
@@ -4454,6 +4466,20 @@ class CliClient final : public Actor {
       string option_id;
       get_args(args, unique_id, option_id);
       send_request(td_api::make_object<td_api::reportSponsoredChat>(unique_id, option_id));
+    } else if (op == "gvma") {
+      ChatId chat_id;
+      MessageId message_id;
+      get_args(args, chat_id, message_id);
+      send_request(td_api::make_object<td_api::getVideoMessageAdvertisements>(chat_id, message_id));
+    } else if (op == "vvma") {
+      send_request(td_api::make_object<td_api::viewVideoMessageAdvertisement>(to_integer<int64>(args)));
+    } else if (op == "cvma") {
+      send_request(td_api::make_object<td_api::clickVideoMessageAdvertisement>(to_integer<int64>(args)));
+    } else if (op == "rvma") {
+      int64 unique_id;
+      string option_id;
+      get_args(args, unique_id, option_id);
+      send_request(td_api::make_object<td_api::reportVideoMessageAdvertisement>(unique_id, option_id));
     } else if (op == "gmlink") {
       ChatId chat_id;
       MessageId message_id;
@@ -6120,6 +6146,17 @@ class CliClient final : public Actor {
       send_message(chat_id,
                    td_api::make_object<td_api::inputMessagePoll>(as_formatted_text(question), std::move(options),
                                                                  op != "spollp", std::move(poll_type), 0, 0, false));
+    } else if (op == "stodo") {
+      ChatId chat_id;
+      string title;
+      get_args(args, chat_id, title, args);
+      int32 count = 0;
+      auto tasks = transform(autosplit_str(args), [&count](const string &task) {
+        return td_api::make_object<td_api::inputToDoListTask>(++count, as_formatted_text(task));
+      });
+      send_message(chat_id,
+                   td_api::make_object<td_api::inputMessageToDoList>(td_api::make_object<td_api::inputToDoList>(
+                       as_formatted_text(title), std::move(tasks), rand_bool(), rand_bool())));
     } else if (op == "sp") {
       ChatId chat_id;
       string photo;
@@ -6540,6 +6577,23 @@ class CliClient final : public Actor {
       } else {
         send_request(td_api::make_object<td_api::stopPoll>(chat_id, message_id, nullptr));
       }
+    } else if (op == "atdlt") {
+      ChatId chat_id;
+      MessageId message_id;
+      int32 task_id;
+      get_args(args, chat_id, message_id, task_id, args);
+      auto tasks = transform(autosplit_str(args), [&task_id](const string &task) {
+        return td_api::make_object<td_api::inputToDoListTask>(task_id++, as_formatted_text(task));
+      });
+      send_request(td_api::make_object<td_api::addToDoListTasks>(chat_id, message_id, std::move(tasks)));
+    } else if (op == "mtdltad") {
+      ChatId chat_id;
+      MessageId message_id;
+      string done_task_ids;
+      string not_done_task_ids;
+      get_args(args, chat_id, message_id, done_task_ids, not_done_task_ids);
+      send_request(td_api::make_object<td_api::markToDoListTasksAsDone>(
+          chat_id, message_id, to_integers<int32>(done_task_ids), to_integers<int32>(not_done_task_ids)));
     } else {
       op_not_found_count++;
     }

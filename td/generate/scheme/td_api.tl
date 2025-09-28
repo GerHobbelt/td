@@ -387,6 +387,35 @@ pollTypeRegular allow_multiple_answers:Bool = PollType;
 pollTypeQuiz correct_option_id:int32 explanation:formattedText = PollType;
 
 
+//@description Describes a task in a to do list
+//@id Unique identifier of the task
+//@text Text of the task; may contain only CustomEmoji entities
+//@completed_by_user_id Identifier of the user that completed the task; 0 if the task isn't completed
+//@completion_date Point in time (Unix timestamp) when the task was completed; 0 if the task isn't completed
+toDoListTask id:int32 text:formattedText completed_by_user_id:int53 completion_date:int32 = ToDoListTask;
+
+//@description Describes a task in a to do list to be sent
+//@id Unique identifier of the task; must be positive
+//@text Text of the task; 1-getOption("to_do_list_task_text_length_max") characters. May contain only CustomEmoji entities
+inputToDoListTask id:int32 text:formattedText = InputToDoListTask;
+
+//@description Describes a to do list
+//@title Title of the to do list; may contain only CustomEmoji entities
+//@tasks List of tasks in the to do list
+//@others_can_add_tasks True, if users other than creator of the list can add tasks to the list
+//@can_add_tasks True, if the current user can add tasks to the list if they have Telegram Premium subscription
+//@others_can_mark_tasks_as_done True, if users other than creator of the list can mark tasks as done or not done
+//@can_mark_tasks_as_done True, if the current user can mark tasks as done or not done if they have Telegram Premium subscription
+toDoList title:formattedText tasks:vector<toDoListTask> others_can_add_tasks:Bool can_add_tasks:Bool others_can_mark_tasks_as_done:Bool can_mark_tasks_as_done:Bool = ToDoList;
+
+//@description Describes a to do list to be sent
+//@title Title of the to do list; 1-getOption("to_do_list_title_length_max") characters. May contain only CustomEmoji entities
+//@tasks List of tasks in the to do list
+//@others_can_add_tasks True, if other users can add tasks to the list
+//@others_can_mark_tasks_as_done True, if other users can mark tasks as done or not done
+inputToDoList title:formattedText tasks:vector<inputToDoListTask> others_can_add_tasks:Bool others_can_mark_tasks_as_done:Bool = InputToDoList;
+
+
 //@description Describes an animation file. The animation must be encoded in GIF or MPEG4 format
 //@duration Duration of the animation, in seconds; as defined by the sender
 //@width Width of the animation
@@ -1900,6 +1929,7 @@ supergroup id:int53 usernames:usernames date:int32 status:ChatMemberStatus membe
 //@gift_count Number of saved to profile gifts for channels without can_post_messages administrator right, otherwise, the total number of received gifts
 //@my_boost_count Number of times the current user boosted the supergroup or channel
 //@unrestrict_boost_count Number of times the supergroup must be boosted by a user to ignore slow mode and chat permission restrictions; 0 if unspecified
+//@outgoing_paid_message_star_count Number of Telegram Stars that must be paid by the current user for each sent message to the supergroup
 //@sticker_set_id Identifier of the supergroup sticker set that must be shown before user sticker sets; 0 if none
 //@custom_emoji_sticker_set_id Identifier of the custom emoji sticker set that can be used in the supergroup without Telegram Premium subscription; 0 if none
 //@location Location to which the supergroup is connected; may be null if none
@@ -1908,7 +1938,7 @@ supergroup id:int53 usernames:usernames date:int32 status:ChatMemberStatus membe
 //@bot_verification Information about verification status of the supergroup or the channel provided by a bot; may be null if none or unknown
 //@upgraded_from_basic_group_id Identifier of the basic group from which supergroup was upgraded; 0 if none
 //@upgraded_from_max_message_id Identifier of the last message in the basic group from which supergroup was upgraded; 0 if none
-supergroupFullInfo photo:chatPhoto description:string member_count:int32 administrator_count:int32 restricted_count:int32 banned_count:int32 linked_chat_id:int53 direct_messages_chat_id:int53 slow_mode_delay:int32 slow_mode_delay_expires_in:double can_enable_paid_messages:Bool can_enable_paid_reaction:Bool can_get_members:Bool has_hidden_members:Bool can_hide_members:Bool can_set_sticker_set:Bool can_set_location:Bool can_get_statistics:Bool can_get_revenue_statistics:Bool can_get_star_revenue_statistics:Bool can_send_gift:Bool can_toggle_aggressive_anti_spam:Bool is_all_history_available:Bool can_have_sponsored_messages:Bool has_aggressive_anti_spam_enabled:Bool has_paid_media_allowed:Bool has_pinned_stories:Bool gift_count:int32 my_boost_count:int32 unrestrict_boost_count:int32 sticker_set_id:int64 custom_emoji_sticker_set_id:int64 location:chatLocation invite_link:chatInviteLink bot_commands:vector<botCommands> bot_verification:botVerification upgraded_from_basic_group_id:int53 upgraded_from_max_message_id:int53 = SupergroupFullInfo;
+supergroupFullInfo photo:chatPhoto description:string member_count:int32 administrator_count:int32 restricted_count:int32 banned_count:int32 linked_chat_id:int53 direct_messages_chat_id:int53 slow_mode_delay:int32 slow_mode_delay_expires_in:double can_enable_paid_messages:Bool can_enable_paid_reaction:Bool can_get_members:Bool has_hidden_members:Bool can_hide_members:Bool can_set_sticker_set:Bool can_set_location:Bool can_get_statistics:Bool can_get_revenue_statistics:Bool can_get_star_revenue_statistics:Bool can_send_gift:Bool can_toggle_aggressive_anti_spam:Bool is_all_history_available:Bool can_have_sponsored_messages:Bool has_aggressive_anti_spam_enabled:Bool has_paid_media_allowed:Bool has_pinned_stories:Bool gift_count:int32 my_boost_count:int32 unrestrict_boost_count:int32 outgoing_paid_message_star_count:int53 sticker_set_id:int64 custom_emoji_sticker_set_id:int64 location:chatLocation invite_link:chatInviteLink bot_commands:vector<botCommands> bot_verification:botVerification upgraded_from_basic_group_id:int53 upgraded_from_max_message_id:int53 = SupergroupFullInfo;
 
 
 //@class SecretChatState @description Describes the current secret chat state
@@ -2159,7 +2189,7 @@ inputTextQuote text:formattedText position:int32 = InputTextQuote;
 //@origin_send_date Point in time (Unix timestamp) when the message was sent if the message was from another chat or topic; 0 for messages from the same chat
 //@content Media content of the message if the message was from another chat or topic; may be null for messages from the same chat and messages without media.
 //-Can be only one of the following types: messageAnimation, messageAudio, messageContact, messageDice, messageDocument, messageGame, messageGiveaway, messageGiveawayWinners,
-//-messageInvoice, messageLocation, messagePaidMedia, messagePhoto, messagePoll, messageSticker, messageStory, messageText (for link preview), messageVenue, messageVideo,
+//-messageInvoice, messageLocation, messagePaidMedia, messagePhoto, messagePoll, messageSticker, messageStory, messageText (for link preview), messageToDoList, messageVenue, messageVideo,
 //-messageVideoNote, or messageVoiceNote
 messageReplyToMessage chat_id:int53 message_id:int53 quote:textQuote origin:MessageOrigin origin_send_date:int32 content:MessageContent = MessageReplyTo;
 
@@ -2297,11 +2327,11 @@ messageSourceScreenshot = MessageSource;
 messageSourceOther = MessageSource;
 
 
-//@description Information about the sponsor of a message
-//@url URL of the sponsor to be opened when the message is clicked
+//@description Information about the sponsor of an advertisement
+//@url URL of the sponsor to be opened when the advertisement is clicked
 //@photo Photo of the sponsor; may be null if must not be shown
-//@info Additional optional information about the sponsor to be shown along with the message
-messageSponsor url:string photo:photo info:string = MessageSponsor;
+//@info Additional optional information about the sponsor to be shown along with the advertisement
+advertisementSponsor url:string photo:photo info:string = AdvertisementSponsor;
 
 //@description Describes a sponsored message
 //@message_id Message identifier; unique for the chat to which the sponsored message belongs among both ordinary and sponsored messages
@@ -2314,7 +2344,7 @@ messageSponsor url:string photo:photo info:string = MessageSponsor;
 //@accent_color_id Identifier of the accent color for title, button text and message background
 //@background_custom_emoji_id Identifier of a custom emoji to be shown on the message background; 0 if none
 //@additional_info If non-empty, additional information about the sponsored message to be shown along with the message
-sponsoredMessage message_id:int53 is_recommended:Bool can_be_reported:Bool content:MessageContent sponsor:messageSponsor title:string button_text:string accent_color_id:int32 background_custom_emoji_id:int64 additional_info:string = SponsoredMessage;
+sponsoredMessage message_id:int53 is_recommended:Bool can_be_reported:Bool content:MessageContent sponsor:advertisementSponsor title:string button_text:string accent_color_id:int32 background_custom_emoji_id:int64 additional_info:string = SponsoredMessage;
 
 //@description Contains a list of sponsored messages @messages List of sponsored messages @messages_between The minimum number of messages between shown sponsored messages, or 0 if only one sponsored message must be shown after all ordinary messages
 sponsoredMessages messages:vector<sponsoredMessage> messages_between:int32 = SponsoredMessages;
@@ -2328,6 +2358,23 @@ sponsoredChat unique_id:int53 chat_id:int53 sponsor_info:string additional_info:
 
 //@description Contains a list of sponsored chats @chats List of sponsored chats
 sponsoredChats chats:vector<sponsoredChat> = SponsoredChats;
+
+//@description Describes an advertisent to be shown while a video from a message is watched
+//@unique_id Unique identifier of this result
+//@text Text of the advertisement
+//@min_display_duration The minimum amount of time the advertisement must be dispalyed before it can be hidden by the user, in seconds
+//@max_display_duration The maximum amount of time the advertisement must be dispalyed before it must be automatically hidden, in seconds
+//@can_be_reported True, if the advertisement can be reported to Telegram moderators through reportVideoMessageAdvertisement
+//@sponsor Information about the sponsor of the advertisement
+//@title Title of the sponsored message
+//@additional_info If non-empty, additional information about the sponsored message to be shown along with the message
+videoMessageAdvertisement unique_id:int53 text:string min_display_duration:int32 max_display_duration:int32 can_be_reported:Bool sponsor:advertisementSponsor title:string additional_info:string = VideoMessageAdvertisement;
+
+//@description Contains a list of advertisements to be shown while a video from a message is watched
+//@advertisements List of advertisements
+//@start_delay Delay before the first advertisement is shown, in seconds
+//@between_delay Delay between consecutive advertisements, in seconds
+videoMessageAdvertisements advertisements:vector<videoMessageAdvertisement> start_delay:int32 between_delay:int32 = VideoMessageAdvertisements;
 
 
 //@description Describes an option to report an entity to Telegram @id Unique identifier of the option @text Text of the option
@@ -2911,6 +2958,7 @@ savedMessagesTopic id:int53 type:SavedMessagesTopicType is_pinned:Bool order:int
 //@id Unique topic identifier
 //@sender_id Identifier of the user or chat that sends the messages to the topic
 //@order A parameter used to determine order of the topic in the topic list. Topics must be sorted by the order in descending order
+//@can_send_unpaid_messages True if the other party can send unpaid messages even if the chat has paid messages enabled
 //@is_marked_as_unread True, if the forum topic is marked as unread
 //@unread_count Number of unread messages in the chat
 //@last_read_inbox_message_id Identifier of the last read incoming message
@@ -2918,7 +2966,7 @@ savedMessagesTopic id:int53 type:SavedMessagesTopicType is_pinned:Bool order:int
 //@unread_reaction_count Number of messages with unread reactions in the chat
 //@last_message Last message in the topic; may be null if none or unknown
 //@draft_message A draft of a message in the topic; may be null if none
-directMessagesChatTopic chat_id:int53 id:int53 sender_id:MessageSender order:int64 is_marked_as_unread:Bool unread_count:int53 last_read_inbox_message_id:int53 last_read_outbox_message_id:int53 unread_reaction_count:int53 last_message:message draft_message:draftMessage = DirectMessagesChatTopic;
+directMessagesChatTopic chat_id:int53 id:int53 sender_id:MessageSender order:int64 can_send_unpaid_messages:Bool is_marked_as_unread:Bool unread_count:int53 last_read_inbox_message_id:int53 last_read_outbox_message_id:int53 unread_reaction_count:int53 last_message:message draft_message:draftMessage = DirectMessagesChatTopic;
 
 
 //@description Describes a forum topic icon @color Color of the topic icon in RGB format @custom_emoji_id Unique identifier of the custom emoji shown on the topic icon; 0 if none
@@ -4044,6 +4092,9 @@ messagePoll poll:poll = MessageContent;
 //@via_mention True, if the story was automatically forwarded because of a mention of the user
 messageStory story_poster_chat_id:int53 story_id:int32 via_mention:Bool = MessageContent;
 
+//@description A message with a to do list @list The to do list description
+messageToDoList list:toDoList = MessageContent;
+
 //@description A message with an invoice from a bot. Use getInternalLink with internalLinkTypeBotStart to share the invoice
 //@product_info Information about the product
 //@currency Currency for the product price
@@ -4322,6 +4373,17 @@ messagePaidMessagePriceChanged paid_message_star_count:int53 = MessageContent;
 //@paid_message_star_count The new number of Telegram Stars that must be paid by non-administrator users of the channel chat for each message sent to the direct messages group;
 //-0 if the direct messages group was disabled or the messages are free
 messageDirectMessagePriceChanged is_enabled:Bool paid_message_star_count:int53 = MessageContent;
+
+//@description Some tasks from a to do list were marked as done or not done
+//@to_do_list_message_id Identifier of the message with the to do list; can be 0 if the message was deleted
+//@marked_as_done_task_ids Identifiers of tasks that were marked as done
+//@marked_as_not_done_task_ids Identifiers of tasks that were marked as not done
+messageToDoTasksDone to_do_list_message_id:int53 marked_as_done_task_ids:vector<int32> marked_as_not_done_task_ids:vector<int32> = MessageContent;
+
+//@description Some tasks were added to a to do list
+//@to_do_list_message_id Identifier of the message with the to do list; can be 0 if the message was deleted
+//@tasks List of tasks added to the to do list
+messageToDoTasksAdded to_do_list_message_id:int53 tasks:vector<toDoListTask> = MessageContent;
 
 //@description A contact has registered with Telegram
 messageContactRegistered = MessageContent;
@@ -4646,6 +4708,10 @@ inputMessagePoll question:formattedText options:vector<formattedText> is_anonymo
 //@story_id Story identifier
 inputMessageStory story_poster_chat_id:int53 story_id:int32 = InputMessageContent;
 
+//@description A message with a to do list. To do lists can't be sent to secret chats, channel chats and channel direct messages chats; for Telegram Premium users only
+//@to_do_list The to do list to send
+inputMessageToDoList to_do_list:inputToDoList = InputMessageContent;
+
 //@description A forwarded message
 //@from_chat_id Identifier for the chat this forwarded message came from
 //@message_id Identifier of the message to forward. A message can be forwarded only if messageProperties.can_be_forwarded
@@ -4657,6 +4723,7 @@ inputMessageForwarded from_chat_id:int53 message_id:int53 in_game_share:Bool rep
 
 
 //@description Contains properties of a message and describes actions that can be done with the message right now
+//@can_add_tasks True, if tasks can be added to the message's to do list using addToDoListTasks if the current user has Telegram Premium subscription
 //@can_be_copied True, if content of the message can be copied using inputMessageForwarded or forwardMessages with copy options
 //@can_be_copied_to_secret_chat True, if content of the message can be copied to a secret chat using inputMessageForwarded or forwardMessages with copy options
 //@can_be_deleted_only_for_self True, if the message can be deleted only for the current user while other users will continue to see it using the method deleteMessages with revoke == false
@@ -4679,14 +4746,16 @@ inputMessageForwarded from_chat_id:int53 message_id:int53 in_game_share:Bool rep
 //@can_get_message_thread True, if information about the message thread is available through getMessageThread and getMessageThreadHistory
 //@can_get_read_date True, if read date of the message can be received through getMessageReadDate
 //@can_get_statistics True, if message statistics are available through getMessageStatistics and message forwards can be received using getMessagePublicForwards
+//@can_get_video_advertisements True, if advertisements for video of the message can be received though getVideoMessageAdvertisements
 //@can_get_viewers True, if chat members already viewed the message can be received through getMessageViewers
+//@can_mark_tasks_as_done True, if tasks can be marked as done or not done in the message's to do list using markToDoListTasksAsDone if the current user has Telegram Premium subscription
 //@can_recognize_speech True, if speech can be recognized for the message through recognizeSpeech
 //@can_report_chat True, if the message can be reported using reportChat
 //@can_report_reactions True, if reactions on the message can be reported through reportMessageReactions
 //@can_report_supergroup_spam True, if the message can be reported using reportSupergroupSpam
 //@can_set_fact_check True, if fact check for the message can be changed through setMessageFactCheck
 //@need_show_statistics True, if message statistics must be available from context menu of the message
-messageProperties can_be_copied:Bool can_be_copied_to_secret_chat:Bool can_be_deleted_only_for_self:Bool can_be_deleted_for_all_users:Bool can_be_edited:Bool can_be_forwarded:Bool can_be_paid:Bool can_be_pinned:Bool can_be_replied:Bool can_be_replied_in_another_chat:Bool can_be_saved:Bool can_be_shared_in_story:Bool can_edit_media:Bool can_edit_scheduling_state:Bool can_get_author:Bool can_get_embedding_code:Bool can_get_link:Bool can_get_media_timestamp_links:Bool can_get_message_thread:Bool can_get_read_date:Bool can_get_statistics:Bool can_get_viewers:Bool can_recognize_speech:Bool can_report_chat:Bool can_report_reactions:Bool can_report_supergroup_spam:Bool can_set_fact_check:Bool need_show_statistics:Bool = MessageProperties;
+messageProperties can_add_tasks:Bool can_be_copied:Bool can_be_copied_to_secret_chat:Bool can_be_deleted_only_for_self:Bool can_be_deleted_for_all_users:Bool can_be_edited:Bool can_be_forwarded:Bool can_be_paid:Bool can_be_pinned:Bool can_be_replied:Bool can_be_replied_in_another_chat:Bool can_be_saved:Bool can_be_shared_in_story:Bool can_edit_media:Bool can_edit_scheduling_state:Bool can_get_author:Bool can_get_embedding_code:Bool can_get_link:Bool can_get_media_timestamp_links:Bool can_get_message_thread:Bool can_get_read_date:Bool can_get_statistics:Bool can_get_video_advertisements:Bool can_get_viewers:Bool can_mark_tasks_as_done:Bool can_recognize_speech:Bool can_report_chat:Bool can_report_reactions:Bool can_report_supergroup_spam:Bool can_set_fact_check:Bool need_show_statistics:Bool = MessageProperties;
 
 
 //@class SearchMessagesFilter @description Represents a filter for message search results
@@ -9308,8 +9377,8 @@ getMessage chat_id:int53 message_id:int53 = Message;
 getMessageLocally chat_id:int53 message_id:int53 = Message;
 
 //@description Returns information about a non-bundled message that is replied by a given message. Also, returns the pinned message, the game message, the invoice message,
-//-the message with a previously set same background, the giveaway message, and the topic creation message for messages of the types
-//-messagePinMessage, messageGameScore, messagePaymentSuccessful, messageChatSetBackground, messageGiveawayCompleted and topic messages without non-bundled replied message respectively.
+//-the message with a previously set same background, the giveaway message, the to do list message, and the topic creation message for messages of the types
+//-messagePinMessage, messageGameScore, messagePaymentSuccessful, messageChatSetBackground, messageGiveawayCompleted, messageToDoTasksDone and messageToDoTasksAdded, and topic messages without non-bundled replied message respectively.
 //-Returns a 404 error if the message doesn't exist
 //@chat_id Identifier of the chat the message belongs to
 //@message_id Identifier of the reply message
@@ -9511,6 +9580,18 @@ unpinAllDirectMessagesChatTopicMessages chat_id:int53 topic_id:int53 = Ok;
 //@chat_id Identifier of the chat
 //@topic_id Topic identifier
 readAllDirectMessagesChatTopicReactions chat_id:int53 topic_id:int53 = Ok;
+
+//@description Returns the total number of Telegram Stars received by the channel chat for direct messages from the given topic
+//@chat_id Chat identifier of the channel direct messages chat administered by the current user
+//@topic_id Identifier of the topic
+getDirectMessagesChatTopicRevenue chat_id:int53 topic_id:int53 = StarCount;
+
+//@description Allows to send unpaid messages to the given topic of the channel direct messages chat administered by the current user
+//@chat_id Chat identifier
+//@topic_id Identifier of the topic
+//@can_send_unpaid_messages Pass true to allow unpaid messages; pass false to disallow unpaid messages
+//@refund_payments Pass true to refund the user previously paid messages
+toggleDirectMessagesChatTopicCanSendUnpaidMessages chat_id:int53 topic_id:int53 can_send_unpaid_messages:Bool refund_payments:Bool = Ok;
 
 
 //@description Loads more Saved Messages topics. The loaded topics will be sent through updateSavedMessagesTopic. Topics are sorted by their topic.order in descending order. Returns a 404 error if all topics have been loaded
@@ -9751,6 +9832,22 @@ openSponsoredChat sponsored_chat_unique_id:int53 = Ok;
 //@sponsored_chat_unique_id Unique identifier of the sponsored chat
 //@option_id Option identifier chosen by the user; leave empty for the initial request
 reportSponsoredChat sponsored_chat_unique_id:int53 option_id:bytes = ReportSponsoredResult;
+
+//@description Returns advertisements to be shown while a video from a message is watched. Available only if messageProperties.can_get_video_advertisements
+//@chat_id Identifier of the chat with the message
+//@message_id Identifier of the message
+getVideoMessageAdvertisements chat_id:int53 message_id:int53 = VideoMessageAdvertisements;
+
+//@description Informs TDLib that the user viewed a video message advertisement @advertisement_unique_id Unique identifier of the advertisement
+viewVideoMessageAdvertisement advertisement_unique_id:int53 = Ok;
+
+//@description Informs TDLib that the user clicked a video message advertisement @advertisement_unique_id Unique identifier of the advertisement
+clickVideoMessageAdvertisement advertisement_unique_id:int53 = Ok;
+
+//@description Reports a video message advertisement to Telegram moderators
+//@advertisement_unique_id Unique identifier of the advertisement
+//@option_id Option identifier chosen by the user; leave empty for the initial request
+reportVideoMessageAdvertisement advertisement_unique_id:int53 option_id:bytes = ReportSponsoredResult;
 
 
 //@description Removes an active notification from notification list. Needs to be called only if the notification is removed by the current user @notification_group_id Identifier of notification group to which the notification belongs @notification_id Identifier of removed notification
@@ -10402,6 +10499,20 @@ getPollVoters chat_id:int53 message_id:int53 option_id:int32 offset:int32 limit:
 //@message_id Identifier of the message containing the poll. Use messageProperties.can_be_edited to check whether the poll can be stopped
 //@reply_markup The new message reply markup; pass null if none; for bots only
 stopPoll chat_id:int53 message_id:int53 reply_markup:ReplyMarkup = Ok;
+
+
+//@description Adds tasks to a to do list in a message
+//@chat_id Identifier of the chat with the message
+//@message_id Identifier of the message containing the to do list. Use messageProperties.can_add_tasks to check whether the tasks can be added
+//@tasks List of added tasks
+addToDoListTasks chat_id:int53 message_id:int53 tasks:vector<inputToDoListTask> = Ok;
+
+//@description Adds tasks of a to do list in a message as done or not done
+//@chat_id Identifier of the chat with the message
+//@message_id Identifier of the message containing the to do list. Use messageProperties.can_mark_tasks_as_done to check whether the tasks can be marked as done or not done
+//@marked_as_done_task_ids Identifiers of tasks that were marked as done
+//@marked_as_not_done_task_ids Identifiers of tasks that were marked as not done
+markToDoListTasksAsDone chat_id:int53 message_id:int53 marked_as_done_task_ids:vector<int32> marked_as_not_done_task_ids:vector<int32> = Ok;
 
 
 //@description Hides a suggested action @action Suggested action to hide
