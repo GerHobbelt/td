@@ -22,7 +22,6 @@ class DotnetTlDocumentationGenerator extends TlDocumentationGenerator
 
     protected function getDocumentationBegin()
     {
-        $exception_name = $this->cpp_cli ? 'System.NullReferenceException' : 'Platform.NullReferenceException';
         $documentation = <<<EOT
 <?xml version="1.0"?>
 <doc>
@@ -50,7 +49,7 @@ Synchronously executes a TDLib request. Only a few marked accordingly requests c
 </summary>
             <param name="function">Object representing a query to the TDLib.</param>
             <returns>Returns request result.</returns>
-            <exception cref="T:{$exception_name}">Thrown when query is null.</exception>
+            <exception cref="T:System.NullReferenceException">Thrown when query is null.</exception>
         </member>
         <member name="M:Telegram.Td.Client.Send(Telegram.Td.Api.Function,Telegram.Td.ClientResultHandler)">
             <summary>
@@ -59,14 +58,14 @@ Sends a request to the TDLib.
             <param name="function">Object representing a query to the TDLib.</param>
             <param name="handler">Result handler with OnResult method which will be called with result
 of the query or with Telegram.Td.Api.Error as parameter. If it is null, nothing will be called.</param>
-            <exception cref="T:{$exception_name}">Thrown when query is null.</exception>
+            <exception cref="T:System.NullReferenceException">Thrown when query is null.</exception>
         </member>
         <member name="T:Telegram.Td.Client">
             <summary>
 Main class for interaction with the TDLib.
 </summary>
         </member>
-        <member name="M:Telegram.Td.ClientResultHandler.OnResult(Telegram.Td.Api.Object)">
+        <member name="M:Telegram.Td.ClientResultHandler.OnResult(Telegram.Td.Api.BaseObject)">
             <summary>
 Callback called on result of query to TDLib or incoming update from TDLib.
 </summary>
@@ -117,7 +116,7 @@ EOT;
 
     protected function escapeDocumentation($doc)
     {
-        $doc = preg_replace_callback('/(?<!["A-Za-z_\/])[A-Za-z]*_[A-Za-z_]*/',
+        $doc = preg_replace_callback('/(?<!["A-Za-z_\/])[A-Za-z]+(_[A-Za-z]+)+/',
             function ($word_matches)
             {
                 return ucfirst(preg_replace_callback('/_([A-Za-z])/', function ($matches) {return strtoupper($matches[1]);}, $word_matches[0]));
