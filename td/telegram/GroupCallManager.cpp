@@ -52,7 +52,6 @@ template <class T>
 T tde2e_move_as_ok_impl(tde2e_api::Result<T> result, int line) {
   LOG_CHECK(result.is_ok()) << static_cast<int>(result.error().code) << " : " << result.error().message << " at line "
                             << line;
-  ;
   return std::move(result.value());
 }
 
@@ -4866,7 +4865,11 @@ void GroupCallManager::on_toggle_group_call_participant_is_muted(InputGroupCallI
       participant->server_is_muted_by_themselves != participant->pending_is_muted_by_themselves ||
       participant->server_is_muted_by_admin != participant->pending_is_muted_by_admin ||
       participant->server_is_muted_locally != participant->pending_is_muted_locally) {
-    LOG(ERROR) << "Failed to mute/unmute " << dialog_id << " in " << input_group_call_id;
+    LOG(ERROR) << "Failed to mute/unmute " << dialog_id << " in " << input_group_call_id
+               << ", can_manage = " << can_manage << ", expected " << participant->pending_is_muted_by_themselves << '/'
+               << participant->pending_is_muted_by_admin << '/' << participant->pending_is_muted_locally
+               << ", but received " << participant->server_is_muted_by_themselves << '/'
+               << participant->server_is_muted_by_admin << '/' << participant->server_is_muted_locally;
     if (participant->order.is_valid()) {
       send_update_group_call_participant(input_group_call_id, *participant,
                                          "on_toggle_group_call_participant_is_muted");

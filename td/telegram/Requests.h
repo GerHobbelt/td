@@ -1261,6 +1261,8 @@ class Requests {
 
   void on_request(uint64 id, const td_api::toggleSupergroupCanHaveSponsoredMessages &request);
 
+  void on_request(uint64 id, const td_api::toggleSupergroupHasAutomaticTranslation &request);
+
   void on_request(uint64 id, const td_api::toggleSupergroupHasHiddenMembers &request);
 
   void on_request(uint64 id, const td_api::toggleSupergroupHasAggressiveAntiSpamEnabled &request);
@@ -1467,7 +1469,7 @@ class Requests {
 
   void on_request(uint64 id, td_api::stopPoll &request);
 
-  void on_request(uint64 id, const td_api::hideSuggestedAction &request);
+  void on_request(uint64 id, td_api::hideSuggestedAction &request);
 
   void on_request(uint64 id, const td_api::hideContactCloseBirthdays &request);
 
@@ -1555,6 +1557,8 @@ class Requests {
 
   void on_request(uint64 id, td_api::transferGift &request);
 
+  void on_request(uint64 id, td_api::sendResoldGift &request);
+
   void on_request(uint64 id, td_api::getReceivedGifts &request);
 
   void on_request(uint64 id, const td_api::getReceivedGift &request);
@@ -1562,6 +1566,10 @@ class Requests {
   void on_request(uint64 id, td_api::getUpgradedGift &request);
 
   void on_request(uint64 id, const td_api::getUpgradedGiftWithdrawalUrl &request);
+
+  void on_request(uint64 id, const td_api::setGiftResalePrice &request);
+
+  void on_request(uint64 id, td_api::searchGiftsForResale &request);
 
   void on_request(uint64 id, td_api::createInvoiceLink &request);
 
