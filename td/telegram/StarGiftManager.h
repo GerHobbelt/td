@@ -11,6 +11,7 @@
 #include "td/telegram/MessageFullId.h"
 #include "td/telegram/StarGiftCollectionId.h"
 #include "td/telegram/StarGiftId.h"
+#include "td/telegram/StarGiftResalePrice.h"
 #include "td/telegram/td_api.h"
 #include "td/telegram/telegram_api.h"
 
@@ -62,8 +63,8 @@ class StarGiftManager final : public Actor {
   void transfer_gift(BusinessConnectionId business_connection_id, StarGiftId star_gift_id, DialogId receiver_dialog_id,
                      int64 star_count, Promise<Unit> &&promise);
 
-  void send_resold_gift(const string &gift_name, DialogId receiver_dialog_id, int64 star_count,
-                        Promise<Unit> &&promise);
+  void send_resold_gift(const string &gift_name, DialogId receiver_dialog_id, StarGiftResalePrice price,
+                        Promise<td_api::object_ptr<td_api::GiftResaleResult>> &&promise);
 
   void get_saved_star_gifts(BusinessConnectionId business_connection_id, DialogId dialog_id,
                             StarGiftCollectionId collection_id, bool exclude_unsaved, bool exclude_saved,
@@ -77,7 +78,7 @@ class StarGiftManager final : public Actor {
 
   void get_star_gift_withdrawal_url(StarGiftId star_gift_id, const string &password, Promise<string> &&promise);
 
-  void set_star_gift_price(StarGiftId star_gift_id, int64 resale_star_count, Promise<Unit> &&promise);
+  void set_star_gift_price(StarGiftId star_gift_id, StarGiftResalePrice price, Promise<Unit> &&promise);
 
   void get_resale_star_gifts(int64 gift_id, const td_api::object_ptr<td_api::GiftForResaleOrder> &order,
                              const vector<td_api::object_ptr<td_api::UpgradedGiftAttributeId>> &attributes,

@@ -430,6 +430,15 @@ class GetStarsTransactionsQuery final : public Td::ResultHandler {
               }
               return nullptr;
             }
+            if (transaction->posts_search_) {
+              if (for_user && is_purchase) {
+                SCOPE_EXIT {
+                  transaction->posts_search_ = false;
+                };
+                return td_api::make_object<td_api::starTransactionTypePublicPostSearch>();
+              }
+              return nullptr;
+            }
             if (dialog_id.get_type() == DialogType::User) {
               auto user_id = dialog_id.get_user_id();
               auto user_id_object = td_->user_manager_->get_user_id_object(user_id, "starsTransactionPeer");
@@ -1299,6 +1308,16 @@ void StarManager::add_pending_owned_ton_count(int64 ton_count, bool move_to_owne
   }
 }
 
+void StarManager::add_pending_owned_amount(const StarGiftResalePrice &amount, int32 multiplier, bool move_to_owned) {
+  if (amount.is_star()) {
+    return add_pending_owned_star_count(multiplier * amount.get_star_count(), move_to_owned);
+  }
+  if (amount.is_ton()) {
+    return add_pending_owned_ton_count(multiplier * amount.get_ton_count(), move_to_owned);
+  }
+  UNREACHABLE();
+}
+
 bool StarManager::has_owned_star_count(int64 star_count) const {
   if (star_count <= 0 || !is_owned_star_count_inited_) {
     return true;
@@ -1311,6 +1330,16 @@ bool StarManager::has_owned_ton_count(int64 ton_count) const {
     return true;
   }
   return sent_ton_count_ >= ton_count;
+}
+
+bool StarManager::has_owned_amount(const StarGiftResalePrice &amount) const {
+  if (amount.is_star()) {
+    return has_owned_star_count(amount.get_star_count());
+  }
+  if (amount.is_ton()) {
+    return has_owned_ton_count(amount.get_ton_count());
+  }
+  return false;
 }
 
 Status StarManager::can_manage_stars(DialogId dialog_id, bool allow_self) const {
@@ -1666,6 +1695,9 @@ string StarManager::get_unused_star_transaction_field(
   }
   if (transaction->ads_proceeds_from_date_ != 0 || transaction->ads_proceeds_to_date_ != 0) {
     return "ads proceeds";
+  }
+  if (transaction->posts_search_) {
+    return "post search";
   }
   return string();
 }

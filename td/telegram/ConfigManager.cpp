@@ -1417,7 +1417,7 @@ void ConfigManager::process_app_config(tl_object_ptr<telegram_api::JSONValue> &c
       {"stars_revenue_withdrawal_max", "star_withdrawal_count_max"},
       {"stars_stargift_resale_amount_max", "gift_resale_star_count_max"},
       {"stars_stargift_resale_amount_min", "gift_resale_star_count_min"},
-      {"stars_stargift_resale_commission_permille", "gift_resale_earnings_per_mille"},
+      {"stars_stargift_resale_commission_permille", "gift_resale_star_earnings_per_mille"},
       {"stars_subscription_amount_max", "subscription_star_count_max"},
       {"stars_suggested_post_age_min", "suggested_post_lifetime_min"},
       {"stars_suggested_post_amount_min", "suggested_post_star_count_min"},
@@ -1429,6 +1429,8 @@ void ConfigManager::process_app_config(tl_object_ptr<telegram_api::JSONValue> &c
       {"stars_usd_withdraw_rate_x1000", "thousand_star_to_usd_rate"},
       {"stickers_premium_by_emoji_num", ""},
       {"stickers_normal_by_emoji_per_premium_num", ""},
+      {"stories_album_stories_limit", "story_album_story_count_max"},
+      {"stories_albums_limit", "story_album_count_max"},
       {"stories_area_url_max", "story_link_area_count_max"},
       {"stories_pinned_to_top_count_max", "pinned_story_count_max"},
       {"stories_stealth_cooldown_period", "story_stealth_mode_cooldown_period"},
@@ -1439,6 +1441,7 @@ void ConfigManager::process_app_config(tl_object_ptr<telegram_api::JSONValue> &c
       {"todo_items_max", "checklist_task_count_max"},
       {"todo_item_length_max", "checklist_task_text_length_max"},
       {"todo_title_length_max", "checklist_title_length_max"},
+      {"ton_stargift_resale_commission_permille", "gift_resale_toncoin_earnings_per_mille"},
       {"ton_suggested_post_commission_permille", "suggested_post_toncoin_earnings_per_mille"},
       {"topics_pinned_limit", "pinned_forum_topic_count_max"},
       {"upload_premium_speedup_download", "premium_download_speedup"},
@@ -1915,6 +1918,16 @@ void ConfigManager::process_app_config(tl_object_ptr<telegram_api::JSONValue> &c
       }
       if (key == "ton_suggested_post_amount_max") {
         G()->set_option_integer("suggested_post_toncoin_cent_count_max",
+                                get_json_value_long(std::move(key_value->value_), key) / 10000000);
+        continue;
+      }
+      if (key == "ton_stargift_resale_amount_min") {
+        G()->set_option_integer("gift_resale_toncoin_cent_count_min",
+                                get_json_value_long(std::move(key_value->value_), key) / 10000000);
+        continue;
+      }
+      if (key == "ton_stargift_resale_amount_max") {
+        G()->set_option_integer("gift_resale_toncoin_cent_count_max",
                                 get_json_value_long(std::move(key_value->value_), key) / 10000000);
         continue;
       }

@@ -584,6 +584,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/SavedMessagesManager.cpp
   td/telegram/SavedMessagesTopicId.cpp
   td/telegram/ScopeNotificationSettings.cpp
+  td/telegram/SearchPostsFlood.cpp
   td/telegram/SecretChatActor.cpp
   td/telegram/SecretChatDb.cpp
   td/telegram/SecretChatsManager.cpp
@@ -604,6 +605,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/StarGiftCollection.cpp
   td/telegram/StarGiftId.cpp
   td/telegram/StarGiftManager.cpp
+  td/telegram/StarGiftResalePrice.cpp
   td/telegram/StarGiftSettings.cpp
   td/telegram/StarManager.cpp
   td/telegram/StarRating.cpp
@@ -619,6 +621,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/StickersManager.cpp
   td/telegram/StickerType.cpp
   td/telegram/StorageManager.cpp
+  td/telegram/StoryAlbum.cpp
   td/telegram/StoryContent.cpp
   td/telegram/StoryContentType.cpp
   td/telegram/StoryDb.cpp
@@ -970,6 +973,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/SavedMessagesTopicId.h
   td/telegram/ScheduledServerMessageId.h
   td/telegram/ScopeNotificationSettings.h
+  td/telegram/SearchPostsFlood.h
   td/telegram/SecretChatActor.h
   td/telegram/SecretChatDb.h
   td/telegram/SecretChatId.h
@@ -995,6 +999,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/StarGiftCollectionId.h
   td/telegram/StarGiftId.h
   td/telegram/StarGiftManager.h
+  td/telegram/StarGiftResalePrice.h
   td/telegram/StarGiftSettings.h
   td/telegram/StarManager.h
   td/telegram/StarRating.h
@@ -1010,6 +1015,9 @@ set(TDLIB_SOURCE_PART2
   td/telegram/StickersManager.h
   td/telegram/StickerType.h
   td/telegram/StorageManager.h
+  td/telegram/StoryAlbum.h
+  td/telegram/StoryAlbumFullId.h
+  td/telegram/StoryAlbumId.h
   td/telegram/StoryContent.h
   td/telegram/StoryContentType.h
   td/telegram/StoryDb.h
@@ -1150,6 +1158,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/StarGift.hpp
   td/telegram/StarGiftAttribute.hpp
   td/telegram/StarGiftId.hpp
+  td/telegram/StarGiftResalePrice.hpp
   td/telegram/StarGiftSettings.hpp
   td/telegram/StarRating.hpp
   td/telegram/StarSubscriptionPricing.hpp

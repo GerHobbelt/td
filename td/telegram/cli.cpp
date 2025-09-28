@@ -598,6 +598,18 @@ class CliClient final : public Actor {
     return to_integer<int32>(trim(str));
   }
 
+  vector<int32> as_story_ids(Slice story_ids) const {
+    return transform(autosplit(story_ids), [this](Slice str) { return as_story_id(str); });
+  }
+
+  static int32 as_story_album_id(Slice str) {
+    return to_integer<int32>(trim(str));
+  }
+
+  vector<int32> as_story_album_ids(Slice story_album_ids) const {
+    return transform(autosplit(story_album_ids), [this](Slice str) { return as_story_album_id(str); });
+  }
+
   static int32 as_gift_collection_id(Slice str) {
     return to_integer<int32>(trim(str));
   }
@@ -1003,6 +1015,18 @@ class CliClient final : public Actor {
     arg.story_id = as_story_id(args);
   }
 
+  struct StoryAlbumId {
+    int32 story_album_id = 0;
+
+    operator int32() const {
+      return story_album_id;
+    }
+  };
+
+  void get_args(string &args, StoryAlbumId &arg) const {
+    arg.story_album_id = as_story_album_id(args);
+  }
+
   struct GiftCollectionId {
     int32 gift_collection_id = 0;
 
@@ -1367,6 +1391,24 @@ class CliClient final : public Actor {
   };
 
   void get_args(string &args, SuggestedPostPrice &arg) const {
+    arg.price = std::move(args);
+  }
+
+  struct GiftResalePrice {
+    string price;
+
+    operator td_api::object_ptr<td_api::GiftResalePrice>() const {
+      if (price[0] == 't') {
+        return td_api::make_object<td_api::giftResalePriceTon>(to_integer<int64>(price.substr(1)));
+      }
+      if (price[0] == 's') {
+        return td_api::make_object<td_api::giftResalePriceStar>(to_integer<int64>(price.substr(1)));
+      }
+      return nullptr;
+    }
+  };
+
+  void get_args(string &args, GiftResalePrice &arg) const {
     arg.price = std::move(args);
   }
 
@@ -3101,9 +3143,9 @@ class CliClient final : public Actor {
     } else if (op == "srg") {
       string gift_name;
       string owner_id;
-      int64 star_count;
-      get_args(args, gift_name, owner_id, star_count);
-      send_request(td_api::make_object<td_api::sendResoldGift>(gift_name, as_message_sender(owner_id), star_count));
+      GiftResalePrice price;
+      get_args(args, gift_name, owner_id, price);
+      send_request(td_api::make_object<td_api::sendResoldGift>(gift_name, as_message_sender(owner_id), price));
     } else if (op == "grgs" || op == "grgsp") {
       string owner_id;
       int32 limit;
@@ -3128,9 +3170,9 @@ class CliClient final : public Actor {
       send_request(td_api::make_object<td_api::getUpgradedGift>(name));
     } else if (op == "sgrp") {
       string received_gift_id;
-      int64 resale_star_count;
-      get_args(args, received_gift_id, resale_star_count);
-      send_request(td_api::make_object<td_api::setGiftResalePrice>(received_gift_id, resale_star_count));
+      GiftResalePrice price;
+      get_args(args, received_gift_id, price);
+      send_request(td_api::make_object<td_api::setGiftResalePrice>(received_gift_id, price));
     } else if (op == "gugwu") {
       string received_gift_id;
       string password;
@@ -3538,6 +3580,59 @@ class CliClient final : public Actor {
       string limit;
       get_args(args, chat_id, story_id, offset, limit);
       send_request(td_api::make_object<td_api::getStoryPublicForwards>(chat_id, story_id, offset, as_limit(limit)));
+    } else if (op == "gcsa") {
+      ChatId chat_id;
+      get_args(args, chat_id);
+      send_request(td_api::make_object<td_api::getChatStoryAlbums>(chat_id));
+    } else if (op == "gsas") {
+      ChatId chat_id;
+      StoryAlbumId story_album_id;
+      int32 offset;
+      string limit;
+      get_args(args, chat_id, story_album_id, offset, limit);
+      send_request(td_api::make_object<td_api::getStoryAlbumStories>(chat_id, story_album_id, offset, as_limit(limit)));
+    } else if (op == "csa") {
+      ChatId story_poster_chat_id;
+      string name;
+      string story_ids;
+      get_args(args, story_poster_chat_id, name, story_ids);
+      send_request(td_api::make_object<td_api::createStoryAlbum>(story_poster_chat_id, name, as_story_ids(story_ids)));
+    } else if (op == "rsa") {
+      ChatId chat_id;
+      string story_album_ids;
+      get_args(args, chat_id, story_album_ids);
+      send_request(td_api::make_object<td_api::reorderStoryAlbums>(chat_id, as_story_album_ids(story_album_ids)));
+    } else if (op == "dsa") {
+      ChatId chat_id;
+      StoryAlbumId story_album_id;
+      get_args(args, chat_id, story_album_id);
+      send_request(td_api::make_object<td_api::deleteStoryAlbum>(chat_id, story_album_id));
+    } else if (op == "ssan") {
+      ChatId chat_id;
+      StoryAlbumId story_album_id;
+      string name;
+      get_args(args, chat_id, story_album_id, name);
+      send_request(td_api::make_object<td_api::setStoryAlbumName>(chat_id, story_album_id, name));
+    } else if (op == "asas") {
+      ChatId chat_id;
+      StoryAlbumId story_album_id;
+      string story_ids;
+      get_args(args, chat_id, story_album_id, story_ids);
+      send_request(td_api::make_object<td_api::addStoryAlbumStories>(chat_id, story_album_id, as_story_ids(story_ids)));
+    } else if (op == "rsas") {
+      ChatId chat_id;
+      StoryAlbumId story_album_id;
+      string story_ids;
+      get_args(args, chat_id, story_album_id, story_ids);
+      send_request(
+          td_api::make_object<td_api::removeStoryAlbumStories>(chat_id, story_album_id, as_story_ids(story_ids)));
+    } else if (op == "rosas") {
+      ChatId chat_id;
+      StoryAlbumId story_album_id;
+      string story_ids;
+      get_args(args, chat_id, story_album_id, story_ids);
+      send_request(
+          td_api::make_object<td_api::reorderStoryAlbumStories>(chat_id, story_album_id, as_story_ids(story_ids)));
     } else if (op == "ghf") {
       get_history_chat_id_ = as_chat_id(args);
       send_request(td_api::make_object<td_api::getChatHistory>(get_history_chat_id_, std::numeric_limits<int64>::max(),
@@ -3621,6 +3716,17 @@ class CliClient final : public Actor {
       SearchQuery query;
       get_args(args, query);
       send_request(td_api::make_object<td_api::searchOutgoingDocumentMessages>(query.query, query.limit));
+    } else if (op == "gppsl") {
+      string query;
+      get_args(args, query);
+      send_request(td_api::make_object<td_api::getPublicPostSearchLimits>(query));
+    } else if (op == "spps") {
+      string query;
+      string limit;
+      int64 star_count;
+      string offset;
+      get_args(args, query, limit, star_count, offset);
+      send_request(td_api::make_object<td_api::searchPublicPosts>(query, offset, as_limit(limit), star_count));
     } else if (op == "spmbt") {
       string tag;
       string limit;
@@ -5375,12 +5481,13 @@ class CliClient final : public Actor {
       InputStoryAreas areas;
       int32 active_period;
       bool protect_content;
-      get_args(args, chat_id, photo, rules, areas, active_period, protect_content);
+      string album_ids;
+      get_args(args, chat_id, photo, rules, areas, active_period, protect_content, album_ids);
       send_request(td_api::make_object<td_api::postStory>(
           chat_id,
           td_api::make_object<td_api::inputStoryContentPhoto>(as_input_file(photo), get_added_sticker_file_ids()),
-          areas, get_caption(), rules, active_period ? active_period : 86400, get_reposted_story_full_id(),
-          op == "pspp", protect_content));
+          areas, get_caption(), rules, to_integers<int32>(album_ids), active_period ? active_period : 86400,
+          get_reposted_story_full_id(), op == "pspp", protect_content));
     } else if (op == "psv" || op == "psvp") {
       ChatId chat_id;
       string video;
@@ -5389,13 +5496,14 @@ class CliClient final : public Actor {
       int32 active_period;
       double duration;
       bool protect_content;
-      get_args(args, chat_id, video, rules, areas, active_period, duration, protect_content);
+      string album_ids;
+      get_args(args, chat_id, video, rules, areas, active_period, duration, protect_content, album_ids);
       send_request(td_api::make_object<td_api::postStory>(
           chat_id,
           td_api::make_object<td_api::inputStoryContentVideo>(as_input_file(video), get_added_sticker_file_ids(),
                                                               duration, 0.5, true),
-          areas, get_caption(), rules, active_period ? active_period : 86400, get_reposted_story_full_id(),
-          op == "psvp", protect_content));
+          areas, get_caption(), rules, to_integers<int32>(album_ids), active_period ? active_period : 86400,
+          get_reposted_story_full_id(), op == "psvp", protect_content));
     } else if (op == "esc") {
       ChatId story_poster_chat_id;
       StoryId story_id;

@@ -890,14 +890,27 @@ chatPermissions can_send_basic_messages:Bool can_send_audios:Bool can_send_docum
 chatAdministratorRights can_manage_chat:Bool can_change_info:Bool can_post_messages:Bool can_edit_messages:Bool can_delete_messages:Bool can_invite_users:Bool can_restrict_members:Bool can_pin_messages:Bool can_manage_topics:Bool can_promote_members:Bool can_manage_video_chats:Bool can_post_stories:Bool can_edit_stories:Bool can_delete_stories:Bool can_manage_direct_messages:Bool is_anonymous:Bool = ChatAdministratorRights;
 
 
+//@class GiftResalePrice @description Describes price of a resold gift
+
+//@description Describes price of a resold gift in Telegram Stars
+//@star_count The amount of Telegram Stars expected to be paid for the gift. Must be in range
+//-getOption("gift_resale_star_count_min")-getOption("gift_resale_star_count_max") for gifts put for resale
+giftResalePriceStar star_count:int53 = GiftResalePrice;
+
+//@description Describes price of a resold gift in Toncoins
+//@toncoin_cent_count The amount of 1/100 of Toncoin expected to be paid for the gift. Must be in range
+//-getOption("gift_resale_toncoin_cent_count_min")-getOption("gift_resale_toncoin_cent_count_max")
+giftResalePriceTon toncoin_cent_count:int53 = GiftResalePrice;
+
+
 //@class SuggestedPostPrice @description Describes price of a suggested post
 
 //@description Describes price of a suggested post in Telegram Stars
-//@star_count The amount of Telegram Stars agreed to pay for the post; getOption("suggested_post_star_count_min")-getOption("suggested_post_star_count_max")
+//@star_count The amount of Telegram Stars expected to be paid for the post; getOption("suggested_post_star_count_min")-getOption("suggested_post_star_count_max")
 suggestedPostPriceStar star_count:int53 = SuggestedPostPrice;
 
 //@description Describes price of a suggested post in Toncoins
-//@toncoin_cent_count The amount of 1/100 of Toncoin agreed to pay for the post; getOption("suggested_post_toncoin_cent_count_min")-getOption("suggested_post_toncoin_cent_count_max")
+//@toncoin_cent_count The amount of 1/100 of Toncoin expected to be paid for the post; getOption("suggested_post_toncoin_cent_count_min")-getOption("suggested_post_toncoin_cent_count_max")
 suggestedPostPriceTon toncoin_cent_count:int53 = SuggestedPostPrice;
 
 
@@ -1162,6 +1175,12 @@ giftSettings show_gift_button:Bool accepted_gift_types:acceptedGiftTypes = GiftS
 //@remaining_count Number of remaining times the gift can be purchased
 giftPurchaseLimits total_count:int32 remaining_count:int32 = GiftPurchaseLimits;
 
+//@description Describes parameters of a unique gift available for resale
+//@star_count Resale price of the gift in Telegram Stars
+//@toncoin_count Resale price of the gift in Toncoins; in the smallest units of the cryptocurrency
+//@toncoin_only True, if the gift can be bought only using Toncoins
+giftResaleParameters star_count:int53 toncoin_count:int53 toncoin_only:Bool = GiftResaleParameters;
+
 //@description Describes collection of gifts
 //@id Unique identifier of the collection
 //@name Name of the collection
@@ -1182,8 +1201,8 @@ upgradedGiftOriginUpgrade gift_message_id:int53 = UpgradedGiftOrigin;
 //@description The gift was transferred from another owner
 upgradedGiftOriginTransfer = UpgradedGiftOrigin;
 
-//@description The gift was bought from another user @star_count Number of Telegram Stars that were paid by the sender for the gift
-upgradedGiftOriginResale star_count:int53 = UpgradedGiftOrigin;
+//@description The gift was bought from another user @price Price paid by the sender for the gift
+upgradedGiftOriginResale price:GiftResalePrice = UpgradedGiftOrigin;
 
 
 //@description Describes a model of an upgraded gift
@@ -1251,8 +1270,8 @@ gift id:int64 publisher_chat_id:int53 sticker:sticker star_count:int53 default_s
 //@symbol Symbol of the upgraded gift
 //@backdrop Backdrop of the upgraded gift
 //@original_details Information about the originally sent gift; may be null if unknown
-//@resale_star_count Number of Telegram Stars that must be paid to buy the gift and send it to someone else; 0 if resale isn't possible
-upgradedGift id:int64 publisher_chat_id:int53 title:string name:string number:int32 total_upgraded_count:int32 max_upgraded_count:int32 is_premium:Bool owner_id:MessageSender owner_address:string owner_name:string gift_address:string model:upgradedGiftModel symbol:upgradedGiftSymbol backdrop:upgradedGiftBackdrop original_details:upgradedGiftOriginalDetails resale_star_count:int53 = UpgradedGift;
+//@resale_parameters Resale parameters of the gift; may be null if resale isn't possible
+upgradedGift id:int64 publisher_chat_id:int53 title:string name:string number:int32 total_upgraded_count:int32 max_upgraded_count:int32 is_premium:Bool owner_id:MessageSender owner_address:string owner_name:string gift_address:string model:upgradedGiftModel symbol:upgradedGiftSymbol backdrop:upgradedGiftBackdrop original_details:upgradedGiftOriginalDetails resale_parameters:giftResaleParameters = UpgradedGift;
 
 //@description Contains result of gift upgrading
 //@gift The upgraded gift
@@ -1268,7 +1287,7 @@ upgradeGiftResult gift:upgradedGift received_gift_id:string is_saved:Bool can_be
 //@description Describes a gift that is available for purchase
 //@gift The gift
 //@resale_count Number of gifts that are available for resale
-//@min_resale_star_count The minimum price for the gifts available for resale; 0 if there are no such gifts
+//@min_resale_star_count The minimum price for the gifts available for resale in Telegram Star equivalent; 0 if there are no such gifts
 //@title The title of the upgraded gift; empty if the gift isn't available for resale
 availableGift gift:gift resale_count:int32 min_resale_star_count:int53 title:string = AvailableGift;
 
@@ -1323,6 +1342,15 @@ giftForResale gift:upgradedGift received_gift_id:string = GiftForResale;
 //@backdrops Available backdrops; for searchGiftsForResale requests without offset and attributes only
 //@next_offset The offset for the next request. If empty, then there are no more results
 giftsForResale total_count:int32 gifts:vector<giftForResale> models:vector<upgradedGiftModelCount> symbols:vector<upgradedGiftSymbolCount> backdrops:vector<upgradedGiftBackdropCount> next_offset:string = GiftsForResale;
+
+
+//@class GiftResaleResult @description Describes result of sending a resold gift
+
+//@description Operation was successfully completed
+giftResaleResultOk = GiftResaleResult;
+
+//@description Operation has failed, because price has increased. If the price has decreased, then the buying will succeed anyway @price New price for the gift
+giftResaleResultPriceIncreased price:GiftResalePrice = GiftResaleResult;
 
 
 //@class SentGift @description Represents content of a gift received by a user or a channel chat
@@ -1537,6 +1565,9 @@ starTransactionTypeBusinessBotTransferSend user_id:int53 = StarTransactionType;
 
 //@description The transaction is a transfer of Telegram Stars from a business account; for bots only @user_id Identifier of the user that sent Telegram Stars
 starTransactionTypeBusinessBotTransferReceive user_id:int53 = StarTransactionType;
+
+//@description The transaction is a payment for search of posts in public Telegram channels; for regular users only
+starTransactionTypePublicPostSearch = StarTransactionType;
 
 //@description The transaction is a transaction of an unsupported type
 starTransactionTypeUnsupported = StarTransactionType;
@@ -2106,6 +2137,15 @@ secretChatStateClosed = SecretChatState;
 secretChat id:int32 user_id:int53 state:SecretChatState is_outbound:Bool key_hash:bytes layer:int32 = SecretChat;
 
 
+//@description Contains information about public post search limits
+//@daily_free_query_count Number of queries that can be sent daily for free
+//@remaining_free_query_count Number of remaining free queries today
+//@next_free_query_in Amount of time till the next free query can be sent; 0 if it can be sent now
+//@star_count Number of Telegram Stars that must be paid for each non-free query
+//@is_current_query_free True, if the search for the specified query isn't charged
+publicPostSearchLimits daily_free_query_count:int32 remaining_free_query_count:int32 next_free_query_in:int32 star_count:int64 is_current_query_free:Bool = PublicPostSearchLimits;
+
+
 //@class MessageSender @description Contains information about the sender of a message
 
 //@description The message was sent by a known user @user_id Identifier of the user that sent the message
@@ -2417,6 +2457,13 @@ foundMessages total_count:int32 messages:vector<message> next_offset:string = Fo
 
 //@description Contains a list of messages found by a search in a given chat @total_count Approximate total number of messages found; -1 if unknown @messages List of messages @next_from_message_id The offset for the next request. If 0, there are no more results
 foundChatMessages total_count:int32 messages:vector<message> next_from_message_id:int53 = FoundChatMessages;
+
+//@description Contains a list of messages found by a public post search
+//@messages List of found public posts
+//@next_offset The offset for the next request. If empty, then there are no more results
+//@search_limits Updated public post search limits after the query; repeated requests with the same query will be free; may be null if they didn't change
+//@are_limits_exceeded True, if the query has failed because search limits are exceeded. In this case search_limits.daily_free_query_count will be equal to 0
+foundPublicPosts messages:vector<message> next_offset:string search_limits:publicPostSearchLimits are_limits_exceeded:Bool = FoundPublicPosts;
 
 //@description Contains information about a message in a specific position @position 0-based message position in the full list of suitable messages @message_id Message identifier @date Point in time (Unix timestamp) when the message was sent
 messagePosition position:int32 message_id:int53 date:int32 = MessagePosition;
@@ -3534,6 +3581,9 @@ linkPreviewTypeExternalAudio url:string mime_type:string duration:int32 = LinkPr
 //@height Expected height of the video preview; 0 if unknown
 //@duration Duration of the video, in seconds; 0 if unknown
 linkPreviewTypeExternalVideo url:string mime_type:string width:int32 height:int32 duration:int32 = LinkPreviewType;
+
+//@description The link is a link to a gift collection @icons Icons for some gifts from the collection; may be empty
+linkPreviewTypeGiftCollection icons:vector<sticker> = LinkPreviewType;
 
 //@description The link is a link to a group call that isn't bound to a chat
 linkPreviewTypeGroupCall = LinkPreviewType;
@@ -5365,6 +5415,7 @@ storyInteractionInfo view_count:int32 forward_count:int32 reaction_count:int32 r
 //@is_edited True, if the story was edited
 //@is_posted_to_chat_page True, if the story is saved in the profile of the chat that posted it and will be available there after expiration
 //@is_visible_only_for_self True, if the story is visible only for the current user
+//@can_be_added_to_album True, if the story can be added to an album
 //@can_be_deleted True, if the story can be deleted
 //@can_be_edited True, if the story can be edited
 //@can_be_forwarded True, if the story can be forwarded as a message. Otherwise, screenshots and saving of the story content must be also forbidden
@@ -5380,7 +5431,8 @@ storyInteractionInfo view_count:int32 forward_count:int32 reaction_count:int32 r
 //@content Content of the story
 //@areas Clickable areas to be shown on the story content
 //@caption Caption of the story
-story id:int32 poster_chat_id:int53 poster_id:MessageSender date:int32 is_being_posted:Bool is_being_edited:Bool is_edited:Bool is_posted_to_chat_page:Bool is_visible_only_for_self:Bool can_be_deleted:Bool can_be_edited:Bool can_be_forwarded:Bool can_be_replied:Bool can_toggle_is_posted_to_chat_page:Bool can_get_statistics:Bool can_get_interactions:Bool has_expired_viewers:Bool repost_info:storyRepostInfo interaction_info:storyInteractionInfo chosen_reaction_type:ReactionType privacy_settings:StoryPrivacySettings content:StoryContent areas:vector<storyArea> caption:formattedText = Story;
+//@album_ids Identifiers of story albums to which the story is added; only for owned stories
+story id:int32 poster_chat_id:int53 poster_id:MessageSender date:int32 is_being_posted:Bool is_being_edited:Bool is_edited:Bool is_posted_to_chat_page:Bool is_visible_only_for_self:Bool can_be_added_to_album:Bool can_be_deleted:Bool can_be_edited:Bool can_be_forwarded:Bool can_be_replied:Bool can_toggle_is_posted_to_chat_page:Bool can_get_statistics:Bool can_get_interactions:Bool has_expired_viewers:Bool repost_info:storyRepostInfo interaction_info:storyInteractionInfo chosen_reaction_type:ReactionType privacy_settings:StoryPrivacySettings content:StoryContent areas:vector<storyArea> caption:formattedText album_ids:vector<int32> = Story;
 
 //@description Represents a list of stories
 //@total_count Approximate total number of stories found
@@ -5390,6 +5442,16 @@ stories total_count:int32 stories:vector<story> pinned_story_ids:vector<int32> =
 
 //@description Contains a list of stories found by a search @total_count Approximate total number of stories found @stories List of stories @next_offset The offset for the next request. If empty, then there are no more results
 foundStories total_count:int32 stories:vector<story> next_offset:string = FoundStories;
+
+//@description Describes album of stories
+//@id Unique identifier of the album
+//@name Name of the album
+//@photo_icon Icon of the album; may be null if none
+//@video_icon Video icon of the album; may be null if none
+storyAlbum id:int32 name:string photo_icon:photo video_icon:video = StoryAlbum;
+
+//@description Represents a list of story albums @albums List of story albums
+storyAlbums albums:vector<storyAlbum> = StoryAlbums;
 
 //@description Contains identifier of a story along with identifier of the chat that posted it
 //@poster_chat_id Identifier of the chat that posted the story
@@ -7805,6 +7867,12 @@ internalLinkTypeEditProfileSettings = InternalLinkType;
 //@game_short_name Short name of the game
 internalLinkTypeGame bot_username:string game_short_name:string = InternalLinkType;
 
+//@description The link is a link to a gift collection. Call searchPublicChat with the given username, then call getReceivedGifts with the received gift owner identifier
+//-and the given collection identifier, then show the collection if received
+//@gift_owner_username Username of the owner of the gift collection
+//@collection_id Gift collection identifier
+internalLinkTypeGiftCollection gift_owner_username:string collection_id:int32 = InternalLinkType;
+
 //@description The link is a link to a group call that isn't bound to a chat. Use getGroupCallParticipants to get the list of group call participants and show them on the join group call screen.
 //-Call joinGroupCall with the given invite_link to join the call
 //@invite_link Internal representation of the invite link
@@ -9960,6 +10028,16 @@ searchCallMessages offset:string limit:int32 only_missed:Bool = FoundMessages;
 //@limit The maximum number of messages to be returned; up to 100
 searchOutgoingDocumentMessages query:string limit:int32 = FoundMessages;
 
+//@description Checks public post search limits without actually performing the search @query Query that will be searched for
+getPublicPostSearchLimits query:string = PublicPostSearchLimits;
+
+//@description Searches for public channel posts using the given query. For optimal performance, the number of returned messages is chosen by TDLib and can be smaller than the specified limit
+//@query Query to search for
+//@offset Offset of the first entry to return as received from the previous request; use empty string to get the first chunk of results
+//@limit The maximum number of messages to be returned; up to 100. For optimal performance, the number of returned messages is chosen by TDLib and can be smaller than the specified limit
+//@star_count The amount of Telegram Stars the user agreed to pay for the search; pass 0 for free searches
+searchPublicPosts query:string offset:string limit:int32 star_count:int53 = FoundPublicPosts;
+
 //@description Searches for public channel posts containing the given hashtag or cashtag. For optimal performance, the number of returned messages is chosen by TDLib and can be smaller than the specified limit
 //@tag Hashtag or cashtag to search for
 //@offset Offset of the first entry to return as received from the previous request; use empty string to get the first chunk of results
@@ -11396,11 +11474,12 @@ canPostStory chat_id:int53 = CanPostStoryResult;
 //@areas Clickable rectangle areas to be shown on the story media; pass null if none
 //@caption Story caption; pass null to use an empty caption; 0-getOption("story_caption_length_max") characters; can have entities only if getOption("can_use_text_entities_in_story_caption")
 //@privacy_settings The privacy settings for the story; ignored for stories posted on behalf of supergroup and channel chats
+//@album_ids Identifiers of story albums to which the story will be added upon posting. An album can have up to getOption("story_album_story_count_max")
 //@active_period Period after which the story is moved to archive, in seconds; must be one of 6 * 3600, 12 * 3600, 86400, or 2 * 86400 for Telegram Premium users, and 86400 otherwise
 //@from_story_full_id Full identifier of the original story, which content was used to create the story; pass null if the story isn't repost of another story
 //@is_posted_to_chat_page Pass true to keep the story accessible after expiration
 //@protect_content Pass true if the content of the story must be protected from forwarding and screenshotting
-postStory chat_id:int53 content:InputStoryContent areas:inputStoryAreas caption:formattedText privacy_settings:StoryPrivacySettings active_period:int32 from_story_full_id:storyFullId is_posted_to_chat_page:Bool protect_content:Bool = Story;
+postStory chat_id:int53 content:InputStoryContent areas:inputStoryAreas caption:formattedText privacy_settings:StoryPrivacySettings album_ids:vector<int32> active_period:int32 from_story_full_id:storyFullId is_posted_to_chat_page:Bool protect_content:Bool = Story;
 
 //@description Changes content and caption of a story. Can be called only if story.can_be_edited == true
 //@story_poster_chat_id Identifier of the chat that posted the story
@@ -11524,6 +11603,60 @@ activateStoryStealthMode = Ok;
 //@offset Offset of the first entry to return as received from the previous request; use empty string to get the first chunk of results
 //@limit The maximum number of messages and stories to be returned; must be positive and can't be greater than 100. For optimal performance, the number of returned objects is chosen by TDLib and can be smaller than the specified limit
 getStoryPublicForwards story_poster_chat_id:int53 story_id:int32 offset:string limit:int32 = PublicForwards;
+
+//@description Returns the list of story albums owned by the given chat @chat_id Chat identifier
+getChatStoryAlbums chat_id:int53 = StoryAlbums;
+
+//@description Returns the list of stories added to the given story album. For optimal performance, the number of returned stories is chosen by TDLib
+//@chat_id Chat identifier
+//@story_album_id Story album identifier
+//@offset Offset of the first entry to return; use 0 to get results from the first album story
+//@limit The maximum number of stories to be returned. For optimal performance, the number of returned stories is chosen by TDLib and can be smaller than the specified limit
+getStoryAlbumStories chat_id:int53 story_album_id:int32 offset:int32 limit:int32 = Stories;
+
+//@description Creates an album of stories; requires can_edit_stories administrator right for supergroup and channel chats
+//@story_poster_chat_id Identifier of the chat that posted the stories
+//@name Name of the album; 1-12 characters
+//@story_ids Identifiers of stories to add to the album; 0-getOption("story_album_story_count_max") identifiers
+createStoryAlbum story_poster_chat_id:int53 name:string story_ids:vector<int32> = StoryAlbum;
+
+//@description Changes order of story albums. If the albums are owned by a supergroup or a channel chat, then requires can_edit_stories administrator right in the chat
+//@chat_id Identifier of the chat that owns the stories
+//@story_album_ids New order of story albums
+reorderStoryAlbums chat_id:int53 story_album_ids:vector<int32> = Ok;
+
+//@description Deletes a story album. If the album is owned by a supergroup or a channel chat, then requires can_edit_stories administrator right in the chat
+//@chat_id Identifier of the chat that owns the stories
+//@story_album_id Identifier of the story album
+deleteStoryAlbum chat_id:int53 story_album_id:int32 = Ok;
+
+//@description Changes name of an album of stories. If the album is owned by a supergroup or a channel chat, then requires can_edit_stories administrator right in the chat. Returns the changed album
+//@chat_id Identifier of the chat that owns the stories
+//@story_album_id Identifier of the story album
+//@name New name of the album; 1-12 characters
+setStoryAlbumName chat_id:int53 story_album_id:int32 name:string = StoryAlbum;
+
+//@description Adds stories to the beginning of a previously created story album. If the album is owned by a supergroup or a channel chat, then
+//-requires can_edit_stories administrator right in the chat. Returns the changed album
+//@chat_id Identifier of the chat that owns the stories
+//@story_album_id Identifier of the story album
+//@story_ids Identifier of the stories to add to the album; 1-getOption("story_album_story_count_max") identifiers.
+//-If after addition the album has more than getOption("story_album_story_count_max") stories, then the last one are removed from the album
+addStoryAlbumStories chat_id:int53 story_album_id:int32 story_ids:vector<int32> = StoryAlbum;
+
+//@description Removes stories from an album. If the album is owned by a supergroup or a channel chat, then
+//-requires can_edit_stories administrator right in the chat. Returns the changed album
+//@chat_id Identifier of the chat that owns the stories
+//@story_album_id Identifier of the story album
+//@story_ids Identifier of the stories to remove from the album
+removeStoryAlbumStories chat_id:int53 story_album_id:int32 story_ids:vector<int32> = StoryAlbum;
+
+//@description Changes order of stories in a album. If the album is owned by a supergroup or a channel chat, then
+//-requires can_edit_stories administrator right in the chat. Returns the changed album
+//@chat_id Identifier of the chat that owns the stories
+//@story_album_id Identifier of the story album
+//@story_ids Identifier of the stories to move to the beginning of the album. All other stories are placed in the current order after the specified stories
+reorderStoryAlbumStories chat_id:int53 story_album_id:int32 story_ids:vector<int32> = StoryAlbum;
 
 
 //@description Returns the list of features available on the specific chat boost level. This is an offline method
@@ -12810,8 +12943,8 @@ transferGift business_connection_id:string received_gift_id:string new_owner_id:
 //-must be transferred using transferGift and can't be passed to the method
 //@gift_name Name of the upgraded gift to send
 //@owner_id Identifier of the user or the channel chat that will receive the gift
-//@star_count The amount of Telegram Stars required to pay for the gift
-sendResoldGift gift_name:string owner_id:MessageSender star_count:int53 = Ok;
+//@price The price that the user agreed to pay for the gift
+sendResoldGift gift_name:string owner_id:MessageSender price:GiftResalePrice = GiftResaleResult;
 
 //@description Returns gifts received by the given user or chat
 //@business_connection_id Unique identifier of business connection on behalf of which to send the request; for bots only
@@ -12840,9 +12973,10 @@ getUpgradedGiftWithdrawalUrl received_gift_id:string password:string = HttpUrl;
 
 //@description Changes resale price of a unique gift owned by the current user
 //@received_gift_id Identifier of the unique gift
-//@resale_star_count The new price for the unique gift; 0 or getOption("gift_resale_star_count_min")-getOption("gift_resale_star_count_max"). Pass 0 to disallow gift resale.
-//-The current user will receive getOption("gift_resale_earnings_per_mille") Telegram Stars for each 1000 Telegram Stars paid for the gift
-setGiftResalePrice received_gift_id:string resale_star_count:int53 = Ok;
+//@price The new price for the unique gift; pass null to disallow gift resale. The current user will receive
+//-getOption("gift_resale_star_earnings_per_mille") Telegram Stars for each 1000 Telegram Stars paid for the gift if the gift price is in Telegram Stars or
+//-getOption("gift_resale_ton_earnings_per_mille") Toncoins for each 1000 Toncoins paid for the gift if the gift price is in Toncoins
+setGiftResalePrice received_gift_id:string price:GiftResalePrice = Ok;
 
 //@description Returns upgraded gifts that can be bought from other owners using sendResoldGift
 //@gift_id Identifier of the regular gift that was upgraded to a unique gift
@@ -12854,12 +12988,12 @@ setGiftResalePrice received_gift_id:string resale_star_count:int53 = Ok;
 searchGiftsForResale gift_id:int64 order:GiftForResaleOrder attributes:vector<UpgradedGiftAttributeId> offset:string limit:int32 = GiftsForResale;
 
 
-//@description Returns collections of gifts owned by the given chat
+//@description Returns collections of gifts owned by the given user or chat
 //@owner_id Identifier of the user or the channel chat that received the gifts
 getGiftCollections owner_id:MessageSender = GiftCollections;
 
 //@description Creates a collection from gifts on the current user's or a channel's profile page; requires can_post_messages administrator right in the channel chat.
-//-An owner can have up to getOption("gift_collection_count_max") gift collections. Returns the created collection
+//-An owner can have up to getOption("gift_collection_count_max") gift collections. The new collection will be added to the end of the gift collection list of the owner. Returns the created collection
 //@owner_id Identifier of the user or the channel chat that received the gifts
 //@name Name of the collection; 1-12 characters
 //@received_gift_ids Identifier of the gifts to add to the collection; 0-getOption("gift_collection_gift_count_max") identifiers
@@ -12897,7 +13031,7 @@ removeGiftCollectionGifts owner_id:MessageSender collection_id:int32 received_gi
 //@description Changes order of gifts in a collection. If the collection is owned by a channel chat, then requires can_post_messages administrator right in the channel chat. Returns the changed collection
 //@owner_id Identifier of the user or the channel chat that owns the collection
 //@collection_id Identifier of the gift collection
-//@received_gift_ids Identifier of the gifts to move to the beginning of the collection. All other gifts are placed in the current order after the gifts
+//@received_gift_ids Identifier of the gifts to move to the beginning of the collection. All other gifts are placed in the current order after the specified gifts
 reorderGiftCollectionGifts owner_id:MessageSender collection_id:int32 received_gift_ids:vector<string> = GiftCollection;
 
 
