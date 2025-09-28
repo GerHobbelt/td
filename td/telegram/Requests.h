@@ -273,6 +273,8 @@ class Requests {
 
   void on_request(uint64 id, const td_api::getMessageViewers &request);
 
+  void on_request(uint64 id, const td_api::getMessageAuthor &request);
+
   void on_request(uint64 id, const td_api::getMessages &request);
 
   void on_request(uint64 id, const td_api::getMessageProperties &request);

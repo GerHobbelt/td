@@ -8,8 +8,10 @@
 
 #include "td/telegram/DialogId.h"
 #include "td/telegram/MessageContentType.h"
+#include "td/telegram/MessageFullId.h"
 #include "td/telegram/MessageId.h"
 #include "td/telegram/MessagesInfo.h"
+#include "td/telegram/OrderedMessage.h"
 #include "td/telegram/SavedMessagesTopicId.h"
 #include "td/telegram/td_api.h"
 #include "td/telegram/telegram_api.h"
@@ -33,8 +35,6 @@ class SavedMessagesManager final : public Actor {
  public:
   SavedMessagesManager(Td *td, ActorShared<> parent);
 
-  bool is_admined_monoforum_dialog(DialogId dialog_id) const;
-
   bool have_topic(DialogId dialog_id, SavedMessagesTopicId saved_messages_topic_id) const;
 
   SavedMessagesTopicId get_topic_id(DialogId dialog_id, int64 topic_id) const;
@@ -43,12 +43,19 @@ class SavedMessagesManager final : public Actor {
 
   int64 get_saved_messages_topic_id_object(DialogId dialog_id, SavedMessagesTopicId saved_messages_topic_id);
 
-  void set_topic_last_message_id(DialogId dialog_id, SavedMessagesTopicId saved_messages_topic_id,
-                                 MessageId last_message_id, int32 last_message_date);
+  bool is_last_topic_message(DialogId dialog_id, SavedMessagesTopicId saved_messages_topic_id,
+                             MessageId message_id) const;
+
+  void on_topic_message_added(DialogId dialog_id, SavedMessagesTopicId saved_messages_topic_id, MessageId message_id,
+                              int32 message_date, const bool from_update, const bool need_update, const bool is_new,
+                              const char *source);
 
   void on_topic_message_updated(DialogId dialog_id, SavedMessagesTopicId saved_messages_topic_id, MessageId message_id);
 
-  void on_topic_message_deleted(DialogId dialog_id, SavedMessagesTopicId saved_messages_topic_id, MessageId message_id);
+  void on_topic_message_deleted(DialogId dialog_id, SavedMessagesTopicId saved_messages_topic_id, MessageId message_id,
+                                bool only_from_memory);
+
+  void on_all_dialog_messages_deleted(DialogId dialog_id);
 
   void on_topic_draft_message_updated(DialogId dialog_id, SavedMessagesTopicId saved_messages_topic_id,
                                       int32 draft_message_date);
@@ -79,8 +86,8 @@ class SavedMessagesManager final : public Actor {
 
   void load_monoforum_topics(DialogId dialog_id, int32 limit, Promise<Unit> &&promise);
 
-  void on_get_saved_messages_topics(DialogId dialog_id, SavedMessagesTopicId expected_saved_messages_topic_id,
-                                    bool is_pinned, int32 limit,
+  void on_get_saved_messages_topics(DialogId dialog_id, uint32 generation,
+                                    SavedMessagesTopicId expected_saved_messages_topic_id, bool is_pinned, int32 limit,
                                     telegram_api::object_ptr<telegram_api::messages_SavedDialogs> &&saved_dialogs_ptr,
                                     Promise<Unit> &&promise);
 
@@ -131,6 +138,8 @@ class SavedMessagesManager final : public Actor {
   void read_all_monoforum_topic_reactions(DialogId dialog_id, SavedMessagesTopicId saved_messages_topic_id,
                                           Promise<Unit> &&promise);
 
+  void get_monoforum_message_author(MessageFullId message_full_id, Promise<td_api::object_ptr<td_api::user>> &&promise);
+
   void get_current_state(vector<td_api::object_ptr<td_api::Update>> &updates) const;
 
  private:
@@ -155,6 +164,7 @@ class SavedMessagesManager final : public Actor {
   struct SavedMessagesTopic {
     DialogId dialog_id_;
     SavedMessagesTopicId saved_messages_topic_id_;
+    OrderedMessages ordered_messages_;
     MessageId last_message_id_;
     MessageId read_inbox_max_message_id_;
     MessageId read_outbox_max_message_id_;
@@ -167,6 +177,7 @@ class SavedMessagesManager final : public Actor {
     int64 private_order_ = 0;
     bool is_marked_as_unread_ = false;
     bool is_received_from_server_ = false;
+    bool need_repair_unread_count_ = false;
     bool is_changed_ = false;
   };
 
@@ -208,6 +219,7 @@ class SavedMessagesManager final : public Actor {
     DialogId dialog_id_;
     int32 server_total_count_ = -1;
     int32 sent_total_count_ = -1;
+    uint32 generation_ = 0;
 
     vector<SavedMessagesTopicId> pinned_saved_messages_topic_ids_;
     bool are_pinned_saved_messages_topics_inited_ = false;
@@ -252,11 +264,17 @@ class SavedMessagesManager final : public Actor {
 
   void on_get_saved_dialogs(TopicList *topic_list, Result<Unit> &&result);
 
-  void on_get_monoforum_topic(DialogId dialog_id, SavedMessagesTopicId saved_messages_topic_id, Result<Unit> &&result);
+  void on_get_monoforum_topic(DialogId dialog_id, uint32 generation, SavedMessagesTopicId saved_messages_topic_id,
+                              Result<Unit> &&result);
 
-  void on_get_saved_messages_topic_history(DialogId dialog_id, SavedMessagesTopicId saved_messages_topic_id,
-                                           MessageId from_message_id, Result<MessagesInfo> &&r_info,
+  void on_get_saved_messages_topic_history(DialogId dialog_id, uint32 generation,
+                                           SavedMessagesTopicId saved_messages_topic_id, MessageId from_message_id,
+                                           Result<MessagesInfo> &&r_info,
                                            Promise<td_api::object_ptr<td_api::messages>> &&promise);
+
+  void repair_topic_unread_count(const SavedMessagesTopic *topic);
+
+  void read_topic_messages(SavedMessagesTopic *topic, MessageId read_inbox_max_message_id, int32 hint_unread_count);
 
   void do_set_topic_last_message_id(SavedMessagesTopic *topic, MessageId last_message_id, int32 last_message_date);
 
@@ -340,6 +358,8 @@ class SavedMessagesManager final : public Actor {
   TopicList topic_list_;
 
   FlatHashMap<DialogId, unique_ptr<TopicList>, DialogIdHash> monoforum_topic_lists_;
+
+  uint32 current_topic_list_generation_ = 0;
 };
 
 }  // namespace td

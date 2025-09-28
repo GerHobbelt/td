@@ -1857,6 +1857,7 @@ basicGroupFullInfo photo:chatPhoto description:string creator_user_id:int53 memb
 //@is_broadcast_group True, if the supergroup is a broadcast group, i.e. only administrators can send messages and there is no limit on the number of members
 //@is_forum True, if the supergroup is a forum with topics
 //@is_feedback_group True, if the supergroup is a feedback group for a channel chat
+//@is_administered_feedback_group True, if the supergroup is a feedback group for a channel chat that is administered by the current user
 //@verification_status Information about verification status of the supergroup or channel; may be null if none
 //@has_feedback_group True, if the channel has feedback group
 //@has_forum_tabs True, if the supergroup is a forum, which topics are shown in the same was as in feedback groups
@@ -1865,7 +1866,7 @@ basicGroupFullInfo photo:chatPhoto description:string creator_user_id:int53 memb
 //@paid_message_star_count Number of Telegram Stars that must be paid by non-administrator users of the supergroup chat for each sent message
 //@has_active_stories True, if the supergroup or channel has non-expired stories available to the current user
 //@has_unread_active_stories True, if the supergroup or channel has unread non-expired stories available to the current user
-supergroup id:int53 usernames:usernames date:int32 status:ChatMemberStatus member_count:int32 boost_level:int32 has_automatic_translation:Bool has_linked_chat:Bool has_location:Bool sign_messages:Bool show_message_sender:Bool join_to_send_messages:Bool join_by_request:Bool is_slow_mode_enabled:Bool is_channel:Bool is_broadcast_group:Bool is_forum:Bool is_feedback_group:Bool verification_status:verificationStatus has_feedback_group:Bool has_forum_tabs:Bool has_sensitive_content:Bool restriction_reason:string paid_message_star_count:int53 has_active_stories:Bool has_unread_active_stories:Bool = Supergroup;
+supergroup id:int53 usernames:usernames date:int32 status:ChatMemberStatus member_count:int32 boost_level:int32 has_automatic_translation:Bool has_linked_chat:Bool has_location:Bool sign_messages:Bool show_message_sender:Bool join_to_send_messages:Bool join_by_request:Bool is_slow_mode_enabled:Bool is_channel:Bool is_broadcast_group:Bool is_forum:Bool is_feedback_group:Bool is_administered_feedback_group:Bool verification_status:verificationStatus has_feedback_group:Bool has_forum_tabs:Bool has_sensitive_content:Bool restriction_reason:string paid_message_star_count:int53 has_active_stories:Bool has_unread_active_stories:Bool = Supergroup;
 
 //@description Contains full information about a supergroup or channel
 //@photo Chat photo; may be null if empty or unknown. If non-null, then it is the same photo as in chat.photo
@@ -2095,7 +2096,7 @@ unreadReaction type:ReactionType sender_id:MessageSender is_big:Bool = UnreadRea
 //@description A topic in a forum supergroup chat @forum_topic_id Unique identifier of the forum topic; all messages in a non-forum supergroup chats belongs to the General topic
 messageTopicForum forum_topic_id:int53 = MessageTopic;
 
-//@description A topic in a feedback chat @feedback_chat_topic_id Unique identifier of the feedback chat topic
+//@description A topic in an administered feedback chat @feedback_chat_topic_id Unique identifier of the topic
 messageTopicFeedbackChat feedback_chat_topic_id:int53 = MessageTopic;
 
 //@description A topic in Saved Messages chat @saved_messages_topic_id Unique identifier of the Saved Messages topic
@@ -2265,13 +2266,13 @@ businessMessages messages:vector<businessMessage> = BusinessMessages;
 //@description The message is from a chat history
 messageSourceChatHistory = MessageSource;
 
-//@description The message is from a message thread history
+//@description The message is from history of a message thread
 messageSourceMessageThreadHistory = MessageSource;
 
-//@description The message is from a forum topic history
+//@description The message is from history of a forum topic
 messageSourceForumTopicHistory = MessageSource;
 
-//@description The message is from a feedback chat topic history
+//@description The message is from history of a topic in an administered feedback chat
 messageSourceFeedbackChatTopicHistory = MessageSource;
 
 //@description The message is from chat, message thread or forum topic history preview
@@ -2905,7 +2906,7 @@ savedMessagesTopicTypeSavedFromChat chat_id:int53 = SavedMessagesTopicType;
 savedMessagesTopic id:int53 type:SavedMessagesTopicType is_pinned:Bool order:int64 last_message:message draft_message:draftMessage = SavedMessagesTopic;
 
 
-//@description Contains information about a topic in a feedback chat
+//@description Contains information about a topic in an administered feedback chat
 //@chat_id Identifier of the chat to which the topic belongs
 //@id Unique topic identifier
 //@sender_id Identifier of the user or chat that sends the feedback
@@ -4059,8 +4060,8 @@ messageInvoice product_info:productInfo currency:string total_amount:int53 start
 messageCall is_video:Bool discard_reason:CallDiscardReason duration:int32 = MessageContent;
 
 //@description A message with information about a group call not bound to a chat. If the message is incoming, the call isn't active, isn't missed, and has no duration,
-//-and getOption("can_accept_calls") is true, then incoming call screen must be shown to the user. Use joinGroupCall to accept the call or declineGroupCallInvitation to decline it.
-//-If the call become active or missed, then the call screen must be hidden
+//-and getOption("can_accept_calls") is true, then incoming call screen must be shown to the user. Use getGroupCallParticipants to show current group call participants on the screen.
+//-Use joinGroupCall to accept the call or declineGroupCallInvitation to decline it. If the call become active or missed, then the call screen must be hidden
 //@is_active True, if the call is active, i.e. the called user joined the call
 //@was_missed True, if the called user missed or declined the call
 //@is_video True, if the call is a video call
@@ -4472,14 +4473,14 @@ messageSelfDestructTypeImmediately = MessageSelfDestructType;
 
 
 //@description Options to be used when a message is sent
-//@feedback_chat_topic_id Unique identifier of the feedback chat topic; pass 0 if the chat isn't a feedback chat or the user doesn't have can_post_messages administrator right in the corresponding channel chat
+//@feedback_chat_topic_id Unique identifier of the topic in an administered feedback chat; pass 0 if the chat isn't an administered feedback chat
 //@disable_notification Pass true to disable notification for the message
 //@from_background Pass true if the message is sent from the background
 //@protect_content Pass true if the content of the message must be protected from forwarding and saving; for bots only
 //@allow_paid_broadcast Pass true to allow the message to ignore regular broadcast limits for a small fee; for bots only
 //@paid_message_star_count The number of Telegram Stars the user agreed to pay to send the messages
 //@update_order_of_installed_sticker_sets Pass true if the user explicitly chosen a sticker or a custom emoji from an installed sticker set; applicable only to sendMessage and sendMessageAlbum
-//@scheduling_state Message scheduling state; pass null to send message immediately. Messages sent to a secret chat, to a chat with paid messages, live location messages and self-destructing messages can't be scheduled
+//@scheduling_state Message scheduling state; pass null to send message immediately. Messages sent to a secret chat, to a chat with paid messages, to a feedback chat, live location messages and self-destructing messages can't be scheduled
 //@effect_id Identifier of the effect to apply to the message; pass 0 if none; applicable only to sendMessage and sendMessageAlbum in private chats
 //@sending_id Non-persistent identifier, which will be returned back in messageSendingStatePending object and can be used to match sent messages and corresponding updateNewMessage updates
 //@only_preview Pass true to get a fake message instead of actually sending them
@@ -4667,6 +4668,7 @@ inputMessageForwarded from_chat_id:int53 message_id:int53 in_game_share:Bool rep
 //@can_be_shared_in_story True, if the message can be shared in a story using inputStoryAreaTypeMessage
 //@can_edit_media True, if the message can be edited using the method editMessageMedia
 //@can_edit_scheduling_state True, if scheduling state of the message can be edited
+//@can_get_author True, if author of the message sent on behalf of a chat can be received through getMessageAuthor
 //@can_get_embedding_code True, if code for message embedding can be received using getMessageEmbeddingCode
 //@can_get_link True, if a link can be generated for the message using getMessageLink
 //@can_get_media_timestamp_links True, if media timestamp links can be generated for media timestamp entities in the message text, caption or link preview description using getMessageLink
@@ -4680,7 +4682,7 @@ inputMessageForwarded from_chat_id:int53 message_id:int53 in_game_share:Bool rep
 //@can_report_supergroup_spam True, if the message can be reported using reportSupergroupSpam
 //@can_set_fact_check True, if fact check for the message can be changed through setMessageFactCheck
 //@need_show_statistics True, if message statistics must be available from context menu of the message
-messageProperties can_be_copied:Bool can_be_copied_to_secret_chat:Bool can_be_deleted_only_for_self:Bool can_be_deleted_for_all_users:Bool can_be_edited:Bool can_be_forwarded:Bool can_be_paid:Bool can_be_pinned:Bool can_be_replied:Bool can_be_replied_in_another_chat:Bool can_be_saved:Bool can_be_shared_in_story:Bool can_edit_media:Bool can_edit_scheduling_state:Bool can_get_embedding_code:Bool can_get_link:Bool can_get_media_timestamp_links:Bool can_get_message_thread:Bool can_get_read_date:Bool can_get_statistics:Bool can_get_viewers:Bool can_recognize_speech:Bool can_report_chat:Bool can_report_reactions:Bool can_report_supergroup_spam:Bool can_set_fact_check:Bool need_show_statistics:Bool = MessageProperties;
+messageProperties can_be_copied:Bool can_be_copied_to_secret_chat:Bool can_be_deleted_only_for_self:Bool can_be_deleted_for_all_users:Bool can_be_edited:Bool can_be_forwarded:Bool can_be_paid:Bool can_be_pinned:Bool can_be_replied:Bool can_be_replied_in_another_chat:Bool can_be_saved:Bool can_be_shared_in_story:Bool can_edit_media:Bool can_edit_scheduling_state:Bool can_get_author:Bool can_get_embedding_code:Bool can_get_link:Bool can_get_media_timestamp_links:Bool can_get_message_thread:Bool can_get_read_date:Bool can_get_statistics:Bool can_get_viewers:Bool can_recognize_speech:Bool can_report_chat:Bool can_report_reactions:Bool can_report_supergroup_spam:Bool can_set_fact_check:Bool need_show_statistics:Bool = MessageProperties;
 
 
 //@class SearchMessagesFilter @description Represents a filter for message search results
@@ -7516,7 +7518,9 @@ internalLinkTypeEditProfileSettings = InternalLinkType;
 //@game_short_name Short name of the game
 internalLinkTypeGame bot_username:string game_short_name:string = InternalLinkType;
 
-//@description The link is a link to a group call that isn't bound to a chat. Call joinGroupCall with the given invite_link @invite_link Internal representation of the invite link
+//@description The link is a link to a group call that isn't bound to a chat. Use getGroupCallParticipants to get the list of group call participants and show them on the join group call screen.
+//-Call joinGroupCall with the given invite_link to join the call
+//@invite_link Internal representation of the invite link
 internalLinkTypeGroupCall invite_link:string = InternalLinkType;
 
 //@description The link must be opened in an Instant View. Call getWebPageInstantView with the given URL to process the link.
@@ -8532,7 +8536,7 @@ updateSavedMessagesTopic topic:savedMessagesTopic = Update;
 //@description Number of Saved Messages topics has changed @topic_count Approximate total number of Saved Messages topics
 updateSavedMessagesTopicCount topic_count:int32 = Update;
 
-//@description Basic information about a topic in a feedback group has changed. This update is guaranteed to come before the topic identifier is returned to the application
+//@description Basic information about a topic in an administered feedback chat has changed. This update is guaranteed to come before the topic identifier is returned to the application
 //@topic New data about the topic
 updateFeedbackChatTopic topic:feedbackChatTopic = Update;
 
@@ -9326,6 +9330,11 @@ getMessageReadDate chat_id:int53 message_id:int53 = MessageReadDate;
 //@message_id Identifier of the message
 getMessageViewers chat_id:int53 message_id:int53 = MessageViewers;
 
+//@description Returns information about actual author of a message sent on behalf of a channel. The method can be called if messageProperties.can_get_author == true
+//@chat_id Chat identifier
+//@message_id Identifier of the message
+getMessageAuthor chat_id:int53 message_id:int53 = User;
+
 //@description Returns information about a file. This is an offline method @file_id Identifier of the file to get
 getFile file_id:int32 = File;
 
@@ -9433,20 +9442,19 @@ getInactiveSupergroupChats = Chats;
 getSuitablePersonalChats = Chats;
 
 
-//@description Loads more topics in a feedback group; requires can_post_messages administrator right in the corresponding channel chat. The loaded topics will be sent through updateFeedbackChatTopic.
+//@description Loads more topics in the administered feedback chat. The loaded topics will be sent through updateFeedbackChatTopic.
 //-Topics are sorted by their topic.order in descending order. Returns a 404 error if all topics have been loaded
-//@chat_id Chat identifier of the feedback group
+//@chat_id Chat identifier of the feedback chat
 //@limit The maximum number of topics to be loaded. For optimal performance, the number of loaded topics is chosen by TDLib and can be smaller than the specified limit, even if the end of the list is not reached
 loadFeedbackChatTopics chat_id:int53 limit:int32 = Ok;
 
-//@description Returns information about a feedback group topic; requires can_post_messages administrator right in the corresponding channel chat
-//@chat_id Chat identifier of the feedback group
+//@description Returns information about the topic in the administered feedback chat
+//@chat_id Chat identifier of the feedback chat
 //@topic_id Identifier of the topic to get
 getFeedbackChatTopic chat_id:int53 topic_id:int53 = FeedbackChatTopic;
 
-//@description Returns messages in a feedback group topic; requires can_post_messages administrator right in the corresponding channel chat.
-//-The messages are returned in reverse chronological order (i.e., in order of decreasing message_id)
-//@chat_id Chat identifier of the feedback group
+//@description Returns messages in the topic in the administered feedback chat. The messages are returned in reverse chronological order (i.e., in order of decreasing message_id)
+//@chat_id Chat identifier of the feedback chat
 //@topic_id Identifier of the topic which messages will be fetched
 //@from_message_id Identifier of the message starting from which messages must be fetched; use 0 to get results from the last message
 //@offset Specify 0 to get results from exactly the message from_message_id or a negative offset up to 99 to get additionally some newer messages
@@ -9454,46 +9462,47 @@ getFeedbackChatTopic chat_id:int53 topic_id:int53 = FeedbackChatTopic;
 //-For optimal performance, the number of returned messages is chosen by TDLib and can be smaller than the specified limit
 getFeedbackChatTopicHistory chat_id:int53 topic_id:int53 from_message_id:int53 offset:int32 limit:int32 = Messages;
 
-//@description Returns the last message sent in a feedback group topic no later than the specified date; requires can_post_messages administrator right in the corresponding channel chat
-//@chat_id Chat identifier of the feedback group
+//@description Returns the last message sent in the topic in the administered feedback chat no later than the specified date
+//@chat_id Chat identifier of the feedback chat
 //@topic_id Identifier of the topic which messages will be fetched
 //@date Point in time (Unix timestamp) relative to which to search for messages
 getFeedbackChatTopicMessageByDate chat_id:int53 topic_id:int53 date:int32 = Message;
 
-//@description Deletes all messages in a feedback group topic; requires can_post_messages administrator right in the corresponding channel chat
-//@chat_id Chat identifier of the feedback group
+//@description Deletes all messages in the topic in the administered feedback chat
+//@chat_id Chat identifier of the feedback chat
 //@topic_id Identifier of the topic which messages will be deleted
 deleteFeedbackChatTopicHistory chat_id:int53 topic_id:int53 = Ok;
 
-//@description Deletes all messages between the specified dates in a feedback group topic; requires can_post_messages administrator right in the corresponding channel chat.
+//@description Deletes all messages between the specified dates in the topic in the administered feedback chat
 //-Messages sent in the last 30 seconds will not be deleted
-//@chat_id Chat identifier of the feedback group
+//@chat_id Chat identifier of the feedback chat
 //@topic_id Identifier of the topic which messages will be deleted
 //@min_date The minimum date of the messages to delete
 //@max_date The maximum date of the messages to delete
 deleteFeedbackChatTopicMessagesByDate chat_id:int53 topic_id:int53 min_date:int32 max_date:int32 = Ok;
 
-//@description Changes the marked as unread state of a feedback chat topic; requires can_post_messages administrator right in the corresponding channel chat
-//@chat_id Chat identifier of the feedback group
+//@description Changes the marked as unread state of the topic in the administered feedback chat
+//@chat_id Chat identifier of the feedback chat
 //@topic_id Topic identifier
 //@is_marked_as_unread New value of is_marked_as_unread
 setFeedbackChatTopicIsMarkedAsUnread chat_id:int53 topic_id:int53 is_marked_as_unread:Bool = Ok;
 
-//@description Changes the draft message in a feedback chat topic
+//@description Changes the draft message in the topic in the administered feedback chat
 //@chat_id Chat identifier
 //@topic_id Topic identifier
 //@draft_message New draft message; pass null to remove the draft. All files in draft message content must be of the type inputFileLocal. Media thumbnails and captions are ignored
 setFeedbackChatTopicDraftMessage chat_id:int53 topic_id:int53 draft_message:draftMessage = Ok;
 
-//@description Removes all pinned messages from a feedback chat topic; requires can_post_messages administrator right in the corresponding channel chat
+//@description Removes all pinned messages from the topic in the administered feedback chat
 //@chat_id Identifier of the chat
 //@topic_id Topic identifier
 unpinAllFeedbackChatTopicMessages chat_id:int53 topic_id:int53 = Ok;
 
-//@description Removes all unread reactions in a feedback chat topic; requires can_post_messages administrator right in the corresponding channel chat
+//@description Removes all unread reactions in the topic in the administered feedback chat
 //@chat_id Identifier of the chat
 //@topic_id Topic identifier
 readAllFeedbackChatTopicReactions chat_id:int53 topic_id:int53 = Ok;
+
 
 
 //@description Loads more Saved Messages topics. The loaded topics will be sent through updateSavedMessagesTopic. Topics are sorted by their topic.order in descending order. Returns a 404 error if all topics have been loaded
@@ -9683,10 +9692,10 @@ getChatSparseMessagePositions chat_id:int53 filter:SearchMessagesFilter from_mes
 
 //@description Returns information about the next messages of the specified type in the chat split by days. Returns the results in reverse chronological order. Can return partial result for the last returned day. Behavior of this method depends on the value of the option "utc_time_offset"
 //@chat_id Identifier of the chat in which to return information about messages
+//@topic_id Pass topic identifier to get the result only in specific topic; pass null to get the result in all topics; forum topics aren't supported
 //@filter Filter for message content. Filters searchMessagesFilterEmpty, searchMessagesFilterMention, searchMessagesFilterUnreadMention, and searchMessagesFilterUnreadReaction are unsupported in this function
 //@from_message_id The message identifier from which to return information about messages; use 0 to get results from the last message
-//@saved_messages_topic_id If not 0, only messages in the specified Saved Messages topic will be considered; pass 0 to consider all messages, or for chats other than Saved Messages
-getChatMessageCalendar chat_id:int53 filter:SearchMessagesFilter from_message_id:int53 saved_messages_topic_id:int53 = MessageCalendar;
+getChatMessageCalendar chat_id:int53 topic_id:MessageTopic filter:SearchMessagesFilter from_message_id:int53 = MessageCalendar;
 
 //@description Returns approximate number of messages of the specified type in the chat or its topic
 //@chat_id Identifier of the chat in which to count messages
