@@ -9,6 +9,7 @@
 #include "td/telegram/ChatManager.h"
 #include "td/telegram/DialogManager.h"
 #include "td/telegram/SavedMessagesManager.h"
+#include "td/telegram/ServerMessageId.h"
 #include "td/telegram/Td.h"
 
 namespace td {
@@ -56,6 +57,22 @@ MessageTopic MessageTopic::forum(DialogId dialog_id, MessageId top_thread_messag
   result.type_ = Type::Forum;
   result.dialog_id_ = dialog_id;
   result.top_thread_message_id_ = top_thread_message_id;
+  return result;
+}
+
+MessageTopic MessageTopic::monoforum(DialogId dialog_id, SavedMessagesTopicId saved_messages_topic_id) {
+  MessageTopic result;
+  result.type_ = Type::Monoforum;
+  result.dialog_id_ = dialog_id;
+  result.saved_messages_topic_id_ = saved_messages_topic_id;
+  return result;
+}
+
+MessageTopic MessageTopic::saved_messages(DialogId dialog_id, SavedMessagesTopicId saved_messages_topic_id) {
+  MessageTopic result;
+  result.type_ = Type::SavedMessages;
+  result.dialog_id_ = dialog_id;
+  result.saved_messages_topic_id_ = saved_messages_topic_id;
   return result;
 }
 

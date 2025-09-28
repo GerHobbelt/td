@@ -6,11 +6,13 @@
 //
 #pragma once
 
+#include "td/telegram/DialogId.h"
 #include "td/telegram/MessageId.h"
 #include "td/telegram/SavedMessagesTopicId.h"
 #include "td/telegram/td_api.h"
 
 #include "td/utils/common.h"
+#include "td/utils/Status.h"
 #include "td/utils/StringBuilder.h"
 
 namespace td {
@@ -35,6 +37,10 @@ class MessageTopic {
                SavedMessagesTopicId saved_messages_topic_id);
 
   static MessageTopic forum(DialogId dialog_id, MessageId top_thread_message_id);
+
+  static MessageTopic monoforum(DialogId dialog_id, SavedMessagesTopicId saved_messages_topic_id);
+
+  static MessageTopic saved_messages(DialogId dialog_id, SavedMessagesTopicId saved_messages_topic_id);
 
   static Result<MessageTopic> get_message_topic(Td *td, DialogId dialog_id,
                                                 const td_api::object_ptr<td_api::MessageTopic> &topic);
