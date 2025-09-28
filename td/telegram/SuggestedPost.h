@@ -43,15 +43,21 @@ class SuggestedPost {
     return price_.is_empty() && schedule_date_ == 0;
   }
 
+  bool is_pending() const {
+    return !is_empty() && !is_accepted_ && !is_rejected_;
+  }
+
+  int32 get_schedule_date() const {
+    return schedule_date_;
+  }
+
   telegram_api::object_ptr<telegram_api::suggestedPost> get_input_suggested_post() const;
 
-  td_api::object_ptr<td_api::suggestedPostInfo> get_suggested_post_info_object() const;
+  td_api::object_ptr<td_api::suggestedPostInfo> get_suggested_post_info_object(bool can_be_accepted,
+                                                                               bool can_be_rejected) const;
 
   // for draftMessage
   td_api::object_ptr<td_api::inputSuggestedPostInfo> get_input_suggested_post_info_object() const;
-
-  static td_api::object_ptr<td_api::suggestedPostInfo> get_suggested_post_info_object(
-      const unique_ptr<SuggestedPost> &post);
 
   static unique_ptr<SuggestedPost> clone(const unique_ptr<SuggestedPost> &post);
 

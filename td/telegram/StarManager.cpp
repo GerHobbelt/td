@@ -393,6 +393,10 @@ class GetStarsTransactionsQuery final : public Td::ResultHandler {
                   td_->dialog_manager_->force_create_dialog(dialog_id, "starsTransactionPeer", true);
                   auto chat_id =
                       td_->dialog_manager_->get_chat_id_object(dialog_id, "starTransactionTypePaidMessageSend");
+                  if (product_info != nullptr && product_info->title_ == "Suggested Post" &&
+                      td_->dialog_manager_->is_broadcast_channel(dialog_id)) {
+                    return td_api::make_object<td_api::starTransactionTypeSuggestedPostPaymentSend>(chat_id);
+                  }
                   return td_api::make_object<td_api::starTransactionTypePaidMessageSend>(chat_id,
                                                                                          transaction->paid_messages_);
                 }
@@ -407,6 +411,15 @@ class GetStarsTransactionsQuery final : public Td::ResultHandler {
                       get_message_sender_object(td_, dialog_id, "starTransactionTypePaidMessageReceive"),
                       transaction->paid_messages_, affiliate->commission_per_mille_,
                       std::move(affiliate->star_amount_));
+                }
+                if (for_channel && dialog_id.get_type() == DialogType::User) {
+                  SCOPE_EXIT {
+                    product_info = nullptr;
+                    transaction->paid_messages_ = 0;
+                  };
+                  return td_api::make_object<td_api::starTransactionTypeSuggestedPostPaymentReceive>(
+                      td_->user_manager_->get_user_id_object(dialog_id.get_user_id(),
+                                                             "starTransactionTypeSuggestedPostPaymentReceive"));
                 }
               }
               return nullptr;
@@ -822,7 +835,7 @@ class GetTonTransactionsQuery final : public Td::ResultHandler {
       auto transaction_amount =
           TonAmount(telegram_api::move_object_as<telegram_api::starsTonAmount>(transaction->amount_), true);
       auto is_refund = transaction->refund_;
-      // auto is_purchase = transaction_amount.is_positive() == is_refund;
+      auto is_purchase = transaction_amount.is_positive() == is_refund;
       auto type = [&]() -> td_api::object_ptr<td_api::TonTransactionType> {
         switch (transaction->peer_->get_id()) {
           case telegram_api::starsTransactionPeerUnsupported::ID:
@@ -830,7 +843,6 @@ class GetTonTransactionsQuery final : public Td::ResultHandler {
           case telegram_api::starsTransactionPeerPremiumBot::ID:
           case telegram_api::starsTransactionPeerAppStore::ID:
           case telegram_api::starsTransactionPeerPlayMarket::ID:
-          case telegram_api::starsTransactionPeer::ID:
           case telegram_api::starsTransactionPeerAds::ID:
           case telegram_api::starsTransactionPeerAPI::ID:
             return nullptr;
@@ -841,6 +853,25 @@ class GetTonTransactionsQuery final : public Td::ResultHandler {
             return td_api::make_object<td_api::tonTransactionTypeFragmentDeposit>(
                 transaction->gift_,
                 td_->stickers_manager_->get_ton_gift_sticker_object(transaction_amount.get_ton_amount()));
+          }
+          case telegram_api::starsTransactionPeer::ID: {
+            DialogId dialog_id(
+                static_cast<const telegram_api::starsTransactionPeer *>(transaction->peer_.get())->peer_);
+            if (!dialog_id.is_valid()) {
+              return nullptr;
+            }
+            if (transaction->paid_messages_ && is_purchase && transaction->title_ == "Suggested Post" &&
+                td_->dialog_manager_->is_broadcast_channel(dialog_id)) {
+              SCOPE_EXIT {
+                transaction->paid_messages_ = 0;
+                transaction->title_.clear();
+              };
+              td_->dialog_manager_->force_create_dialog(dialog_id, "starsTransactionPeer", true);
+              auto chat_id =
+                  td_->dialog_manager_->get_chat_id_object(dialog_id, "tonTransactionTypeSuggestedPostPayment");
+              return td_api::make_object<td_api::tonTransactionTypeSuggestedPostPayment>(chat_id);
+            }
+            return nullptr;
           }
           default:
             UNREACHABLE();

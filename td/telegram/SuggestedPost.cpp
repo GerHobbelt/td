@@ -49,7 +49,7 @@ telegram_api::object_ptr<telegram_api::suggestedPost> SuggestedPost::get_input_s
     flags |= telegram_api::suggestedPost::PRICE_MASK;
   }
   if (schedule_date_ != 0) {
-    flags |= telegram_api::suggestedPost::PRICE_MASK;
+    flags |= telegram_api::suggestedPost::SCHEDULE_DATE_MASK;
   }
   return telegram_api::make_object<telegram_api::suggestedPost>(flags, is_accepted_, is_rejected_, std::move(price),
                                                                 schedule_date_);
@@ -65,21 +65,15 @@ td_api::object_ptr<td_api::SuggestedPostState> SuggestedPost::get_suggested_post
   return td_api::make_object<td_api::suggestedPostStatePending>();
 }
 
-td_api::object_ptr<td_api::suggestedPostInfo> SuggestedPost::get_suggested_post_info_object() const {
+td_api::object_ptr<td_api::suggestedPostInfo> SuggestedPost::get_suggested_post_info_object(
+    bool can_be_accepted, bool can_be_rejected) const {
   return td_api::make_object<td_api::suggestedPostInfo>(price_.get_suggested_post_price_object(), schedule_date_,
-                                                        get_suggested_post_state_object());
+                                                        get_suggested_post_state_object(), can_be_accepted,
+                                                        can_be_rejected);
 }
 
 td_api::object_ptr<td_api::inputSuggestedPostInfo> SuggestedPost::get_input_suggested_post_info_object() const {
   return td_api::make_object<td_api::inputSuggestedPostInfo>(price_.get_suggested_post_price_object(), schedule_date_);
-}
-
-td_api::object_ptr<td_api::suggestedPostInfo> SuggestedPost::get_suggested_post_info_object(
-    const unique_ptr<SuggestedPost> &post) {
-  if (post == nullptr) {
-    return nullptr;
-  }
-  return post->get_suggested_post_info_object();
 }
 
 unique_ptr<SuggestedPost> SuggestedPost::clone(const unique_ptr<SuggestedPost> &post) {

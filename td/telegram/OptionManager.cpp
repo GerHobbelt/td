@@ -190,6 +190,9 @@ OptionManager::OptionManager(Td *td)
   set_default_integer_option("suggested_post_toncoin_earnings_per_mille", 850);
   set_default_integer_option("million_toncoin_to_usd_rate", 3000000);
   set_default_integer_option("suggested_post_lifetime_min", is_test_dc ? 120 : 86400);
+  set_default_integer_option("suggested_post_send_delay_min", 300);
+  set_default_integer_option("suggested_post_send_delay_max", 2678400);
+  set_default_integer_option("star_withdrawal_count_max", is_test_dc ? 100 : 25000000);
 
   if (options.isset("my_phone_number") || !options.isset("my_id")) {
     update_premium_options();

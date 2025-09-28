@@ -1038,10 +1038,11 @@ class CliClient final : public Actor {
         quote = td_api::make_object<td_api::inputTextQuote>(as_formatted_text(reply_quote_), reply_quote_position_);
       }
       if (reply_chat_id_ == 0) {
-        return td_api::make_object<td_api::inputMessageReplyToMessage>(reply_message_id_, std::move(quote));
+        return td_api::make_object<td_api::inputMessageReplyToMessage>(reply_message_id_, std::move(quote),
+                                                                       reply_checklist_task_id_);
       }
-      return td_api::make_object<td_api::inputMessageReplyToExternalMessage>(reply_chat_id_, reply_message_id_,
-                                                                             std::move(quote));
+      return td_api::make_object<td_api::inputMessageReplyToExternalMessage>(
+          reply_chat_id_, reply_message_id_, std::move(quote), reply_checklist_task_id_);
     }
     if (reply_story_chat_id_ != 0 || reply_story_id_ != 0) {
       return td_api::make_object<td_api::inputMessageReplyToStory>(reply_story_chat_id_, reply_story_id_);
@@ -2656,7 +2657,11 @@ class CliClient final : public Actor {
   }
 
   td_api::object_ptr<td_api::inputSuggestedPostInfo> get_input_suggested_post_info() const {
-    return td_api::make_object<td_api::inputSuggestedPostInfo>(suggested_post_price_, suggested_post_send_date_);
+    td_api::object_ptr<td_api::SuggestedPostPrice> price = suggested_post_price_;
+    if (price == nullptr) {
+      return nullptr;
+    }
+    return td_api::make_object<td_api::inputSuggestedPostInfo>(std::move(price), suggested_post_send_date_);
   }
 
   td_api::object_ptr<td_api::messageSendOptions> default_message_send_options() const {
@@ -5096,6 +5101,11 @@ class CliClient final : public Actor {
       string comment;
       get_args(args, chat_id, message_id, comment);
       send_request(td_api::make_object<td_api::declineSuggestedPost>(chat_id, message_id, comment));
+    } else if (op == "ao") {
+      ChatId chat_id;
+      MessageId message_id;
+      get_args(args, chat_id, message_id);
+      send_request(td_api::make_object<td_api::addOffer>(chat_id, message_id, default_message_send_options()));
     } else if (op == "sq") {
       string text;
       string quote;
@@ -5641,6 +5651,8 @@ class CliClient final : public Actor {
       reply_quote_ = args;
     } else if (op == "smrqp") {
       reply_quote_position_ = to_integer<int32>(args);
+    } else if (op == "smrcti") {
+      reply_checklist_task_id_ = to_integer<int32>(args);
     } else if (op == "smrs") {
       get_args(args, reply_story_chat_id_, reply_story_id_);
     } else if (op == "slpo") {
@@ -8050,6 +8062,7 @@ class CliClient final : public Actor {
   MessageId reply_message_id_;
   string reply_quote_;
   int32 reply_quote_position_ = 0;
+  int32 reply_checklist_task_id_ = 0;
   ChatId reply_story_chat_id_;
   StoryId reply_story_id_;
   ChatId reposted_story_chat_id_;

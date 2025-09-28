@@ -456,7 +456,11 @@ class MessagesManager final : public Actor {
   Result<td_api::object_ptr<td_api::messages>> forward_messages(
       DialogId to_dialog_id, MessageId top_thread_message_id, DialogId from_dialog_id, vector<MessageId> message_ids,
       tl_object_ptr<td_api::messageSendOptions> &&options, bool in_game_share, int32 new_video_start_timestamp,
-      vector<MessageCopyOptions> &&copy_options) TD_WARN_UNUSED_RESULT;
+      vector<MessageCopyOptions> &&copy_options, bool add_offer = false,
+      MessageId suggested_post_reply_to_message_id = MessageId()) TD_WARN_UNUSED_RESULT;
+
+  void add_offer(DialogId dialog_id, MessageId message_id, td_api::object_ptr<td_api::messageSendOptions> &&options,
+                 Promise<td_api::object_ptr<td_api::message>> promise);
 
   Result<td_api::object_ptr<td_api::messages>> send_quick_reply_shortcut_messages(
       DialogId dialog_id, QuickReplyShortcutId shortcut_id, int32 sending_id) TD_WARN_UNUSED_RESULT;
@@ -1744,6 +1748,8 @@ class MessagesManager final : public Actor {
 
   bool can_edit_message_scheduling_state(const Message *m) const;
 
+  bool can_edit_message_suggested_post(const Message *m) const;
+
   Status can_pin_message(DialogId dialog_id, const Message *m) const TD_WARN_UNUSED_RESULT;
 
   static Status can_get_media_timestamp_link(DialogId dialog_id, const Message *m);
@@ -1821,16 +1827,19 @@ class MessagesManager final : public Actor {
                                             Promise<Unit> promise);
 
   void send_forward_message_query(int32 flags, DialogId to_dialog_id, const MessageId top_thread_message_id,
-                                  const SavedMessagesTopicId saved_messages_topic_id, DialogId from_dialog_id,
-                                  tl_object_ptr<telegram_api::InputPeer> as_input_peer, vector<MessageId> message_ids,
-                                  vector<int64> random_ids, int32 schedule_date, int32 new_video_start_timestamp,
-                                  int64 paid_message_star_count, Promise<Unit> promise);
+                                  const SavedMessagesTopicId saved_messages_topic_id,
+                                  const MessageInputReplyTo input_reply_to, DialogId from_dialog_id,
+                                  telegram_api::object_ptr<telegram_api::InputPeer> as_input_peer,
+                                  vector<MessageId> message_ids, vector<int64> random_ids, int32 schedule_date,
+                                  int32 new_video_start_timestamp, int64 paid_message_star_count,
+                                  const SuggestedPost &suggested_post, Promise<Unit> promise);
 
   Result<td_api::object_ptr<td_api::message>> forward_message(DialogId to_dialog_id, MessageId top_thread_message_id,
                                                               DialogId from_dialog_id, MessageId message_id,
                                                               td_api::object_ptr<td_api::messageSendOptions> &&options,
                                                               bool in_game_share, int32 new_video_start_timestamp,
-                                                              MessageCopyOptions &&copy_options) TD_WARN_UNUSED_RESULT;
+                                                              MessageCopyOptions &&copy_options, bool add_offer,
+                                                              MessageId reply_to_message_id) TD_WARN_UNUSED_RESULT;
 
   MessageOrigin get_forwarded_message_origin(DialogId dialog_id, const Message *m) const;
 
@@ -1861,6 +1870,7 @@ class MessagesManager final : public Actor {
       size_t index;
     };
     vector<ForwardedMessageContent> forwarded_message_contents;
+    MessageId reply_to_message_id;
     bool drop_author = false;
     bool drop_media_captions = false;
 
@@ -1874,7 +1884,7 @@ class MessagesManager final : public Actor {
                                                    DialogId from_dialog_id, const vector<MessageId> &message_ids,
                                                    td_api::object_ptr<td_api::messageSendOptions> &&options,
                                                    int32 new_video_start_timestamp,
-                                                   vector<MessageCopyOptions> &&copy_options);
+                                                   vector<MessageCopyOptions> &&copy_options, bool add_offer);
 
   void do_send_media(DialogId dialog_id, const Message *m, int32 media_pos,
                      telegram_api::object_ptr<telegram_api::InputFile> input_file,
@@ -1942,9 +1952,17 @@ class MessagesManager final : public Actor {
 
   bool get_message_has_protected_content(DialogId dialog_id, const Message *m) const;
 
+  bool can_add_message_offer(DialogId dialog_id, const Message *m) const;
+
   bool can_add_message_tasks(DialogId dialog_id, const Message *m, int32 task_count) const;
 
   bool can_mark_message_tasks_as_done(DialogId dialog_id, const Message *m) const;
+
+  bool can_approve_or_decline_message(DialogId dialog_id, const Message *m) const;
+
+  bool can_approve_message(DialogId dialog_id, const Message *m) const;
+
+  bool can_decline_message(DialogId dialog_id, const Message *m) const;
 
   bool can_forward_message(DialogId from_dialog_id, const Message *m, bool is_copy) const;
 
@@ -2045,6 +2063,9 @@ class MessagesManager final : public Actor {
                                                                                          const Message *m) const;
 
   td_api::object_ptr<td_api::factCheck> get_message_fact_check_object(const Message *m) const;
+
+  td_api::object_ptr<td_api::suggestedPostInfo> get_message_suggested_post_info_object(DialogId dialog_id,
+                                                                                       const Message *m) const;
 
   vector<td_api::object_ptr<td_api::unreadReaction>> get_unread_reactions_object(DialogId dialog_id,
                                                                                  const Message *m) const;

@@ -6,7 +6,6 @@
 //
 #pragma once
 
-#include "td/telegram/td_api.h"
 #include "td/telegram/telegram_api.h"
 
 #include "td/utils/common.h"
@@ -26,6 +25,10 @@ class TonAmount {
 
   int64 get_ton_amount() const {
     return ton_amount_;
+  }
+
+  bool is_positive() const {
+    return ton_amount_ > 0;
   }
 
   static int64 get_ton_count(int64 amount, bool allow_negative);
