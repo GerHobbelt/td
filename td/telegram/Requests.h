@@ -1625,6 +1625,22 @@ class Requests {
 
   void on_request(uint64 id, td_api::searchGiftsForResale &request);
 
+  void on_request(uint64 id, const td_api::getGiftCollections &request);
+
+  void on_request(uint64 id, td_api::createGiftCollection &request);
+
+  void on_request(uint64 id, const td_api::reorderGiftCollections &request);
+
+  void on_request(uint64 id, const td_api::deleteGiftCollection &request);
+
+  void on_request(uint64 id, td_api::setGiftCollectionName &request);
+
+  void on_request(uint64 id, const td_api::addGiftCollectionGifts &request);
+
+  void on_request(uint64 id, const td_api::removeGiftCollectionGifts &request);
+
+  void on_request(uint64 id, const td_api::reorderGiftCollectionGifts &request);
+
   void on_request(uint64 id, td_api::createInvoiceLink &request);
 
   void on_request(uint64 id, td_api::refundStarPayment &request);

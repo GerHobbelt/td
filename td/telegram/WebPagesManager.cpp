@@ -12,6 +12,7 @@
 #include "td/telegram/ChatManager.h"
 #include "td/telegram/Dependencies.h"
 #include "td/telegram/DialogManager.h"
+#include "td/telegram/DialogPhoto.h"
 #include "td/telegram/Dimensions.h"
 #include "td/telegram/Document.h"
 #include "td/telegram/Document.hpp"
@@ -690,6 +691,9 @@ WebPageId WebPagesManager::on_get_web_page(tl_object_ptr<telegram_api::WebPage> 
             if (page->type_ != "telegram_nft") {
               LOG(ERROR) << "Receive webPageAttributeUniqueStarGift for " << page->type_;
             }
+            break;
+          }
+          case telegram_api::webPageAttributeStarGiftCollection::ID: {
             break;
           }
           default:
@@ -1519,6 +1523,12 @@ td_api::object_ptr<td_api::LinkPreviewType> WebPagesManager::get_link_preview_ty
       LOG_IF(ERROR, web_page->document_.type != Document::Type::Unknown)
           << "Receive wrong document for " << web_page->url_;
       return td_api::make_object<td_api::linkPreviewTypeChannelBoost>(
+          get_chat_photo_object(td_->file_manager_.get(), web_page->photo_));
+    }
+    if (type == "channel_direct") {
+      LOG_IF(ERROR, web_page->document_.type != Document::Type::Unknown)
+          << "Receive wrong document for " << web_page->url_;
+      return td_api::make_object<td_api::linkPreviewTypeDirectMessagesChat>(
           get_chat_photo_object(td_->file_manager_.get(), web_page->photo_));
     }
     if (type == "chat" || type == "chat_request") {

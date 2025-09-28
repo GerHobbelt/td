@@ -9,6 +9,7 @@
 #include "td/telegram/BusinessConnectionId.h"
 #include "td/telegram/DialogId.h"
 #include "td/telegram/MessageFullId.h"
+#include "td/telegram/StarGiftCollectionId.h"
 #include "td/telegram/StarGiftId.h"
 #include "td/telegram/td_api.h"
 #include "td/telegram/telegram_api.h"
@@ -64,9 +65,10 @@ class StarGiftManager final : public Actor {
   void send_resold_gift(const string &gift_name, DialogId receiver_dialog_id, int64 star_count,
                         Promise<Unit> &&promise);
 
-  void get_saved_star_gifts(BusinessConnectionId business_connection_id, DialogId dialog_id, bool exclude_unsaved,
-                            bool exclude_saved, bool exclude_unlimited, bool exclude_limited, bool exclude_unique,
-                            bool sort_by_value, const string &offset, int32 limit,
+  void get_saved_star_gifts(BusinessConnectionId business_connection_id, DialogId dialog_id,
+                            StarGiftCollectionId collection_id, bool exclude_unsaved, bool exclude_saved,
+                            bool exclude_unlimited, bool exclude_limited, bool exclude_unique, bool sort_by_value,
+                            const string &offset, int32 limit,
                             Promise<td_api::object_ptr<td_api::receivedGifts>> &&promise);
 
   void get_saved_star_gift(StarGiftId star_gift_id, Promise<td_api::object_ptr<td_api::receivedGift>> &&promise);
@@ -82,6 +84,31 @@ class StarGiftManager final : public Actor {
                              const string &offset, int32 limit,
                              Promise<td_api::object_ptr<td_api::giftsForResale>> &&promise);
 
+  void get_gift_collections(DialogId dialog_id, Promise<td_api::object_ptr<td_api::giftCollections>> &&promise);
+
+  void create_gift_collection(DialogId dialog_id, const string &title, const vector<StarGiftId> &star_gift_ids,
+                              Promise<td_api::object_ptr<td_api::giftCollection>> &&promise);
+
+  void reorder_gift_collections(DialogId dialog_id, const vector<StarGiftCollectionId> &collection_ids,
+                                Promise<Unit> &&promise);
+
+  void delete_gift_collection(DialogId dialog_id, StarGiftCollectionId collection_id, Promise<Unit> &&promise);
+
+  void set_gift_collection_title(DialogId dialog_id, StarGiftCollectionId collection_id, const string &title,
+                                 Promise<td_api::object_ptr<td_api::giftCollection>> &&promise);
+
+  void add_gift_collection_gifts(DialogId dialog_id, StarGiftCollectionId collection_id,
+                                 const vector<StarGiftId> &star_gift_ids,
+                                 Promise<td_api::object_ptr<td_api::giftCollection>> &&promise);
+
+  void remove_gift_collection_gifts(DialogId dialog_id, StarGiftCollectionId collection_id,
+                                    const vector<StarGiftId> &star_gift_ids,
+                                    Promise<td_api::object_ptr<td_api::giftCollection>> &&promise);
+
+  void reorder_gift_collection_gifts(DialogId dialog_id, StarGiftCollectionId collection_id,
+                                     const vector<StarGiftId> &star_gift_ids,
+                                     Promise<td_api::object_ptr<td_api::giftCollection>> &&promise);
+
   void register_gift(MessageFullId message_full_id, const char *source);
 
   void unregister_gift(MessageFullId message_full_id, const char *source);
@@ -90,6 +117,10 @@ class StarGiftManager final : public Actor {
   void start_up() final;
 
   void tear_down() final;
+
+  Status check_star_gift_id(const StarGiftId &star_gift_id, DialogId dialog_id) const;
+
+  Status check_star_gift_ids(const vector<StarGiftId> &star_gift_ids, DialogId dialog_id) const;
 
   void send_get_star_gift_withdrawal_url_query(
       StarGiftId star_gift_id, telegram_api::object_ptr<telegram_api::InputCheckPasswordSRP> input_check_password,

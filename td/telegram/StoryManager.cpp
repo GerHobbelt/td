@@ -38,6 +38,7 @@
 #include "td/telegram/Td.h"
 #include "td/telegram/TdDb.h"
 #include "td/telegram/telegram_api.h"
+#include "td/telegram/TopDialogManager.h"
 #include "td/telegram/UpdatesManager.h"
 #include "td/telegram/UserManager.h"
 #include "td/telegram/WebPagesManager.h"
@@ -1139,7 +1140,7 @@ class StoryManager::SendStoryQuery final : public Td::ResultHandler {
                                         story->forward_info_ != nullptr, std::move(input_peer), std::move(input_media),
                                         std::move(input_media_areas), caption.text, std::move(entities),
                                         std::move(privacy_rules), pending_story_->random_id_, period,
-                                        std::move(fwd_input_peer), fwd_story_id),
+                                        std::move(fwd_input_peer), fwd_story_id, vector<int32>()),
         {{pending_story_->dialog_id_}}));
   }
 
@@ -3598,6 +3599,7 @@ td_api::object_ptr<td_api::chatActiveStories> StoryManager::get_chat_active_stor
   StoryId max_read_story_id;
   vector<td_api::object_ptr<td_api::storyInfo>> stories;
   int64 order = 0;
+  bool can_be_archived = false;
   if (active_stories != nullptr) {
     story_list_id = active_stories->story_list_id_;
     max_read_story_id = active_stories->max_read_story_id_;
@@ -3613,6 +3615,7 @@ td_api::object_ptr<td_api::chatActiveStories> StoryManager::get_chat_active_stor
     if (story_list_id.is_valid()) {
       order = active_stories->public_order_;
     }
+    can_be_archived = active_stories->can_be_archived_;
   } else {
     story_list_id = get_dialog_story_list_id(owner_dialog_id);
   }
@@ -3627,7 +3630,7 @@ td_api::object_ptr<td_api::chatActiveStories> StoryManager::get_chat_active_stor
   }
   return td_api::make_object<td_api::chatActiveStories>(
       td_->dialog_manager_->get_chat_id_object(owner_dialog_id, "updateChatActiveStories"),
-      story_list_id.get_story_list_object(), order, max_read_story_id.get(), std::move(stories));
+      story_list_id.get_story_list_object(), order, can_be_archived, max_read_story_id.get(), std::move(stories));
 }
 
 td_api::object_ptr<td_api::CanPostStoryResult> StoryManager::get_can_post_story_result_object(const Status &error,
@@ -4469,6 +4472,9 @@ bool StoryManager::update_active_stories_order(DialogId owner_dialog_id, ActiveS
   LOG(INFO) << "Update order of active stories of " << owner_dialog_id << " in " << story_list_id << " from "
             << active_stories->private_order_ << '/' << active_stories->public_order_ << " to " << new_private_order;
 
+  bool can_be_archived =
+      story_list_id == StoryListId::main() && (owner_dialog_id.get_type() != DialogType::User ||
+                                               td_->user_manager_->is_user_contact(owner_dialog_id.get_user_id()));
   int64 new_public_order = 0;
   if (story_list_id.is_valid()) {
     auto &story_list = get_story_list(story_list_id);
@@ -4492,14 +4498,15 @@ bool StoryManager::update_active_stories_order(DialogId owner_dialog_id, ActiveS
   }
 
   if (active_stories->private_order_ != new_private_order || active_stories->public_order_ != new_public_order ||
-      active_stories->story_list_id_ != story_list_id) {
+      active_stories->story_list_id_ != story_list_id || active_stories->can_be_archived_ != can_be_archived) {
     LOG(INFO) << "Update order of active stories of " << owner_dialog_id << " to " << new_private_order << '/'
               << new_public_order << " in list " << story_list_id;
     if (active_stories->private_order_ != new_private_order || active_stories->story_list_id_ != story_list_id) {
       *need_save_to_database = true;
     }
     active_stories->private_order_ = new_private_order;
-    if (active_stories->public_order_ != new_public_order || active_stories->story_list_id_ != story_list_id) {
+    if (active_stories->public_order_ != new_public_order || active_stories->story_list_id_ != story_list_id ||
+        active_stories->can_be_archived_ != can_be_archived) {
       if (active_stories->story_list_id_ != story_list_id) {
         if (active_stories->story_list_id_.is_valid() && active_stories->public_order_ != 0) {
           active_stories->public_order_ = 0;
@@ -4508,6 +4515,7 @@ bool StoryManager::update_active_stories_order(DialogId owner_dialog_id, ActiveS
         active_stories->story_list_id_ = story_list_id;
       }
       active_stories->public_order_ = new_public_order;
+      active_stories->can_be_archived_ = can_be_archived;
       return true;
     }
   }
@@ -4755,6 +4763,9 @@ DialogId StoryManager::get_changelog_story_dialog_id() const {
 }
 
 bool StoryManager::is_subscribed_to_dialog_stories(DialogId owner_dialog_id) const {
+  if (td_->auth_manager_->is_bot()) {
+    return false;
+  }
   if (owner_dialog_id == get_changelog_story_dialog_id()) {
     return true;
   }
@@ -4763,7 +4774,13 @@ bool StoryManager::is_subscribed_to_dialog_stories(DialogId owner_dialog_id) con
       if (is_my_story(owner_dialog_id)) {
         return true;
       }
-      return td_->user_manager_->is_user_contact(owner_dialog_id.get_user_id());
+      if (td_->user_manager_->is_user_contact(owner_dialog_id.get_user_id())) {
+        return true;
+      }
+      if (td::contains(td_->top_dialog_manager_->get_story_dialog_ids(), owner_dialog_id)) {
+        return true;
+      }
+      return false;
     case DialogType::Channel:
       return td_->chat_manager_->get_channel_status(owner_dialog_id.get_channel_id()).is_member();
     case DialogType::Chat:
@@ -5206,22 +5223,28 @@ void StoryManager::send_story(DialogId dialog_id, td_api::object_ptr<td_api::Inp
   unique_ptr<StoryForwardInfo> forward_info;
   StoryFullId forward_from_story_full_id;
   if (from_story_full_id != nullptr) {
-    if (is_bot) {
-      return promise.set_error(400, "Bots can't repost stories");
-    }
     forward_from_story_full_id =
         StoryFullId(DialogId(from_story_full_id->poster_chat_id_), StoryId(from_story_full_id->story_id_));
-    const Story *story = get_story(forward_from_story_full_id);
-    if (story == nullptr || story->content_ == nullptr) {
-      return promise.set_error(400, "Story to repost not found");
-    }
-    if (story->noforwards_) {
-      return promise.set_error(400, "Story can't be reposted");
-    }
-    if (story->forward_info_ != nullptr) {
-      forward_info = make_unique<StoryForwardInfo>(*story->forward_info_);
-    } else {
+    if (is_bot) {
+      auto from_dialog_id = forward_from_story_full_id.get_dialog_id();
+      if (!forward_from_story_full_id.is_valid() || from_dialog_id.get_type() != DialogType::User ||
+          !td_->dialog_manager_->have_input_peer(from_dialog_id, false, AccessRights::Read)) {
+        return promise.set_error(400, "Invalid story to repost specified");
+      }
       forward_info = make_unique<StoryForwardInfo>(forward_from_story_full_id, true);
+    } else {
+      const Story *story = get_story(forward_from_story_full_id);
+      if (story == nullptr || story->content_ == nullptr) {
+        return promise.set_error(400, "Story to repost not found");
+      }
+      if (story->noforwards_) {
+        return promise.set_error(400, "Story can't be reposted");
+      }
+      if (story->forward_info_ != nullptr) {
+        forward_info = make_unique<StoryForwardInfo>(*story->forward_info_);
+      } else {
+        forward_info = make_unique<StoryForwardInfo>(forward_from_story_full_id, true);
+      }
     }
     forward_info->hide_sender_if_needed(td_);
   }

@@ -1401,6 +1401,8 @@ void ConfigManager::process_app_config(tl_object_ptr<telegram_api::JSONValue> &c
       {"ringtone_duration_max", "notification_sound_duration_max"},
       {"ringtone_saved_count_max", "notification_sound_count_max"},
       {"ringtone_size_max", "notification_sound_size_max"},
+      {"stargifts_collection_gifts_limit", "gift_collection_gift_count_max"},
+      {"stargifts_collections_limit", "gift_collection_count_max"},
       {"stargifts_convert_period_max", "gift_sell_period"},
       {"stargifts_message_length_max", "gift_text_length_max"},
       {"stargifts_pinned_to_top_limit", "pinned_gift_count_max"},
@@ -1923,6 +1925,10 @@ void ConfigManager::process_app_config(tl_object_ptr<telegram_api::JSONValue> &c
       }
       if (key == "ton_topup_url") {
         G()->set_option_string("toncoin_top_up_url", get_json_value_string(std::move(key_value->value_), key));
+        continue;
+      }
+      if (key == "stars_rating_learnmore_url") {
+        G()->set_option_string("user_rating_learn_more_url", get_json_value_string(std::move(key_value->value_), key));
         continue;
       }
 

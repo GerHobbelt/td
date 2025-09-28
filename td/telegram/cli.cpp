@@ -598,6 +598,10 @@ class CliClient final : public Actor {
     return to_integer<int32>(trim(str));
   }
 
+  static int32 as_gift_collection_id(Slice str) {
+    return to_integer<int32>(trim(str));
+  }
+
   td_api::object_ptr<td_api::businessRecipients> as_business_recipients(string chat_ids) const {
     return td_api::make_object<td_api::businessRecipients>(as_chat_ids(chat_ids), vector<int64>(), false, false, false,
                                                            false, true);
@@ -997,6 +1001,18 @@ class CliClient final : public Actor {
 
   void get_args(string &args, StoryId &arg) const {
     arg.story_id = as_story_id(args);
+  }
+
+  struct GiftCollectionId {
+    int32 gift_collection_id = 0;
+
+    operator int32() const {
+      return gift_collection_id;
+    }
+  };
+
+  void get_args(string &args, GiftCollectionId &arg) const {
+    arg.gift_collection_id = as_gift_collection_id(args);
   }
 
   struct FileId {
@@ -3055,10 +3071,10 @@ class CliClient final : public Actor {
       send_request(td_api::make_object<td_api::toggleGiftIsSaved>(star_gift_id, is_saved));
     } else if (op == "spg") {
       string owner_id;
-      string received_story_ids;
-      get_args(args, owner_id, received_story_ids);
+      string received_gift_ids;
+      get_args(args, owner_id, received_gift_ids);
       send_request(
-          td_api::make_object<td_api::setPinnedGifts>(as_message_sender(owner_id), full_split(received_story_ids)));
+          td_api::make_object<td_api::setPinnedGifts>(as_message_sender(owner_id), autosplit_str(received_gift_ids)));
     } else if (op == "tcgn") {
       ChatId chat_id;
       bool are_enabled;
@@ -3100,8 +3116,8 @@ class CliClient final : public Actor {
       get_args(args, owner_id, limit, offset, exclude_unsaved, exclude_saved, exclude_unlimited, exclude_limited,
                exclude_upgraded);
       send_request(td_api::make_object<td_api::getReceivedGifts>(
-          business_connection_id_, as_message_sender(owner_id), exclude_unsaved, exclude_saved, exclude_unlimited,
-          exclude_limited, exclude_upgraded, op == "grgsp", offset, limit));
+          business_connection_id_, as_message_sender(owner_id), gift_collection_id_, exclude_unsaved, exclude_saved,
+          exclude_unlimited, exclude_limited, exclude_upgraded, op == "grgsp", offset, limit));
     } else if (op == "grg") {
       string received_gift_id;
       get_args(args, received_gift_id);
@@ -3135,6 +3151,53 @@ class CliClient final : public Actor {
       }
       send_request(td_api::make_object<td_api::searchGiftsForResale>(
           gift_id, std::move(order), get_upgraded_gift_attribute_ids(), offset, as_limit(limit)));
+    } else if (op == "ggic") {
+      string owner_id;
+      get_args(args, owner_id);
+      send_request(td_api::make_object<td_api::getGiftCollections>(as_message_sender(owner_id)));
+    } else if (op == "cgic") {
+      string owner_id;
+      string name;
+      string received_gift_ids;
+      get_args(args, owner_id, name, received_gift_ids);
+      send_request(td_api::make_object<td_api::createGiftCollection>(as_message_sender(owner_id), name,
+                                                                     autosplit_str(received_gift_ids)));
+    } else if (op == "sgicn") {
+      string owner_id;
+      string name;
+      get_args(args, owner_id, name);
+      send_request(
+          td_api::make_object<td_api::setGiftCollectionName>(as_message_sender(owner_id), gift_collection_id_, name));
+    } else if (op == "agicg") {
+      string owner_id;
+      string received_gift_ids;
+      get_args(args, owner_id, received_gift_ids);
+      send_request(td_api::make_object<td_api::addGiftCollectionGifts>(as_message_sender(owner_id), gift_collection_id_,
+                                                                       autosplit_str(received_gift_ids)));
+    } else if (op == "rgicg") {
+      string owner_id;
+      string received_gift_ids;
+      get_args(args, owner_id, received_gift_ids);
+      send_request(td_api::make_object<td_api::removeGiftCollectionGifts>(
+          as_message_sender(owner_id), gift_collection_id_, autosplit_str(received_gift_ids)));
+    } else if (op == "ogicg") {
+      string owner_id;
+      string received_gift_ids;
+      get_args(args, owner_id, received_gift_ids);
+      send_request(td_api::make_object<td_api::reorderGiftCollectionGifts>(
+          as_message_sender(owner_id), gift_collection_id_, autosplit_str(received_gift_ids)));
+    } else if (op == "rgics") {
+      string owner_id;
+      string collection_ids;
+      get_args(args, owner_id, collection_ids);
+      send_request(td_api::make_object<td_api::reorderGiftCollections>(
+          as_message_sender(owner_id),
+          transform(autosplit(collection_ids), [this](Slice str) { return as_gift_collection_id(str); })));
+    } else if (op == "dgic") {
+      string owner_id;
+      GiftCollectionId gift_collection_id;
+      get_args(args, owner_id, gift_collection_id);
+      send_request(td_api::make_object<td_api::deleteGiftCollection>(as_message_sender(owner_id), gift_collection_id));
     } else if (op == "rsp") {
       UserId user_id;
       string telegram_payment_charge_id;
@@ -5660,6 +5723,8 @@ class CliClient final : public Actor {
                link_preview_force_large_media_, link_preview_show_above_text_);
     } else if (op == "sscam") {
       get_args(args, show_caption_above_media_);
+    } else if (op == "sgci") {
+      get_args(args, gift_collection_id_);
     } else if (op == "ssmt") {
       saved_messages_topic_id_ = as_chat_id(args);
     } else if (op == "sqrs") {
@@ -8073,6 +8138,7 @@ class CliClient final : public Actor {
   bool link_preview_force_large_media_ = false;
   bool link_preview_show_above_text_ = false;
   bool show_caption_above_media_ = false;
+  GiftCollectionId gift_collection_id_;
   int64 saved_messages_topic_id_ = 0;
   string quick_reply_shortcut_name_;
   vector<int32> added_sticker_file_ids_;
