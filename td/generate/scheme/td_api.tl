@@ -4474,7 +4474,7 @@ messageGift gift:gift sender_id:MessageSender receiver_id:MessageSender received
 //@received_gift_id Unique identifier of the received gift for the current user; only for the receiver of the gift
 //@is_saved True, if the gift is displayed on the user's or the channel's profile page; only for the receiver of the gift
 //@can_be_transferred True, if the gift can be transferred to another owner; only for the receiver of the gift
-//@was_transferred True, if the gift was transferred to another owner; only for the receiver of the gift
+//@was_transferred True, if the gift has already been transferred to another owner; only for the receiver of the gift
 //@transfer_star_count Number of Telegram Stars that must be paid to transfer the upgraded gift; only for the receiver of the gift
 //@next_transfer_date Point in time (Unix timestamp) when the gift can be transferred to another owner; 0 if the gift can be transferred immediately or transfer isn't possible; only for the receiver of the gift
 //@next_resale_date Point in time (Unix timestamp) when the gift can be resold to another user; 0 if the gift can't be resold; only for the receiver of the gift
@@ -9730,8 +9730,8 @@ getDirectMessagesChatTopic chat_id:int53 topic_id:int53 = DirectMessagesChatTopi
 //@chat_id Chat identifier of the channel direct messages chat
 //@topic_id Identifier of the topic which messages will be fetched
 //@from_message_id Identifier of the message starting from which messages must be fetched; use 0 to get results from the last message
-//@offset Specify 0 to get results from exactly the message from_message_id or a negative offset up to 99 to get additionally some newer messages
-//@limit The maximum number of messages to be returned; must be positive and can't be greater than 100. If the offset is negative, the limit must be greater than or equal to -offset.
+//@offset Specify 0 to get results from exactly the message from_message_id or a negative number from -99 to -1 to get additionally -offset newer messages
+//@limit The maximum number of messages to be returned; must be positive and can't be greater than 100. If the offset is negative, then the limit must be greater than or equal to -offset.
 //-For optimal performance, the number of returned messages is chosen by TDLib and can be smaller than the specified limit
 getDirectMessagesChatTopicHistory chat_id:int53 topic_id:int53 from_message_id:int53 offset:int32 limit:int32 = Messages;
 
@@ -9795,8 +9795,8 @@ loadSavedMessagesTopics limit:int32 = Ok;
 //@description Returns messages in a Saved Messages topic. The messages are returned in reverse chronological order (i.e., in order of decreasing message_id)
 //@saved_messages_topic_id Identifier of Saved Messages topic which messages will be fetched
 //@from_message_id Identifier of the message starting from which messages must be fetched; use 0 to get results from the last message
-//@offset Specify 0 to get results from exactly the message from_message_id or a negative offset up to 99 to get additionally some newer messages
-//@limit The maximum number of messages to be returned; must be positive and can't be greater than 100. If the offset is negative, the limit must be greater than or equal to -offset.
+//@offset Specify 0 to get results from exactly the message from_message_id or a negative number from -99 to -1 to get additionally -offset newer messages
+//@limit The maximum number of messages to be returned; must be positive and can't be greater than 100. If the offset is negative, then the limit must be greater than or equal to -offset.
 //-For optimal performance, the number of returned messages is chosen by TDLib and can be smaller than the specified limit
 getSavedMessagesTopicHistory saved_messages_topic_id:int53 from_message_id:int53 offset:int32 limit:int32 = Messages;
 
@@ -9834,8 +9834,8 @@ getGroupsInCommon user_id:int53 offset_chat_id:int53 limit:int32 = Chats;
 //-For optimal performance, the number of returned messages is chosen by TDLib. This is an offline method if only_local is true
 //@chat_id Chat identifier
 //@from_message_id Identifier of the message starting from which history must be fetched; use 0 to get results from the last message
-//@offset Specify 0 to get results from exactly the message from_message_id or a negative offset up to 99 to get additionally some newer messages
-//@limit The maximum number of messages to be returned; must be positive and can't be greater than 100. If the offset is negative, the limit must be greater than or equal to -offset.
+//@offset Specify 0 to get results from exactly the message from_message_id or a negative number from -99 to -1 to get additionally -offset newer messages
+//@limit The maximum number of messages to be returned; must be positive and can't be greater than 100. If the offset is negative, then the limit must be greater than or equal to -offset.
 //-For optimal performance, the number of returned messages is chosen by TDLib and can be smaller than the specified limit
 //@only_local Pass true to get only messages that are available without sending network requests
 getChatHistory chat_id:int53 from_message_id:int53 offset:int32 limit:int32 only_local:Bool = Messages;
@@ -9845,8 +9845,8 @@ getChatHistory chat_id:int53 from_message_id:int53 offset:int32 limit:int32 only
 //@chat_id Chat identifier
 //@message_id Message identifier, which thread history needs to be returned
 //@from_message_id Identifier of the message starting from which history must be fetched; use 0 to get results from the last message
-//@offset Specify 0 to get results from exactly the message from_message_id or a negative offset up to 99 to get additionally some newer messages
-//@limit The maximum number of messages to be returned; must be positive and can't be greater than 100. If the offset is negative, the limit must be greater than or equal to -offset.
+//@offset Specify 0 to get results from exactly the message from_message_id or a negative number from -99 to -1 to get additionally -offset newer messages
+//@limit The maximum number of messages to be returned; must be positive and can't be greater than 100. If the offset is negative, then the limit must be greater than or equal to -offset.
 //-For optimal performance, the number of returned messages is chosen by TDLib and can be smaller than the specified limit
 getMessageThreadHistory chat_id:int53 message_id:int53 from_message_id:int53 offset:int32 limit:int32 = Messages;
 
@@ -9869,8 +9869,8 @@ deleteChat chat_id:int53 = Ok;
 //@query Query to search for
 //@sender_id Identifier of the sender of messages to search for; pass null to search for messages from any sender. Not supported in secret chats
 //@from_message_id Identifier of the message starting from which history must be fetched; use 0 to get results from the last message
-//@offset Specify 0 to get results from exactly the message from_message_id or a negative offset to get the specified message and some newer messages
-//@limit The maximum number of messages to be returned; must be positive and can't be greater than 100. If the offset is negative, the limit must be greater than -offset.
+//@offset Specify 0 to get results from exactly the message from_message_id or a negative number to get the specified message and some newer messages
+//@limit The maximum number of messages to be returned; must be positive and can't be greater than 100. If the offset is negative, then the limit must be greater than -offset.
 //-For optimal performance, the number of returned messages is chosen by TDLib and can be smaller than the specified limit
 //@filter Additional filter for messages to search; pass null to search for all messages
 searchChatMessages chat_id:int53 topic_id:MessageTopic query:string sender_id:MessageSender from_message_id:int53 offset:int32 limit:int32 filter:SearchMessagesFilter = FoundChatMessages;
@@ -9902,8 +9902,8 @@ searchSecretMessages chat_id:int53 query:string offset:string limit:int32 filter
 //@tag Tag to search for; pass null to return all suitable messages
 //@query Query to search for
 //@from_message_id Identifier of the message starting from which messages must be fetched; use 0 to get results from the last message
-//@offset Specify 0 to get results from exactly the message from_message_id or a negative offset to get the specified message and some newer messages
-//@limit The maximum number of messages to be returned; must be positive and can't be greater than 100. If the offset is negative, the limit must be greater than -offset.
+//@offset Specify 0 to get results from exactly the message from_message_id or a negative number to get the specified message and some newer messages
+//@limit The maximum number of messages to be returned; must be positive and can't be greater than 100. If the offset is negative, then the limit must be greater than -offset.
 //-For optimal performance, the number of returned messages is chosen by TDLib and can be smaller than the specified limit
 searchSavedMessages saved_messages_topic_id:int53 tag:ReactionType query:string from_message_id:int53 offset:int32 limit:int32 = FoundChatMessages;
 
@@ -11205,7 +11205,7 @@ setChatDirectMessagesGroup chat_id:int53 is_enabled:Bool paid_message_star_count
 //@description Changes the location of a chat. Available only for some location-based supergroups, use supergroupFullInfo.can_set_location to check whether the method is allowed to use @chat_id Chat identifier @location New location for the chat; must be valid and not null
 setChatLocation chat_id:int53 location:chatLocation = Ok;
 
-//@description Changes the slow mode delay of a chat. Available only for supergroups; requires can_restrict_members right @chat_id Chat identifier @slow_mode_delay New slow mode delay for the chat, in seconds; must be one of 0, 10, 30, 60, 300, 900, 3600
+//@description Changes the slow mode delay of a chat. Available only for supergroups; requires can_restrict_members administrator right @chat_id Chat identifier @slow_mode_delay New slow mode delay for the chat, in seconds; must be one of 0, 10, 30, 60, 300, 900, 3600
 setChatSlowModeDelay chat_id:int53 slow_mode_delay:int32 = Ok;
 
 //@description Pins a message in a chat. A message can be pinned only if messageProperties.can_be_pinned
@@ -11344,11 +11344,11 @@ getStory story_poster_chat_id:int53 story_id:int32 only_local:Bool = Story;
 //@description Returns supergroup and channel chats in which the current user has the right to post stories. The chats must be rechecked with canPostStory before actually trying to post a story there
 getChatsToPostStories = Chats;
 
-//@description Checks whether the current user can post a story on behalf of a chat; requires can_post_stories right for supergroup and channel chats
+//@description Checks whether the current user can post a story on behalf of a chat; requires can_post_stories administrator right for supergroup and channel chats
 //@chat_id Chat identifier. Pass Saved Messages chat identifier when posting a story on behalf of the current user
 canPostStory chat_id:int53 = CanPostStoryResult;
 
-//@description Posts a new story on behalf of a chat; requires can_post_stories right for supergroup and channel chats. Returns a temporary story
+//@description Posts a new story on behalf of a chat; requires can_post_stories administrator right for supergroup and channel chats. Returns a temporary story
 //@chat_id Identifier of the chat that will post the story. Pass Saved Messages chat identifier when posting a story on behalf of the current user
 //@content Content of the story
 //@areas Clickable rectangle areas to be shown on the story media; pass null if none
@@ -11412,7 +11412,7 @@ getChatActiveStories chat_id:int53 = ChatActiveStories;
 //-For optimal performance, the number of returned stories is chosen by TDLib and can be smaller than the specified limit
 getChatPostedToChatPageStories chat_id:int53 from_story_id:int32 limit:int32 = Stories;
 
-//@description Returns the list of all stories posted by the given chat; requires can_edit_stories right in the chat.
+//@description Returns the list of all stories posted by the given chat; requires can_edit_stories administrator right in the chat.
 //-The stories are returned in reverse chronological order (i.e., in order of decreasing story_id). For optimal performance, the number of returned stories is chosen by TDLib
 //@chat_id Chat identifier
 //@from_story_id Identifier of the story starting from which stories must be returned; use 0 to get results from the last story
@@ -11420,7 +11420,7 @@ getChatPostedToChatPageStories chat_id:int53 from_story_id:int32 limit:int32 = S
 //-For optimal performance, the number of returned stories is chosen by TDLib and can be smaller than the specified limit
 getChatArchivedStories chat_id:int53 from_story_id:int32 limit:int32 = Stories;
 
-//@description Changes the list of pinned stories on a chat page; requires can_edit_stories right in the chat
+//@description Changes the list of pinned stories on a chat page; requires can_edit_stories administrator right in the chat
 //@chat_id Identifier of the chat that posted the stories
 //@story_ids New list of pinned stories. All stories must be posted to the chat page first. There can be up to getOption("pinned_story_count_max") pinned stories on a chat page
 setChatPinnedStories chat_id:int53 story_ids:vector<int32> = Ok;
@@ -11769,7 +11769,8 @@ processChatJoinRequests chat_id:int53 invite_link:string approve:Bool = Ok;
 //@description Approves a suggested post in a channel direct messages chat
 //@chat_id Chat identifier of the channel direct messages chat
 //@message_id Identifier of the message with the suggested post. Use messageProperties.can_be_approved to check whether the suggested post can be approved
-//@send_date Point in time (Unix timestamp) when the post is expected to be published; pass 0 if the date has already been chosen
+//@send_date Point in time (Unix timestamp) when the post is expected to be published; pass 0 if the date has already been chosen. If specified,
+//-then the date must be in the future, but at most getOption("suggested_post_send_delay_max") seconds in the future
 approveSuggestedPost chat_id:int53 message_id:int53 send_date:int32 = Ok;
 
 //@description Declines a suggested post in a channel direct messages chat
@@ -12800,7 +12801,7 @@ getUpgradedGiftWithdrawalUrl received_gift_id:string password:string = HttpUrl;
 //-The current user will receive getOption("gift_resale_earnings_per_mille") Telegram Stars for each 1000 Telegram Stars paid for the gift
 setGiftResalePrice received_gift_id:string resale_star_count:int53 = Ok;
 
-//@description Returns upgraded gifts that can be bought from other owners
+//@description Returns upgraded gifts that can be bought from other owners using sendResoldGift
 //@gift_id Identifier of the regular gift that was upgraded to a unique gift
 //@order Order in which the results will be sorted
 //@attributes Attributes used to filter received gifts. If multiple attributes of the same type are specified, then all of them are allowed.

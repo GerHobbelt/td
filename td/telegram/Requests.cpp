@@ -342,7 +342,7 @@ class GetChatRequest final : public RequestActor<> {
  public:
   GetChatRequest(ActorShared<Td> td, uint64 request_id, int64 dialog_id)
       : RequestActor(std::move(td), request_id), dialog_id_(dialog_id) {
-    set_tries(3);
+    set_tries(4);
   }
 };
 
@@ -3059,6 +3059,7 @@ void Requests::on_request(uint64 id, const td_api::loadDirectMessagesChatTopics 
 }
 
 void Requests::on_request(uint64 id, const td_api::getDirectMessagesChatTopic &request) {
+  CHECK_IS_USER();
   CREATE_REQUEST_PROMISE();
   DialogId dialog_id(request.chat_id_);
   td_->saved_messages_manager_->get_monoforum_topic(dialog_id, SavedMessagesTopicId(DialogId(request.topic_id_)),
@@ -5679,14 +5680,12 @@ void Requests::on_request(uint64 id, td_api::processChatJoinRequests &request) {
 }
 
 void Requests::on_request(uint64 id, const td_api::approveSuggestedPost &request) {
-  CHECK_IS_USER();
   CREATE_OK_REQUEST_PROMISE();
   td_->messages_manager_->process_suggested_post({DialogId(request.chat_id_), MessageId(request.message_id_)}, false,
                                                  request.send_date_, string(), std::move(promise));
 }
 
 void Requests::on_request(uint64 id, td_api::declineSuggestedPost &request) {
-  CHECK_IS_USER();
   CLEAN_INPUT_STRING(request.comment_);
   CREATE_OK_REQUEST_PROMISE();
   td_->messages_manager_->process_suggested_post({DialogId(request.chat_id_), MessageId(request.message_id_)}, true, 0,

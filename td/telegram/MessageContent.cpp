@@ -5126,8 +5126,14 @@ Status can_send_message_content(DialogId dialog_id, const MessageContent *conten
       }
       break;
     case MessageContentType::Game:
-      if (dialog_type == DialogType::Channel && td->chat_manager_->is_broadcast_channel(dialog_id.get_channel_id())) {
-        // return Status::Error(400, "Games can't be sent to channel chats");
+      if (dialog_type == DialogType::Channel) {
+        auto channel_id = dialog_id.get_channel_id();
+        if (td->chat_manager_->is_broadcast_channel(channel_id)) {
+          // return Status::Error(400, "Games can't be sent to channel chats");
+        }
+        if (td->chat_manager_->is_monoforum_channel(channel_id)) {
+          return Status::Error(400, "Games can't be sent to channel direct messages chats");
+        }
       }
       if (!permissions.can_send_games()) {
         return Status::Error(400, "Not enough rights to send games to the chat");
@@ -5243,7 +5249,7 @@ Status can_send_message_content(DialogId dialog_id, const MessageContent *conten
       }
       if (dialog_type == DialogType::User &&
           td->user_manager_->get_user_voice_messages_forbidden(dialog_id.get_user_id())) {
-        return Status::Error(400, "User restricted receiving of voice messages");
+        return Status::Error(400, "User restricted receiving of video note messages");
       }
       break;
     case MessageContentType::VoiceNote:
@@ -5252,7 +5258,7 @@ Status can_send_message_content(DialogId dialog_id, const MessageContent *conten
       }
       if (dialog_type == DialogType::User &&
           td->user_manager_->get_user_voice_messages_forbidden(dialog_id.get_user_id())) {
-        return Status::Error(400, "User restricted receiving of video messages");
+        return Status::Error(400, "User restricted receiving of voice note messages");
       }
       break;
     case MessageContentType::None:
@@ -8630,8 +8636,11 @@ unique_ptr<MessageContent> get_action_message_content(Td *td, tl_object_ptr<tele
     case telegram_api::messageActionPinMessage::ID:
     case telegram_api::messageActionGameScore::ID:
     case telegram_api::messageActionPaymentSent::ID:
+    case telegram_api::messageActionPaymentSentMe::ID:
+    case telegram_api::messageActionTopicEdit::ID:
     case telegram_api::messageActionSetChatWallPaper::ID:
     case telegram_api::messageActionGiveawayResults::ID:
+    case telegram_api::messageActionRequestedPeerSentMe::ID:
     case telegram_api::messageActionStarGiftUnique::ID:
     case telegram_api::messageActionTodoCompletions::ID:
     case telegram_api::messageActionTodoAppendTasks::ID:
@@ -8787,6 +8796,7 @@ unique_ptr<MessageContent> get_action_message_content(Td *td, tl_object_ptr<tele
     }
     case telegram_api::messageActionPaymentSentMe::ID: {
       auto action = telegram_api::move_object_as<telegram_api::messageActionPaymentSentMe>(action_ptr);
+      // ignore replied_message_info
       if (action->total_amount_ <= 0 || !check_currency_amount(action->total_amount_)) {
         LOG(ERROR) << "Receive invalid total amount " << action->total_amount_;
         action->total_amount_ = 0;
@@ -8951,6 +8961,7 @@ unique_ptr<MessageContent> get_action_message_content(Td *td, tl_object_ptr<tele
       auto edit_icon_custom_emoji_id = (action->flags_ & telegram_api::messageActionTopicEdit::ICON_EMOJI_ID_MASK) != 0;
       auto edit_is_closed = (action->flags_ & telegram_api::messageActionTopicEdit::CLOSED_MASK) != 0;
       auto edit_is_hidden = (action->flags_ & telegram_api::messageActionTopicEdit::HIDDEN_MASK) != 0;
+      // ignore replied_message_info
       return td::make_unique<MessageTopicEdit>(
           ForumTopicEditedData{std::move(action->title_), edit_icon_custom_emoji_id, action->icon_emoji_id_,
                                edit_is_closed, action->closed_, edit_is_hidden, action->hidden_});
@@ -9040,6 +9051,7 @@ unique_ptr<MessageContent> get_action_message_content(Td *td, tl_object_ptr<tele
     }
     case telegram_api::messageActionRequestedPeerSentMe::ID: {
       auto action = telegram_api::move_object_as<telegram_api::messageActionRequestedPeerSentMe>(action_ptr);
+      // ignore replied_message_info
       vector<SharedDialog> shared_dialogs;
       for (auto &peer : action->peers_) {
         SharedDialog shared_dialog(td, std::move(peer));
@@ -9143,8 +9155,8 @@ unique_ptr<MessageContent> get_action_message_content(Td *td, tl_object_ptr<tele
       if (!reply_to_message_id.is_valid() && reply_to_message_id != MessageId()) {
         LOG(ERROR) << "Receive unique gift message with " << reply_to_message_id << " in " << owner_dialog_id;
         reply_to_message_id = MessageId();
-      } else if (reply_to_message_id != MessageId() && !action->upgrade_) {
-        if (message_date >= 1754000000 || action->resale_stars_ == 0) {
+      } else if (reply_to_message_id != MessageId() && action->resale_stars_ != 0) {
+        if (message_date >= 1754000000) {
           LOG(ERROR) << "Receive " << replied_message_info << " in " << owner_dialog_id << " for " << to_string(action);
         }
         reply_to_message_id = MessageId();
