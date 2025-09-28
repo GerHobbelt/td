@@ -480,6 +480,9 @@ class MessagesManager final : public Actor {
                                   tl_object_ptr<td_api::location> &&input_location, int32 live_period, int32 heading,
                                   int32 proximity_alert_radius, Promise<Unit> &&promise);
 
+  void edit_message_to_do_list(MessageFullId message_full_id, td_api::object_ptr<td_api::ReplyMarkup> &&reply_markup,
+                               td_api::object_ptr<td_api::inputChecklist> &&input_to_do_list, Promise<Unit> &&promise);
+
   void edit_message_media(MessageFullId message_full_id, tl_object_ptr<td_api::ReplyMarkup> &&reply_markup,
                           tl_object_ptr<td_api::InputMessageContent> &&input_message_content, Promise<Unit> &&promise);
 
@@ -567,7 +570,7 @@ class MessagesManager final : public Actor {
 
   bool can_get_message_statistics(MessageFullId message_full_id);
 
-  bool can_add_message_tasks(MessageFullId message_full_id);
+  bool can_add_message_tasks(MessageFullId message_full_id, int32 task_count);
 
   bool can_mark_message_tasks_as_done(MessageFullId message_full_id);
 
@@ -595,7 +598,8 @@ class MessagesManager final : public Actor {
   void get_message_properties(DialogId dialog_id, MessageId message_id,
                               Promise<td_api::object_ptr<td_api::messageProperties>> &&promise);
 
-  void get_message_thread(DialogId dialog_id, MessageId message_id, Promise<MessageThreadInfo> &&promise);
+  void get_message_thread(DialogId dialog_id, MessageId message_id, Promise<MessageThreadInfo> &&promise,
+                          bool is_recursive = false);
 
   td_api::object_ptr<td_api::messageThreadInfo> get_message_thread_info_object(const MessageThreadInfo &info);
 
@@ -1925,7 +1929,7 @@ class MessagesManager final : public Actor {
 
   bool get_message_has_protected_content(DialogId dialog_id, const Message *m) const;
 
-  bool can_add_message_tasks(DialogId dialog_id, const Message *m) const;
+  bool can_add_message_tasks(DialogId dialog_id, const Message *m, int32 task_count) const;
 
   bool can_mark_message_tasks_as_done(DialogId dialog_id, const Message *m) const;
 
@@ -2022,7 +2026,7 @@ class MessagesManager final : public Actor {
 
   void on_message_reply_info_changed(DialogId dialog_id, const Message *m) const;
 
-  Result<MessageFullId> get_top_thread_message_full_id(DialogId dialog_id, const Message *m, bool allow_non_root) const;
+  Result<MessageFullId> get_top_thread_message_full_id(const Dialog *d, const Message *m, bool allow_non_root) const;
 
   td_api::object_ptr<td_api::messageInteractionInfo> get_message_interaction_info_object(DialogId dialog_id,
                                                                                          const Message *m) const;

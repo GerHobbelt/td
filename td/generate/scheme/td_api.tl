@@ -387,33 +387,33 @@ pollTypeRegular allow_multiple_answers:Bool = PollType;
 pollTypeQuiz correct_option_id:int32 explanation:formattedText = PollType;
 
 
-//@description Describes a task in a to do list
+//@description Describes a task in a checklist
 //@id Unique identifier of the task
-//@text Text of the task; may contain only CustomEmoji entities
+//@text Text of the task; may contain only Bold, Italic, Underline, Strikethrough, Spoiler, CustomEmoji, Url, EmailAddress, Mention, Hashtag, Cashtag and PhoneNumber entities
 //@completed_by_user_id Identifier of the user that completed the task; 0 if the task isn't completed
 //@completion_date Point in time (Unix timestamp) when the task was completed; 0 if the task isn't completed
-toDoListTask id:int32 text:formattedText completed_by_user_id:int53 completion_date:int32 = ToDoListTask;
+checklistTask id:int32 text:formattedText completed_by_user_id:int53 completion_date:int32 = ChecklistTask;
 
-//@description Describes a task in a to do list to be sent
+//@description Describes a task in a checklist to be sent
 //@id Unique identifier of the task; must be positive
-//@text Text of the task; 1-getOption("to_do_list_task_text_length_max") characters. May contain only CustomEmoji entities
-inputToDoListTask id:int32 text:formattedText = InputToDoListTask;
+//@text Text of the task; 1-getOption("checklist_task_text_length_max") characters without line feeds. May contain only Bold, Italic, Underline, Strikethrough, Spoiler, and CustomEmoji entities
+inputChecklistTask id:int32 text:formattedText = InputChecklistTask;
 
-//@description Describes a to do list
-//@title Title of the to do list; may contain only CustomEmoji entities
-//@tasks List of tasks in the to do list
+//@description Describes a checklist
+//@title Title of the checklist; may contain only Bold, Italic, Underline, Strikethrough, Spoiler, and CustomEmoji entities
+//@tasks List of tasks in the checklist
 //@others_can_add_tasks True, if users other than creator of the list can add tasks to the list
 //@can_add_tasks True, if the current user can add tasks to the list if they have Telegram Premium subscription
-//@others_can_mark_tasks_as_done True, if users other than creator of the list can mark tasks as done or not done
+//@others_can_mark_tasks_as_done True, if users other than creator of the list can mark tasks as done or not done. If true, then the checklist is called "group checklist"
 //@can_mark_tasks_as_done True, if the current user can mark tasks as done or not done if they have Telegram Premium subscription
-toDoList title:formattedText tasks:vector<toDoListTask> others_can_add_tasks:Bool can_add_tasks:Bool others_can_mark_tasks_as_done:Bool can_mark_tasks_as_done:Bool = ToDoList;
+checklist title:formattedText tasks:vector<checklistTask> others_can_add_tasks:Bool can_add_tasks:Bool others_can_mark_tasks_as_done:Bool can_mark_tasks_as_done:Bool = Checklist;
 
-//@description Describes a to do list to be sent
-//@title Title of the to do list; 1-getOption("to_do_list_title_length_max") characters. May contain only CustomEmoji entities
-//@tasks List of tasks in the to do list
+//@description Describes a checklist to be sent
+//@title Title of the checklist; 1-getOption("checklist_title_length_max") characters. May contain only Bold, Italic, Underline, Strikethrough, Spoiler, and CustomEmoji entities
+//@tasks List of tasks in the checklist; 1-getOption("checklist_task_count_max") tasks
 //@others_can_add_tasks True, if other users can add tasks to the list
 //@others_can_mark_tasks_as_done True, if other users can mark tasks as done or not done
-inputToDoList title:formattedText tasks:vector<inputToDoListTask> others_can_add_tasks:Bool others_can_mark_tasks_as_done:Bool = InputToDoList;
+inputChecklist title:formattedText tasks:vector<inputChecklistTask> others_can_add_tasks:Bool others_can_mark_tasks_as_done:Bool = InputChecklist;
 
 
 //@description Describes an animation file. The animation must be encoded in GIF or MPEG4 format
@@ -568,6 +568,13 @@ poll id:int64 question:formattedText options:vector<pollOption> total_voter_coun
 //@hls_file HLS file describing the video
 //@video File containing the video
 alternativeVideo id:int64 width:int32 height:int32 codec:string hls_file:file video:file = AlternativeVideo;
+
+//@description Describes a storyboard for a video
+//@storyboard_file A JPEG file that contains tiled previews of video
+//@width Width of a tile
+//@height Height of a tile
+//@map_file File that describes mapping of position in the video to a tile in the JPEG file
+videoStoryboard storyboard_file:file width:int32 height:int32 map_file:file = VideoStoryboard;
 
 
 //@description Describes a chat background
@@ -853,7 +860,7 @@ inputChatPhotoSticker sticker:chatPhotoSticker = InputChatPhoto;
 //@can_send_videos True, if the user can send videos
 //@can_send_video_notes True, if the user can send video notes
 //@can_send_voice_notes True, if the user can send voice notes
-//@can_send_polls True, if the user can send polls
+//@can_send_polls True, if the user can send polls and checklists
 //@can_send_other_messages True, if the user can send animations, games, stickers, and dice and use inline bots
 //@can_add_link_previews True, if the user may add a link preview to their messages
 //@can_change_info True, if the user can change the chat title, photo, and other settings
@@ -2188,9 +2195,9 @@ inputTextQuote text:formattedText position:int32 = InputTextQuote;
 //@origin Information about origin of the message if the message was from another chat or topic; may be null for messages from the same chat
 //@origin_send_date Point in time (Unix timestamp) when the message was sent if the message was from another chat or topic; 0 for messages from the same chat
 //@content Media content of the message if the message was from another chat or topic; may be null for messages from the same chat and messages without media.
-//-Can be only one of the following types: messageAnimation, messageAudio, messageContact, messageDice, messageDocument, messageGame, messageGiveaway, messageGiveawayWinners,
-//-messageInvoice, messageLocation, messagePaidMedia, messagePhoto, messagePoll, messageSticker, messageStory, messageText (for link preview), messageToDoList, messageVenue, messageVideo,
-//-messageVideoNote, or messageVoiceNote
+//-Can be only one of the following types: messageAnimation, messageAudio, messageChecklist, messageContact, messageDice, messageDocument, messageGame,
+//-messageGiveaway, messageGiveawayWinners, messageInvoice, messageLocation, messagePaidMedia, messagePhoto, messagePoll, messageSticker, messageStory,
+//-messageText (for link preview), messageVenue, messageVideo, messageVideoNote, or messageVoiceNote
 messageReplyToMessage chat_id:int53 message_id:int53 quote:textQuote origin:MessageOrigin origin_send_date:int32 content:MessageContent = MessageReplyTo;
 
 //@description Describes a story replied by a given message @story_poster_chat_id The identifier of the poster of the story @story_id The identifier of the story
@@ -2958,7 +2965,7 @@ savedMessagesTopic id:int53 type:SavedMessagesTopicType is_pinned:Bool order:int
 //@id Unique topic identifier
 //@sender_id Identifier of the user or chat that sends the messages to the topic
 //@order A parameter used to determine order of the topic in the topic list. Topics must be sorted by the order in descending order
-//@can_send_unpaid_messages True if the other party can send unpaid messages even if the chat has paid messages enabled
+//@can_send_unpaid_messages True, if the other party can send unpaid messages even if the chat has paid messages enabled
 //@is_marked_as_unread True, if the forum topic is marked as unread
 //@unread_count Number of unread messages in the chat
 //@last_read_inbox_message_id Identifier of the last read incoming message
@@ -4029,13 +4036,14 @@ messageSticker sticker:sticker is_premium:Bool = MessageContent;
 //@description A video message
 //@video The video description
 //@alternative_videos Alternative qualities of the video
+//@storyboards Available storyboards for the video
 //@cover Cover of the video; may be null if none
 //@start_timestamp Timestamp from which the video playing must start, in seconds
 //@caption Video caption
 //@show_caption_above_media True, if the caption must be shown above the video; otherwise, the caption must be shown below the video
 //@has_spoiler True, if the video preview must be covered by a spoiler animation
 //@is_secret True, if the video thumbnail must be blurred and the video must be shown only while tapped
-messageVideo video:video alternative_videos:vector<alternativeVideo> cover:photo start_timestamp:int32 caption:formattedText show_caption_above_media:Bool has_spoiler:Bool is_secret:Bool = MessageContent;
+messageVideo video:video alternative_videos:vector<alternativeVideo> storyboards:vector<videoStoryboard> cover:photo start_timestamp:int32 caption:formattedText show_caption_above_media:Bool has_spoiler:Bool is_secret:Bool = MessageContent;
 
 //@description A video note message @video_note The video note description @is_viewed True, if at least one of the recipients has viewed the video note @is_secret True, if the video note thumbnail must be blurred and the video note must be shown only while tapped
 messageVideoNote video_note:videoNote is_viewed:Bool is_secret:Bool = MessageContent;
@@ -4092,8 +4100,8 @@ messagePoll poll:poll = MessageContent;
 //@via_mention True, if the story was automatically forwarded because of a mention of the user
 messageStory story_poster_chat_id:int53 story_id:int32 via_mention:Bool = MessageContent;
 
-//@description A message with a to do list @list The to do list description
-messageToDoList list:toDoList = MessageContent;
+//@description A message with a checklist @list The checklist description
+messageChecklist list:checklist = MessageContent;
 
 //@description A message with an invoice from a bot. Use getInternalLink with internalLinkTypeBotStart to share the invoice
 //@product_info Information about the product
@@ -4374,16 +4382,16 @@ messagePaidMessagePriceChanged paid_message_star_count:int53 = MessageContent;
 //-0 if the direct messages group was disabled or the messages are free
 messageDirectMessagePriceChanged is_enabled:Bool paid_message_star_count:int53 = MessageContent;
 
-//@description Some tasks from a to do list were marked as done or not done
-//@to_do_list_message_id Identifier of the message with the to do list; can be 0 if the message was deleted
+//@description Some tasks from a checklist were marked as done or not done
+//@checklist_message_id Identifier of the message with the checklist; can be 0 if the message was deleted
 //@marked_as_done_task_ids Identifiers of tasks that were marked as done
 //@marked_as_not_done_task_ids Identifiers of tasks that were marked as not done
-messageToDoTasksDone to_do_list_message_id:int53 marked_as_done_task_ids:vector<int32> marked_as_not_done_task_ids:vector<int32> = MessageContent;
+messageChecklistTasksDone checklist_message_id:int53 marked_as_done_task_ids:vector<int32> marked_as_not_done_task_ids:vector<int32> = MessageContent;
 
-//@description Some tasks were added to a to do list
-//@to_do_list_message_id Identifier of the message with the to do list; can be 0 if the message was deleted
-//@tasks List of tasks added to the to do list
-messageToDoTasksAdded to_do_list_message_id:int53 tasks:vector<toDoListTask> = MessageContent;
+//@description Some tasks were added to a checklist
+//@checklist_message_id Identifier of the message with the checklist; can be 0 if the message was deleted
+//@tasks List of tasks added to the checklist
+messageChecklistTasksAdded checklist_message_id:int53 tasks:vector<checklistTask> = MessageContent;
 
 //@description A contact has registered with Telegram
 messageContactRegistered = MessageContent;
@@ -4708,9 +4716,9 @@ inputMessagePoll question:formattedText options:vector<formattedText> is_anonymo
 //@story_id Story identifier
 inputMessageStory story_poster_chat_id:int53 story_id:int32 = InputMessageContent;
 
-//@description A message with a to do list. To do lists can't be sent to secret chats, channel chats and channel direct messages chats; for Telegram Premium users only
-//@to_do_list The to do list to send
-inputMessageToDoList to_do_list:inputToDoList = InputMessageContent;
+//@description A message with a checklist. Checklists can't be sent to secret chats, channel chats and channel direct messages chats; for Telegram Premium users only
+//@checklist The checklist to send
+inputMessageChecklist checklist:inputChecklist = InputMessageContent;
 
 //@description A forwarded message
 //@from_chat_id Identifier for the chat this forwarded message came from
@@ -4723,13 +4731,13 @@ inputMessageForwarded from_chat_id:int53 message_id:int53 in_game_share:Bool rep
 
 
 //@description Contains properties of a message and describes actions that can be done with the message right now
-//@can_add_tasks True, if tasks can be added to the message's to do list using addToDoListTasks if the current user has Telegram Premium subscription
+//@can_add_tasks True, if tasks can be added to the message's checklist using addChecklistTasks if the current user has Telegram Premium subscription
 //@can_be_copied True, if content of the message can be copied using inputMessageForwarded or forwardMessages with copy options
 //@can_be_copied_to_secret_chat True, if content of the message can be copied to a secret chat using inputMessageForwarded or forwardMessages with copy options
 //@can_be_deleted_only_for_self True, if the message can be deleted only for the current user while other users will continue to see it using the method deleteMessages with revoke == false
 //@can_be_deleted_for_all_users True, if the message can be deleted for all users using the method deleteMessages with revoke == true
 //@can_be_edited True, if the message can be edited using the methods editMessageText, editMessageCaption, or editMessageReplyMarkup.
-//-For live location and poll messages this fields shows whether editMessageLiveLocation or stopPoll can be used with this message
+//-For live location, poll, and checklist messages this fields shows whether editMessageLiveLocation, stopPoll, or editMessageChecklist respectively can be used with this message
 //@can_be_forwarded True, if the message can be forwarded using inputMessageForwarded or forwardMessages without copy options
 //@can_be_paid True, if the message can be paid using inputInvoiceMessage
 //@can_be_pinned True, if the message can be pinned or unpinned in the chat using pinChatMessage or unpinChatMessage
@@ -4748,7 +4756,7 @@ inputMessageForwarded from_chat_id:int53 message_id:int53 in_game_share:Bool rep
 //@can_get_statistics True, if message statistics are available through getMessageStatistics and message forwards can be received using getMessagePublicForwards
 //@can_get_video_advertisements True, if advertisements for video of the message can be received though getVideoMessageAdvertisements
 //@can_get_viewers True, if chat members already viewed the message can be received through getMessageViewers
-//@can_mark_tasks_as_done True, if tasks can be marked as done or not done in the message's to do list using markToDoListTasksAsDone if the current user has Telegram Premium subscription
+//@can_mark_tasks_as_done True, if tasks can be marked as done or not done in the message's checklist using markChecklistTasksAsDone if the current user has Telegram Premium subscription
 //@can_recognize_speech True, if speech can be recognized for the message through recognizeSpeech
 //@can_report_chat True, if the message can be reported using reportChat
 //@can_report_reactions True, if reactions on the message can be reported through reportMessageReactions
@@ -6508,6 +6516,9 @@ premiumFeatureBusiness = PremiumFeature;
 //@description The ability to use all available message effects
 premiumFeatureMessageEffects = PremiumFeature;
 
+//@description The ability to create and use checklist messages
+premiumFeatureChecklists = PremiumFeature;
+
 
 //@class BusinessFeature @description Describes a feature available to Business user accounts
 
@@ -7020,6 +7031,11 @@ pushMessageContentStory is_mention:Bool is_pinned:Bool = PushMessageContent;
 //@description A text message @text Message text @is_pinned True, if the message is a pinned message with the specified content
 pushMessageContentText text:string is_pinned:Bool = PushMessageContent;
 
+//@description A message with a checklist
+//@title Checklist title
+//@is_pinned True, if the message is a pinned message with the specified content
+pushMessageContentChecklist title:string is_pinned:Bool = PushMessageContent;
+
 //@description A video message
 //@video Message content; may be null
 //@caption Video caption
@@ -7084,6 +7100,12 @@ pushMessageContentSuggestProfilePhoto = PushMessageContent;
 
 //@description A user in the chat came within proximity alert range from the current user @distance The distance to the user
 pushMessageContentProximityAlertTriggered distance:int32 = PushMessageContent;
+
+//@description Some tasks were added to a checklist @task_count Number of added tasks
+pushMessageContentChecklistTasksAdded task_count:int32 = PushMessageContent;
+
+//@description Some tasks from a checklist were marked as done or not done @task_count Number of changed tasks
+pushMessageContentChecklistTasksDone task_count:int32 = PushMessageContent;
 
 //@description A forwarded messages @total_count Number of forwarded messages
 pushMessageContentMessageForwards total_count:int32 = PushMessageContent;
@@ -9377,8 +9399,8 @@ getMessage chat_id:int53 message_id:int53 = Message;
 getMessageLocally chat_id:int53 message_id:int53 = Message;
 
 //@description Returns information about a non-bundled message that is replied by a given message. Also, returns the pinned message, the game message, the invoice message,
-//-the message with a previously set same background, the giveaway message, the to do list message, and the topic creation message for messages of the types
-//-messagePinMessage, messageGameScore, messagePaymentSuccessful, messageChatSetBackground, messageGiveawayCompleted, messageToDoTasksDone and messageToDoTasksAdded, and topic messages without non-bundled replied message respectively.
+//-the message with a previously set same background, the giveaway message, the checklist message, and the topic creation message for messages of the types
+//-messagePinMessage, messageGameScore, messagePaymentSuccessful, messageChatSetBackground, messageGiveawayCompleted, messageChecklistTasksDone and messageChecklistTasksAdded, and topic messages without non-bundled replied message respectively.
 //-Returns a 404 error if the message doesn't exist
 //@chat_id Identifier of the chat the message belongs to
 //@message_id Identifier of the reply message
@@ -10013,6 +10035,13 @@ editMessageText chat_id:int53 message_id:int53 reply_markup:ReplyMarkup input_me
 //@proximity_alert_radius The new maximum distance for proximity alerts, in meters (0-100000). Pass 0 if the notification is disabled
 editMessageLiveLocation chat_id:int53 message_id:int53 reply_markup:ReplyMarkup location:location live_period:int32 heading:int32 proximity_alert_radius:int32 = Message;
 
+//@description Edits the message content of a checklist. Returns the edited message after the edit is completed on the server side
+//@chat_id The chat the message belongs to
+//@message_id Identifier of the message. Use messageProperties.can_be_edited to check whether the message can be edited
+//@reply_markup The new message reply markup; pass null if none; for bots only
+//@checklist The new checklist. If some tasks were completed, this information will be kept
+editMessageChecklist chat_id:int53 message_id:int53 reply_markup:ReplyMarkup checklist:inputChecklist = Message;
+
 //@description Edits the media content of a message, including message caption. If only the caption needs to be edited, use editMessageCaption instead.
 //-The type of message content in an album can't be changed with exception of replacing a photo with a video or vice versa. Returns the edited message after the edit is completed on the server side
 //@chat_id The chat the message belongs to
@@ -10124,6 +10153,14 @@ editBusinessMessageText business_connection_id:string chat_id:int53 message_id:i
 //@heading The new direction in which the location moves, in degrees; 1-360. Pass 0 if unknown
 //@proximity_alert_radius The new maximum distance for proximity alerts, in meters (0-100000). Pass 0 if the notification is disabled
 editBusinessMessageLiveLocation business_connection_id:string chat_id:int53 message_id:int53 reply_markup:ReplyMarkup location:location live_period:int32 heading:int32 proximity_alert_radius:int32 = BusinessMessage;
+
+//@description Edits the content of a checklist in a message sent on behalf of a business account; for bots only
+//@business_connection_id Unique identifier of business connection on behalf of which the message was sent
+//@chat_id The chat the message belongs to
+//@message_id Identifier of the message
+//@reply_markup The new message reply markup; pass null if none
+//@checklist The new checklist. If some tasks were completed, this information will be kept
+editBusinessMessageChecklist business_connection_id:string chat_id:int53 message_id:int53 reply_markup:ReplyMarkup checklist:inputChecklist = BusinessMessage;
 
 //@description Edits the media content of a message with a text, an animation, an audio, a document, a photo or a video in a message sent on behalf of a business account; for bots only
 //@business_connection_id Unique identifier of business connection on behalf of which the message was sent
@@ -10278,10 +10315,11 @@ addQuickReplyShortcutMessageAlbum shortcut_name:string reply_to_message_id:int53
 readdQuickReplyShortcutMessages shortcut_name:string message_ids:vector<int53> = QuickReplyMessages;
 
 //@description Asynchronously edits the text, media or caption of a quick reply message. Use quickReplyMessage.can_be_edited to check whether a message can be edited.
-//-Media message can be edited only to a media message. The type of message content in an album can't be changed with exception of replacing a photo with a video or vice versa
+//-Media message can be edited only to a media message. Checklist messages can be edited only to a checklist message.
+//-The type of message content in an album can't be changed with exception of replacing a photo with a video or vice versa
 //@shortcut_id Unique identifier of the quick reply shortcut with the message
 //@message_id Identifier of the message
-//@input_message_content New content of the message. Must be one of the following types: inputMessageText, inputMessageAnimation, inputMessageAudio, inputMessageDocument, inputMessagePhoto or inputMessageVideo
+//@input_message_content New content of the message. Must be one of the following types: inputMessageAnimation, inputMessageAudio, inputMessageChecklist, inputMessageDocument, inputMessagePhoto, inputMessageText, or inputMessageVideo
 editQuickReplyMessage shortcut_id:int32 message_id:int53 input_message_content:InputMessageContent = Ok;
 
 
@@ -10501,18 +10539,18 @@ getPollVoters chat_id:int53 message_id:int53 option_id:int32 offset:int32 limit:
 stopPoll chat_id:int53 message_id:int53 reply_markup:ReplyMarkup = Ok;
 
 
-//@description Adds tasks to a to do list in a message
+//@description Adds tasks to a checklist in a message
 //@chat_id Identifier of the chat with the message
-//@message_id Identifier of the message containing the to do list. Use messageProperties.can_add_tasks to check whether the tasks can be added
+//@message_id Identifier of the message containing the checklist. Use messageProperties.can_add_tasks to check whether the tasks can be added
 //@tasks List of added tasks
-addToDoListTasks chat_id:int53 message_id:int53 tasks:vector<inputToDoListTask> = Ok;
+addChecklistTasks chat_id:int53 message_id:int53 tasks:vector<inputChecklistTask> = Ok;
 
-//@description Adds tasks of a to do list in a message as done or not done
+//@description Adds tasks of a checklist in a message as done or not done
 //@chat_id Identifier of the chat with the message
-//@message_id Identifier of the message containing the to do list. Use messageProperties.can_mark_tasks_as_done to check whether the tasks can be marked as done or not done
+//@message_id Identifier of the message containing the checklist. Use messageProperties.can_mark_tasks_as_done to check whether the tasks can be marked as done or not done
 //@marked_as_done_task_ids Identifiers of tasks that were marked as done
 //@marked_as_not_done_task_ids Identifiers of tasks that were marked as not done
-markToDoListTasksAsDone chat_id:int53 message_id:int53 marked_as_done_task_ids:vector<int32> marked_as_not_done_task_ids:vector<int32> = Ok;
+markChecklistTasksAsDone chat_id:int53 message_id:int53 marked_as_done_task_ids:vector<int32> marked_as_not_done_task_ids:vector<int32> = Ok;
 
 
 //@description Hides a suggested action @action Suggested action to hide

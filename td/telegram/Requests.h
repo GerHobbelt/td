@@ -579,6 +579,8 @@ class Requests {
 
   void on_request(uint64 id, td_api::editMessageLiveLocation &request);
 
+  void on_request(uint64 id, td_api::editMessageChecklist &request);
+
   void on_request(uint64 id, td_api::editMessageMedia &request);
 
   void on_request(uint64 id, td_api::editMessageCaption &request);
@@ -606,6 +608,8 @@ class Requests {
   void on_request(uint64 id, td_api::editBusinessMessageText &request);
 
   void on_request(uint64 id, td_api::editBusinessMessageLiveLocation &request);
+
+  void on_request(uint64 id, td_api::editBusinessMessageChecklist &request);
 
   void on_request(uint64 id, td_api::editBusinessMessageMedia &request);
 
@@ -1507,9 +1511,9 @@ class Requests {
 
   void on_request(uint64 id, td_api::stopPoll &request);
 
-  void on_request(uint64 id, td_api::addToDoListTasks &request);
+  void on_request(uint64 id, td_api::addChecklistTasks &request);
 
-  void on_request(uint64 id, td_api::markToDoListTasksAsDone &request);
+  void on_request(uint64 id, td_api::markChecklistTasksAsDone &request);
 
   void on_request(uint64 id, td_api::hideSuggestedAction &request);
 

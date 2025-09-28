@@ -6,12 +6,16 @@
 //
 #pragma once
 
+#include "td/telegram/DialogId.h"
 #include "td/telegram/MessageEntity.h"
 #include "td/telegram/MessageId.h"
 #include "td/telegram/td_api.h"
 #include "td/telegram/telegram_api.h"
 #include "td/telegram/ToDoCompletion.h"
 #include "td/telegram/ToDoItem.h"
+
+#include "td/utils/common.h"
+#include "td/utils/Status.h"
 
 namespace td {
 
@@ -26,7 +30,11 @@ class ToDoList {
 
   void validate(const char *source);
 
+  telegram_api::object_ptr<telegram_api::todoList> get_input_todo_list(const UserManager *user_manager) const;
+
   friend bool operator==(const ToDoList &lhs, const ToDoList &rhs);
+
+  static bool remove_unsupported_entities(FormattedText &text);
 
  public:
   ToDoList() = default;
@@ -34,20 +42,25 @@ class ToDoList {
   ToDoList(const UserManager *user_manager, telegram_api::object_ptr<telegram_api::todoList> &&list);
 
   static Result<ToDoList> get_to_do_list(const Td *td, DialogId dialog_id,
-                                         td_api::object_ptr<td_api::inputToDoList> &&list);
+                                         td_api::object_ptr<td_api::inputChecklist> &&list);
 
   bool get_others_can_append() const {
     return others_can_append_;
   }
 
+  bool get_can_append_items(const Td *td, int32 item_count) const;
+
   bool get_others_can_complete() const {
     return others_can_complete_;
   }
 
-  td_api::object_ptr<td_api::toDoList> get_to_do_list_object(Td *td, const vector<ToDoCompletion> &completions,
-                                                             MessageId message_id, bool is_outgoing) const;
+  string get_search_text() const;
 
-  telegram_api::object_ptr<telegram_api::todoList> get_input_todo_list(const UserManager *user_manager) const;
+  td_api::object_ptr<td_api::checklist> get_checklist_object(Td *td, const vector<ToDoCompletion> &completions,
+                                                             DialogId dialog_id, MessageId message_id, bool is_outgoing,
+                                                             bool is_forward) const;
+
+  telegram_api::object_ptr<telegram_api::inputMediaTodo> get_input_media_todo(const UserManager *user_manager) const;
 
   void add_dependencies(Dependencies &dependencies) const;
 

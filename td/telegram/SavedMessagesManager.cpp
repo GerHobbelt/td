@@ -1171,6 +1171,31 @@ void SavedMessagesManager::on_update_read_monoforum_outbox(DialogId dialog_id,
   on_topic_changed(topic_list, topic, "on_update_read_monoforum_outbox");
 }
 
+void SavedMessagesManager::on_update_monoforum_nopaid_messages_exception(DialogId dialog_id,
+                                                                         SavedMessagesTopicId saved_messages_topic_id,
+                                                                         bool nopaid_messages_exception) {
+  if (td_->auth_manager_->is_bot()) {
+    return;
+  }
+
+  auto *topic_list = get_topic_list(dialog_id);
+  if (topic_list == nullptr) {
+    return;
+  }
+  auto *topic = get_topic(topic_list, saved_messages_topic_id);
+  if (topic == nullptr) {
+    return;
+  }
+  if (topic->dialog_id_ != dialog_id) {
+    LOG(ERROR) << "Can't update can_send_unpaid_messages in a topic of " << dialog_id;
+    return;
+  }
+
+  do_set_topic_nopaid_messages_exception(topic, nopaid_messages_exception);
+
+  on_topic_changed(topic_list, topic, "on_update_monoforum_nopaid_messages_exception");
+}
+
 void SavedMessagesManager::on_update_topic_draft_message(
     DialogId dialog_id, SavedMessagesTopicId saved_messages_topic_id,
     telegram_api::object_ptr<telegram_api::DraftMessage> &&draft_message, int32 try_count) {
@@ -1504,8 +1529,8 @@ SavedMessagesManager::SavedMessagesTopicInfo SavedMessagesManager::get_saved_mes
 }
 
 void SavedMessagesManager::on_get_saved_dialogs(TopicList *topic_list, Result<Unit> &&result) {
-  CHECK(topic_list != nullptr);
   G()->ignore_result_if_closing(result);
+  CHECK(topic_list != nullptr);
   if (result.is_error()) {
     fail_promises(topic_list->load_queries_, result.move_as_error());
   } else {

@@ -1210,11 +1210,11 @@ td_api::object_ptr<td_api::MessageSendingState> QuickReplyManager::get_message_s
 td_api::object_ptr<td_api::MessageContent> QuickReplyManager::get_quick_reply_message_message_content_object(
     const QuickReplyMessage *m) const {
   if (m->edited_content != nullptr) {
-    return get_message_content_object(m->edited_content.get(), td_, DialogId(), MessageId(), false, DialogId(), 0,
+    return get_message_content_object(m->edited_content.get(), td_, DialogId(), MessageId(), true, false, DialogId(), 0,
                                       false, true, -1, m->edited_invert_media, m->edited_disable_web_page_preview);
   }
-  return get_message_content_object(m->content.get(), td_, DialogId(), m->message_id, false, DialogId(), 0, false, true,
-                                    -1, m->invert_media, m->disable_web_page_preview);
+  return get_message_content_object(m->content.get(), td_, DialogId(), m->message_id, true, false, DialogId(), 0, false,
+                                    true, -1, m->invert_media, m->disable_web_page_preview);
 }
 
 td_api::object_ptr<td_api::quickReplyMessage> QuickReplyManager::get_quick_reply_message_object(
@@ -2824,6 +2824,11 @@ void QuickReplyManager::edit_quick_reply_message(
         return promise.set_error(400, "Only caption can be edited in voice note messages");
       }
       break;
+    case MessageContentType::ToDoList:
+      if (new_message_content_type != MessageContentType::ToDoList) {
+        return promise.set_error(400, "Checklists can be edited only to a checklist");
+      }
+      break;
     default:
       UNREACHABLE();
   }
@@ -3670,7 +3675,7 @@ void QuickReplyManager::load_quick_reply_shortcuts() {
       register_new_message(message.get(), "load_quick_reply_shortcuts");
 
       if (message->message_id.is_server()) {
-        if (need_reget_message_content(message->content.get()) ||
+        if (need_reget_message_content(td_, message->content.get()) ||
             (message->legacy_layer != 0 && message->legacy_layer < MTPROTO_LAYER)) {
           reload_quick_reply_message(shortcut->shortcut_id_, message->message_id, Promise<Unit>());
         }

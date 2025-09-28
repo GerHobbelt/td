@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.10 FATAL_ERROR)
 
-project(TDLib VERSION 1.8.50 LANGUAGES CXX C)
+project(TDLib VERSION 1.8.51 LANGUAGES CXX C)
 
 if (NOT DEFINED CMAKE_MODULE_PATH)
   set(CMAKE_MODULE_PATH "")
@@ -28,7 +28,7 @@ prevent_in_source_build()
 option(TD_INSTALL_STATIC_LIBRARIES "Enable installation of static libraries." ON)
 option(TD_INSTALL_SHARED_LIBRARIES "Enable installation of shared libraries." ON)
 option(TD_ENABLE_JNI "Use \"ON\" to enable JNI-compatible TDLib API.")
-option(TD_ENABLE_DOTNET "Use \"ON\" to enable generation of C++/CLI or C++/CX TDLib API bindings.")
+option(TD_ENABLE_DOTNET "Use \"ON\" or \"CX\" to enable generation of C++/CLI or C++/CX TDLib API bindings respectively.")
 if (NOT CMAKE_CROSSCOMPILING)
   option(TD_GENERATE_SOURCE_FILES "Use \"ON\" to just generate TDLib source files.")
 endif()
@@ -1276,7 +1276,6 @@ target_link_libraries(tdclient PUBLIC tdapi PRIVATE tdcore)
 if (TD_ENABLE_DOTNET)
   add_library(tddotnet SHARED
     td/telegram/ClientDotNet.cpp
-    td/telegram/LogDotNet.cpp
     ${TL_DOTNET_SCHEME_SOURCE}
   )
   set_target_properties(tddotnet PROPERTIES OUTPUT_NAME Telegram.Td)
@@ -1286,7 +1285,6 @@ if (TD_ENABLE_DOTNET)
     add_dependencies(tddotnet generate_dotnet_api)
   endif()
 
-  target_compile_options(tddotnet PRIVATE "/doc")
   if (CMAKE_SYSTEM_NAME STREQUAL "WindowsStore")
     set_target_properties(tddotnet PROPERTIES VS_WINRT_COMPONENT "true")
     target_compile_options(tddotnet PUBLIC "/ZW")
@@ -1294,6 +1292,11 @@ if (TD_ENABLE_DOTNET)
     set_target_properties(tddotnet PROPERTIES COMPILE_FLAGS "/GR /clr")
     target_compile_options(tddotnet PUBLIC "/EHa")
   endif()
+
+  add_custom_command(TARGET tddotnet POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        ${TL_TD_AUTO_INCLUDE_DIR}/td/telegram/Telegram.Td.xml
+        $<TARGET_FILE_DIR:tddotnet>)
 endif()
 
 # tdc - TDLib interface in pure C

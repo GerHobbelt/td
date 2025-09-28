@@ -826,6 +826,31 @@ class EditMessageLiveLocationRequest final : public RequestOnceActor {
   }
 };
 
+class EditMessageChecklistRequest final : public RequestOnceActor {
+  MessageFullId message_full_id_;
+  td_api::object_ptr<td_api::ReplyMarkup> reply_markup_;
+  td_api::object_ptr<td_api::inputChecklist> input_checklist_;
+
+  void do_run(Promise<Unit> &&promise) final {
+    td_->messages_manager_->edit_message_to_do_list(message_full_id_, std::move(reply_markup_),
+                                                    std::move(input_checklist_), std::move(promise));
+  }
+
+  void do_send_result() final {
+    send_result(td_->messages_manager_->get_message_object(message_full_id_, "EditMessageChecklistRequest"));
+  }
+
+ public:
+  EditMessageChecklistRequest(ActorShared<Td> td, uint64 request_id, int64 dialog_id, int64 message_id,
+                              td_api::object_ptr<td_api::ReplyMarkup> reply_markup,
+                              td_api::object_ptr<td_api::inputChecklist> input_checklist)
+      : RequestOnceActor(std::move(td), request_id)
+      , message_full_id_(DialogId(dialog_id), MessageId(message_id))
+      , reply_markup_(std::move(reply_markup))
+      , input_checklist_(std::move(input_checklist)) {
+  }
+};
+
 class EditMessageMediaRequest final : public RequestOnceActor {
   MessageFullId message_full_id_;
   td_api::object_ptr<td_api::ReplyMarkup> reply_markup_;
@@ -3854,6 +3879,11 @@ void Requests::on_request(uint64 id, td_api::editMessageLiveLocation &request) {
                  request.proximity_alert_radius_);
 }
 
+void Requests::on_request(uint64 id, td_api::editMessageChecklist &request) {
+  CREATE_REQUEST(EditMessageChecklistRequest, request.chat_id_, request.message_id_, std::move(request.reply_markup_),
+                 std::move(request.checklist_));
+}
+
 void Requests::on_request(uint64 id, td_api::editMessageMedia &request) {
   CREATE_REQUEST(EditMessageMediaRequest, request.chat_id_, request.message_id_, std::move(request.reply_markup_),
                  std::move(request.input_message_content_));
@@ -3962,6 +3992,15 @@ void Requests::on_request(uint64 id, td_api::editBusinessMessageLiveLocation &re
       BusinessConnectionId(std::move(request.business_connection_id_)), DialogId(request.chat_id_),
       MessageId(request.message_id_), std::move(request.reply_markup_), std::move(request.location_),
       request.live_period_, request.heading_, request.proximity_alert_radius_, std::move(promise));
+}
+
+void Requests::on_request(uint64 id, td_api::editBusinessMessageChecklist &request) {
+  CHECK_IS_BOT();
+  CREATE_REQUEST_PROMISE();
+  td_->business_connection_manager_->edit_business_message_to_do_list(
+      BusinessConnectionId(std::move(request.business_connection_id_)), DialogId(request.chat_id_),
+      MessageId(request.message_id_), std::move(request.reply_markup_), std::move(request.checklist_),
+      std::move(promise));
 }
 
 void Requests::on_request(uint64 id, td_api::editBusinessMessageMedia &request) {
@@ -7215,14 +7254,14 @@ void Requests::on_request(uint64 id, td_api::stopPoll &request) {
                                     std::move(request.reply_markup_), std::move(promise));
 }
 
-void Requests::on_request(uint64 id, td_api::addToDoListTasks &request) {
+void Requests::on_request(uint64 id, td_api::addChecklistTasks &request) {
   CHECK_IS_USER();
   CREATE_OK_REQUEST_PROMISE();
   td_->message_query_manager_->add_to_do_list_tasks({DialogId(request.chat_id_), MessageId(request.message_id_)},
                                                     std::move(request.tasks_), std::move(promise));
 }
 
-void Requests::on_request(uint64 id, td_api::markToDoListTasksAsDone &request) {
+void Requests::on_request(uint64 id, td_api::markChecklistTasksAsDone &request) {
   CHECK_IS_USER();
   CREATE_OK_REQUEST_PROMISE();
   td_->message_query_manager_->mark_to_do_list_tasks_as_done(
