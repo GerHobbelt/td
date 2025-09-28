@@ -1251,4 +1251,41 @@ void ForumTopicManager::on_topic_message_count_changed(DialogId dialog_id, Messa
   }
 }
 
+void ForumTopicManager::on_topic_mention_count_changed(DialogId dialog_id, MessageId top_thread_message_id, int32 count,
+                                                       bool is_relative) {
+  LOG(INFO) << "Change " << (is_relative ? "by" : "to") << ' ' << count << " number of mentions in thread of "
+            << top_thread_message_id << " in " << dialog_id;
+  auto dialog_topics = get_dialog_topics(dialog_id);
+  auto topic = get_topic(dialog_topics, top_thread_message_id);
+  if (topic == nullptr || topic->topic_ == nullptr) {
+    return;
+  }
+  if (topic->topic_->update_unread_mention_count(count, is_relative)) {
+    on_forum_topic_changed(dialog_id, topic);
+  }
+}
+
+void ForumTopicManager::on_topic_reaction_count_changed(DialogId dialog_id, MessageId top_thread_message_id,
+                                                        int32 count, bool is_relative) {
+  LOG(INFO) << "Change " << (is_relative ? "by" : "to") << ' ' << count << " number of reactions in thread of "
+            << top_thread_message_id << " in " << dialog_id;
+  auto dialog_topics = get_dialog_topics(dialog_id);
+  auto topic = get_topic(dialog_topics, top_thread_message_id);
+  if (topic == nullptr || topic->topic_ == nullptr) {
+    return;
+  }
+  if (topic->topic_->update_unread_reaction_count(count, is_relative)) {
+    on_forum_topic_changed(dialog_id, topic);
+  }
+}
+
+void ForumTopicManager::repair_topic_unread_mention_count(DialogId dialog_id, MessageId top_thread_message_id) {
+  if (!td_->dialog_manager_->is_forum_channel(dialog_id) ||
+      can_be_message_thread_id(top_thread_message_id).is_error()) {
+    return;
+  }
+
+  td_->create_handler<GetForumTopicQuery>(Auto())->send(dialog_id.get_channel_id(), top_thread_message_id);
+}
+
 }  // namespace td

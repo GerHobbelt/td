@@ -359,11 +359,23 @@ class Requests {
 
   void on_request(uint64 id, const td_api::loadFeedbackChatTopics &request);
 
+  void on_request(uint64 id, const td_api::getFeedbackChatTopic &request);
+
   void on_request(uint64 id, const td_api::getFeedbackChatTopicHistory &request);
 
   void on_request(uint64 id, const td_api::getFeedbackChatTopicMessageByDate &request);
 
+  void on_request(uint64 id, const td_api::deleteFeedbackChatTopicHistory &request);
+
+  void on_request(uint64 id, const td_api::deleteFeedbackChatTopicMessagesByDate &request);
+
   void on_request(uint64 id, const td_api::setFeedbackChatTopicIsMarkedAsUnread &request);
+
+  void on_request(uint64 id, td_api::setFeedbackChatTopicDraftMessage &request);
+
+  void on_request(uint64 id, const td_api::unpinAllFeedbackChatTopicMessages &request);
+
+  void on_request(uint64 id, const td_api::readAllFeedbackChatTopicReactions &request);
 
   void on_request(uint64 id, const td_api::loadSavedMessagesTopics &request);
 

@@ -51,6 +51,15 @@ MessageTopic::MessageTopic(Td *td, DialogId dialog_id, bool is_topic_message, Me
   }
 }
 
+MessageTopic MessageTopic::forum(DialogId dialog_id, MessageId top_thread_message_id) {
+  // dialog_id can be a broadcast channel
+  MessageTopic result;
+  result.type_ = Type::Forum;
+  result.dialog_id_ = dialog_id;
+  result.top_thread_message_id_ = top_thread_message_id;
+  return result;
+}
+
 Result<MessageTopic> MessageTopic::get_message_topic(Td *td, DialogId dialog_id,
                                                      const td_api::object_ptr<td_api::MessageTopic> &topic) {
   if (topic == nullptr) {
@@ -130,6 +139,12 @@ td_api::object_ptr<td_api::MessageTopic> MessageTopic::get_message_topic_object(
       UNREACHABLE();
       return nullptr;
   }
+}
+
+bool operator==(const MessageTopic &lhs, const MessageTopic &rhs) {
+  return lhs.type_ == rhs.type_ && lhs.dialog_id_ == rhs.dialog_id_ &&
+         lhs.top_thread_message_id_ == rhs.top_thread_message_id_ &&
+         lhs.saved_messages_topic_id_ == rhs.saved_messages_topic_id_;
 }
 
 StringBuilder &operator<<(StringBuilder &string_builder, const MessageTopic &message_topic) {

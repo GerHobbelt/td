@@ -24,6 +24,8 @@ class MessageTopic {
   MessageId top_thread_message_id_;  // TODO class ForumId
   SavedMessagesTopicId saved_messages_topic_id_;
 
+  friend bool operator==(const MessageTopic &lhs, const MessageTopic &rhs);
+
   friend StringBuilder &operator<<(StringBuilder &string_builder, const MessageTopic &message_topic);
 
  public:
@@ -32,6 +34,8 @@ class MessageTopic {
   MessageTopic(Td *td, DialogId dialog_id, bool is_topic_message, MessageId top_thread_message_id,
                SavedMessagesTopicId saved_messages_topic_id);
 
+  static MessageTopic forum(DialogId dialog_id, MessageId top_thread_message_id);
+
   static Result<MessageTopic> get_message_topic(Td *td, DialogId dialog_id,
                                                 const td_api::object_ptr<td_api::MessageTopic> &topic);
 
@@ -39,6 +43,18 @@ class MessageTopic {
 
   bool is_empty() const {
     return type_ == Type::None;
+  }
+
+  bool is_forum() const {
+    return type_ == Type::Forum;
+  }
+
+  bool is_monoforum() const {
+    return type_ == Type::Monoforum;
+  }
+
+  bool is_saved_messages() const {
+    return type_ == Type::SavedMessages;
   }
 
   MessageId get_forum_topic_id() const {
@@ -61,8 +77,21 @@ class MessageTopic {
     }
     return saved_messages_topic_id_;
   }
+
+  SavedMessagesTopicId get_any_saved_messages_topic_id() const {
+    if (type_ != Type::SavedMessages && type_ != Type::Monoforum) {
+      return SavedMessagesTopicId();
+    }
+    return saved_messages_topic_id_;
+  }
 };
 
 StringBuilder &operator<<(StringBuilder &string_builder, const MessageTopic &message_topic);
+
+bool operator==(const MessageTopic &lhs, const MessageTopic &rhs);
+
+inline bool operator!=(const MessageTopic &lhs, const MessageTopic &rhs) {
+  return !(lhs == rhs);
+}
 
 }  // namespace td

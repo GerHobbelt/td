@@ -354,9 +354,9 @@ class CliClient final : public Actor {
       if (!messages.messages_.empty()) {
         auto last_message_id = messages.messages_.back()->id_;
         LOG(ERROR) << (last_message_id >> 20);
-        send_request(td_api::make_object<td_api::searchChatMessages>(
-            search_chat_id_, string(), nullptr, last_message_id, 0, 100, as_search_messages_filter("pvi"), 0,
-            get_saved_messages_topic_id()));
+        send_request(td_api::make_object<td_api::searchChatMessages>(search_chat_id_, get_message_topic_id(), string(),
+                                                                     nullptr, last_message_id, 0, 100,
+                                                                     as_search_messages_filter("pvi")));
       } else {
         search_chat_id_ = 0;
       }
@@ -1065,6 +1065,19 @@ class CliClient final : public Actor {
 
   int64 get_saved_messages_topic_id() const {
     return as_saved_messages_topic_id(saved_messages_topic_id_);
+  }
+
+  td_api::object_ptr<td_api::MessageTopic> get_message_topic_id() const {
+    if (saved_messages_topic_id_ != 0) {
+      return td_api::make_object<td_api::messageTopicSavedMessages>(get_saved_messages_topic_id());
+    }
+    if (feedback_chat_topic_id_ != 0) {
+      return td_api::make_object<td_api::messageTopicFeedbackChat>(feedback_chat_topic_id_);
+    }
+    if (message_thread_id_ != 0) {
+      return td_api::make_object<td_api::messageTopicForum>(message_thread_id_);
+    }
+    return nullptr;
   }
 
   td_api::object_ptr<td_api::linkPreviewOptions> get_link_preview_options() const {
@@ -2596,9 +2609,10 @@ class CliClient final : public Actor {
     }
     auto id = send_request(td_api::make_object<td_api::sendMessage>(
         chat_id, message_thread_id_, get_input_message_reply_to(),
-        td_api::make_object<td_api::messageSendOptions>(
-            disable_notification, from_background, false, use_test_dc_, paid_message_star_count_, false,
-            as_message_scheduling_state(schedule_date_), message_effect_id_, Random::fast(1, 1000), only_preview_),
+        td_api::make_object<td_api::messageSendOptions>(feedback_chat_topic_id_, disable_notification, from_background,
+                                                        false, use_test_dc_, paid_message_star_count_, false,
+                                                        as_message_scheduling_state(schedule_date_), message_effect_id_,
+                                                        Random::fast(1, 1000), only_preview_),
         nullptr, std::move(input_message_content)));
     if (id != 0) {
       query_id_to_send_message_info_[id].start_time = Time::now();
@@ -2606,9 +2620,26 @@ class CliClient final : public Actor {
   }
 
   td_api::object_ptr<td_api::messageSendOptions> default_message_send_options() const {
-    return td_api::make_object<td_api::messageSendOptions>(false, false, false, use_test_dc_, paid_message_star_count_,
-                                                           true, as_message_scheduling_state(schedule_date_),
-                                                           message_effect_id_, Random::fast(1, 1000), only_preview_);
+    return td_api::make_object<td_api::messageSendOptions>(
+        feedback_chat_topic_id_, false, false, false, use_test_dc_, paid_message_star_count_, true,
+        as_message_scheduling_state(schedule_date_), message_effect_id_, Random::fast(1, 1000), only_preview_);
+  }
+
+  void set_draft_message(ChatId chat_id, td_api::object_ptr<td_api::draftMessage> &&draft_message) {
+    if (feedback_chat_topic_id_ != 0) {
+      send_request(td_api::make_object<td_api::setFeedbackChatTopicDraftMessage>(chat_id, feedback_chat_topic_id_,
+                                                                                 std::move(draft_message)));
+    } else {
+      send_request(
+          td_api::make_object<td_api::setChatDraftMessage>(chat_id, message_thread_id_, std::move(draft_message)));
+    }
+  }
+
+  void set_draft_message(ChatId chat_id, td_api::object_ptr<td_api::InputMessageContent> &&input_message_content) {
+    send_request(td_api::make_object<td_api::setChatDraftMessage>(
+        chat_id, message_thread_id_,
+        td_api::make_object<td_api::draftMessage>(get_input_message_reply_to(), 0, std::move(input_message_content),
+                                                  message_effect_id_)));
   }
 
   void send_get_background_url(td_api::object_ptr<td_api::BackgroundType> &&background_type) {
@@ -3158,6 +3189,11 @@ class CliClient final : public Actor {
       string limit;
       get_args(args, chat_id, limit);
       send_request(td_api::make_object<td_api::loadFeedbackChatTopics>(chat_id, as_limit(limit)));
+    } else if (op == "gfct") {
+      ChatId chat_id;
+      ChatId feedback_chat_topic_id;
+      get_args(args, chat_id, feedback_chat_topic_id);
+      send_request(td_api::make_object<td_api::getFeedbackChatTopic>(chat_id, feedback_chat_topic_id));
     } else if (op == "gfcth") {
       ChatId chat_id;
       MessageId from_message_id;
@@ -3172,12 +3208,31 @@ class CliClient final : public Actor {
       get_args(args, chat_id, date);
       send_request(
           td_api::make_object<td_api::getFeedbackChatTopicMessageByDate>(chat_id, feedback_chat_topic_id_, date));
+    } else if (op == "dfcth") {
+      ChatId chat_id;
+      get_args(args, chat_id);
+      send_request(td_api::make_object<td_api::deleteFeedbackChatTopicHistory>(chat_id, feedback_chat_topic_id_));
+    } else if (op == "dfctmbd") {
+      ChatId chat_id;
+      int32 min_date;
+      int32 max_date;
+      get_args(args, chat_id, min_date, max_date);
+      send_request(td_api::make_object<td_api::deleteFeedbackChatTopicMessagesByDate>(chat_id, feedback_chat_topic_id_,
+                                                                                      min_date, max_date));
     } else if (op == "sfctimau") {
       ChatId chat_id;
       bool is_marked_as_unread;
       get_args(args, chat_id, is_marked_as_unread);
       send_request(td_api::make_object<td_api::setFeedbackChatTopicIsMarkedAsUnread>(chat_id, feedback_chat_topic_id_,
                                                                                      is_marked_as_unread));
+    } else if (op == "uafctm") {
+      ChatId chat_id;
+      get_args(args, chat_id);
+      send_request(td_api::make_object<td_api::unpinAllFeedbackChatTopicMessages>(chat_id, feedback_chat_topic_id_));
+    } else if (op == "rafctr") {
+      ChatId chat_id;
+      get_args(args, chat_id);
+      send_request(td_api::make_object<td_api::readAllFeedbackChatTopicReactions>(chat_id, feedback_chat_topic_id_));
     } else if (op == "lsmt") {
       string limit;
       get_args(args, limit);
@@ -3366,13 +3421,12 @@ class CliClient final : public Actor {
       ChatId chat_id;
       string filter;
       get_args(args, chat_id, filter);
-      send_request(td_api::make_object<td_api::searchChatMessages>(chat_id, "", nullptr, 0, 0, 100,
-                                                                   as_search_messages_filter(filter),
-                                                                   message_thread_id_, get_saved_messages_topic_id()));
+      send_request(td_api::make_object<td_api::searchChatMessages>(chat_id, get_message_topic_id(), "", nullptr, 0, 0,
+                                                                   100, as_search_messages_filter(filter)));
     } else if (op == "spvf") {
       search_chat_id_ = as_chat_id(args);
-      send_request(td_api::make_object<td_api::searchChatMessages>(
-          search_chat_id_, "", nullptr, 0, 0, 100, as_search_messages_filter("pvi"), 0, get_saved_messages_topic_id()));
+      send_request(td_api::make_object<td_api::searchChatMessages>(search_chat_id_, get_message_topic_id(), "", nullptr,
+                                                                   0, 0, 100, as_search_messages_filter("pvi")));
     } else if (op == "Search" || op == "SearchA" || op == "SearchM" || op == "SearchP" || op == "SearchG" ||
                op == "SearchC") {
       string query;
@@ -3404,24 +3458,24 @@ class CliClient final : public Actor {
       ChatId chat_id;
       SearchQuery query;
       get_args(args, chat_id, query);
-      send_request(td_api::make_object<td_api::searchChatMessages>(chat_id, query.query, nullptr, 0, 0, query.limit,
-                                                                   nullptr, 0, get_saved_messages_topic_id()));
+      send_request(td_api::make_object<td_api::searchChatMessages>(chat_id, get_message_topic_id(), query.query,
+                                                                   nullptr, 0, 0, query.limit, nullptr));
     } else if (op == "SMME") {
       ChatId chat_id;
       string limit;
       get_args(args, chat_id, limit);
       send_request(td_api::make_object<td_api::searchChatMessages>(
-          chat_id, "", td_api::make_object<td_api::messageSenderUser>(my_id_), 0, 0, as_limit(limit), nullptr, 0,
-          get_saved_messages_topic_id()));
+          chat_id, get_message_topic_id(), "", td_api::make_object<td_api::messageSenderUser>(my_id_), 0, 0,
+          as_limit(limit), nullptr));
     } else if (op == "SMU" || op == "SMC") {
       ChatId chat_id;
       string sender_id;
       MessageId from_message_id;
       string limit;
       get_args(args, chat_id, sender_id, from_message_id, limit);
-      send_request(td_api::make_object<td_api::searchChatMessages>(chat_id, "", as_message_sender(sender_id),
-                                                                   from_message_id, 0, as_limit(limit), nullptr, 0,
-                                                                   get_saved_messages_topic_id()));
+      send_request(td_api::make_object<td_api::searchChatMessages>(chat_id, get_message_topic_id(), "",
+                                                                   as_message_sender(sender_id), from_message_id, 0,
+                                                                   as_limit(limit), nullptr));
     } else if (op == "SM") {
       ChatId chat_id;
       string filter;
@@ -3429,9 +3483,9 @@ class CliClient final : public Actor {
       MessageId offset_message_id;
       int32 offset;
       get_args(args, chat_id, filter, limit, offset_message_id, offset);
-      send_request(td_api::make_object<td_api::searchChatMessages>(chat_id, "", nullptr, offset_message_id, offset,
-                                                                   as_limit(limit), as_search_messages_filter(filter),
-                                                                   0, get_saved_messages_topic_id()));
+      send_request(td_api::make_object<td_api::searchChatMessages>(chat_id, get_message_topic_id(), "", nullptr,
+                                                                   offset_message_id, offset, as_limit(limit),
+                                                                   as_search_messages_filter(filter)));
     } else if (op == "SC") {
       string limit;
       string offset;
@@ -3505,9 +3559,9 @@ class CliClient final : public Actor {
       MessageId offset_message_id;
       SearchQuery query;
       get_args(args, chat_id, offset_message_id, query);
-      send_request(td_api::make_object<td_api::searchChatMessages>(chat_id, query.query, nullptr, offset_message_id, 0,
-                                                                   query.limit, as_search_messages_filter(op), 0,
-                                                                   get_saved_messages_topic_id()));
+      send_request(td_api::make_object<td_api::searchChatMessages>(chat_id, get_message_topic_id(), query.query,
+                                                                   nullptr, offset_message_id, 0, query.limit,
+                                                                   as_search_messages_filter(op)));
     } else if (op == "ssms") {
       string tag;
       MessageId from_message_id;
@@ -3534,15 +3588,15 @@ class CliClient final : public Actor {
       string filter;
       bool return_local;
       get_args(args, chat_id, filter, return_local);
-      send_request(td_api::make_object<td_api::getChatMessageCount>(chat_id, as_search_messages_filter(filter),
-                                                                    get_saved_messages_topic_id(), return_local));
+      send_request(td_api::make_object<td_api::getChatMessageCount>(chat_id, get_message_topic_id(),
+                                                                    as_search_messages_filter(filter), return_local));
     } else if (op == "gcmp") {
       ChatId chat_id;
       MessageId message_id;
       string filter;
       get_args(args, chat_id, message_id, filter);
-      send_request(td_api::make_object<td_api::getChatMessagePosition>(
-          chat_id, message_id, as_search_messages_filter(filter), message_thread_id_, get_saved_messages_topic_id()));
+      send_request(td_api::make_object<td_api::getChatMessagePosition>(chat_id, get_message_topic_id(),
+                                                                       as_search_messages_filter(filter), message_id));
     } else if (op == "gup" || op == "gupp") {
       UserId user_id;
       int32 offset;
@@ -5069,30 +5123,21 @@ class CliClient final : public Actor {
                                                           get_link_preview_options(), false),
             message_effect_id_);
       }
-      send_request(
-          td_api::make_object<td_api::setChatDraftMessage>(chat_id, message_thread_id_, std::move(draft_message)));
+      set_draft_message(chat_id, std::move(draft_message));
     } else if (op == "scdmvn") {
       ChatId chat_id;
       string video;
       get_args(args, chat_id, video);
-      send_request(td_api::make_object<td_api::setChatDraftMessage>(
-          chat_id, message_thread_id_,
-          td_api::make_object<td_api::draftMessage>(
-              nullptr, 0,
-              td_api::make_object<td_api::inputMessageVideoNote>(as_input_file(video), get_input_thumbnail(), 10, 5,
-                                                                 get_message_self_destruct_type()),
-              message_effect_id_)));
+      set_draft_message(
+          chat_id, td_api::make_object<td_api::inputMessageVideoNote>(as_input_file(video), get_input_thumbnail(), 10,
+                                                                      5, get_message_self_destruct_type()));
     } else if (op == "scdmvoice") {
       ChatId chat_id;
       string voice;
       get_args(args, chat_id, voice);
-      send_request(td_api::make_object<td_api::setChatDraftMessage>(
-          chat_id, message_thread_id_,
-          td_api::make_object<td_api::draftMessage>(
-              nullptr, 0,
-              td_api::make_object<td_api::inputMessageVoiceNote>(as_input_file(voice), 0, "abacaba", get_caption(),
-                                                                 get_message_self_destruct_type()),
-              message_effect_id_)));
+      set_draft_message(
+          chat_id, td_api::make_object<td_api::inputMessageVoiceNote>(as_input_file(voice), 0, "abacaba", get_caption(),
+                                                                      get_message_self_destruct_type()));
     } else if (op == "cadm") {
       send_request(td_api::make_object<td_api::clearAllDraftMessages>());
     } else if (op == "tchpc") {
@@ -5431,7 +5476,8 @@ class CliClient final : public Actor {
       string url;
       get_args(args, chat_id, bot_user_id, url);
       send_request(td_api::make_object<td_api::openWebApp>(chat_id, bot_user_id, url, message_thread_id_,
-                                                           get_input_message_reply_to(), as_web_app_open_parameters()));
+                                                           feedback_chat_topic_id_, get_input_message_reply_to(),
+                                                           as_web_app_open_parameters()));
     } else if (op == "cwa") {
       int64 launch_id;
       get_args(args, launch_id);
