@@ -678,14 +678,14 @@ userTypeDeleted = UserType;
 //@can_read_all_group_messages True, if the bot can read all messages in basic group or supergroup chats and not just those addressed to the bot. In private and channel chats a bot can always read all messages
 //@has_main_web_app True, if the bot has the main Web App
 //@has_topics True, if the bot has topics
-//@has_user_manageable_topics True, if users can create and delete topics in the chat with the bot
+//@allows_users_to_create_topics True, if users can create and delete topics in the chat with the bot
 //@is_inline True, if the bot supports inline queries
 //@inline_query_placeholder Placeholder for inline queries (displayed on the application input field)
 //@need_location True, if the location of the user is expected to be sent with every inline query to this bot
 //@can_connect_to_business True, if the bot supports connection to Telegram Business accounts
 //@can_be_added_to_attachment_menu True, if the bot can be added to attachment or side menu
 //@active_user_count The number of recently active users of the bot
-userTypeBot can_be_edited:Bool can_join_groups:Bool can_read_all_group_messages:Bool has_main_web_app:Bool has_topics:Bool has_user_manageable_topics:Bool is_inline:Bool inline_query_placeholder:string need_location:Bool can_connect_to_business:Bool can_be_added_to_attachment_menu:Bool active_user_count:int32 = UserType;
+userTypeBot can_be_edited:Bool can_join_groups:Bool can_read_all_group_messages:Bool has_main_web_app:Bool has_topics:Bool allows_users_to_create_topics:Bool is_inline:Bool inline_query_placeholder:string need_location:Bool can_connect_to_business:Bool can_be_added_to_attachment_menu:Bool active_user_count:int32 = UserType;
 
 //@description No information on the user besides the user identifier is available, yet this user has not been deleted. This object is extremely rare and must be handled like a deleted user. It is not possible to perform any actions on users of this type
 userTypeUnknown = UserType;
@@ -1455,12 +1455,18 @@ upgradeGiftResult gift:upgradedGift received_gift_id:string is_saved:Bool can_be
 
 //@class CraftGiftResult @description Contains result of gift crafting
 
-//@description Craft was successful
+//@description Crafting was successful
 //@gift The created gift
 //@received_gift_id Unique identifier of the received gift for the current user
 craftGiftResultSuccess gift:upgradedGift received_gift_id:string = CraftGiftResult;
 
-//@description Craft has failed
+//@description Crafting isn't possible because one of the gifts can't be used for crafting yet @retry_after Time left before the gift can be used for crafting
+craftGiftResultTooEarly retry_after:int32 = CraftGiftResult;
+
+//@description Crafting isn't possible because one of the gifts isn't suitable for crafting
+craftGiftResultInvalidGift = CraftGiftResult;
+
+//@description Crafting has failed
 craftGiftResultFail = CraftGiftResult;
 
 
@@ -1533,7 +1539,8 @@ giftsForResale total_count:int32 gifts:vector<giftForResale> models:vector<upgra
 //@class GiftResaleResult @description Describes result of sending a resold gift
 
 //@description Operation was successfully completed
-giftResaleResultOk = GiftResaleResult;
+//@received_gift_id Unique identifier of the received gift; only for the gifts sent to the current user
+giftResaleResultOk received_gift_id:string = GiftResaleResult;
 
 //@description Operation has failed, because price has increased. If the price has decreased, then the buying will succeed anyway @price New price for the gift
 giftResaleResultPriceIncreased price:GiftResalePrice = GiftResaleResult;
@@ -1581,13 +1588,18 @@ receivedGift received_gift_id:string sender_id:MessageSender text:formattedText 
 //@next_offset The offset for the next request. If empty, then there are no more results
 receivedGifts total_count:int32 gifts:vector<receivedGift> are_notifications_enabled:Bool next_offset:string = ReceivedGifts;
 
+//@description Describes chance of the crafted gift to have the backdrop or symbol of one of the original gifts
+//@persistence_chance_per_mille The 4 numbers that describe probability of the craft result to have the same attribute as one of the original gifts
+//-if 1, 2, 3, or 4 gifts with the attribute are used in the craft. Each number represents the number of crafted gifts with the original attribute per 1000 successful craftings
+attributeCraftPersistenceProbability persistence_chance_per_mille:vector<int32> = AttributeCraftPersistenceProbability;
+
 //@description Represents a list of gifts received by a user or a chat
 //@total_count The total number of received gifts
 //@gifts The list of gifts
-//@attribute_persistence_per_mille The 4 numbers that describe probability of the crafted gift to have the backdrop or symbol of one of the original gifts
-//-if there are 1, 2, 3, or 4 gifts with the same attribute. Each number represents the number of crafted gifts with the original attribute per 1000 successful craftings
+//@attribute_persistence_probabilities The 4 objects that describe probabilities of the crafted gift to have the backdrop or symbol of one of the original gifts
+//-for the cases when 1, 2, 3 or 4 gifts are used in the craft correspondingly
 //@next_offset The offset for the next request. If empty, then there are no more results
-giftsForCrafting total_count:int32 gifts:vector<receivedGift> attribute_persistence_per_mille:vector<int32> next_offset:string = GiftsForCrafting;
+giftsForCrafting total_count:int32 gifts:vector<receivedGift> attribute_persistence_probabilities:vector<attributeCraftPersistenceProbability> next_offset:string = GiftsForCrafting;
 
 //@description Contains examples of possible upgraded gifts for the given regular gift
 //@models Examples of possible models that can be chosen for the gift after upgrade
@@ -3306,6 +3318,21 @@ chatActionBarSharePhoneNumber = ChatActionBar;
 chatActionBarJoinRequest title:string is_channel:Bool request_date:int32 = ChatActionBar;
 
 
+//@class ButtonStyle @description Describes style of a button
+
+//@description The button has default style
+buttonStyleDefault = ButtonStyle;
+
+//@description The button has dark blue color
+buttonStylePrimary = ButtonStyle;
+
+//@description The button has red color
+buttonStyleDanger = ButtonStyle;
+
+//@description The button has green color
+buttonStyleSuccess = ButtonStyle;
+
+
 //@class KeyboardButtonType @description Describes a keyboard button type
 
 //@description A simple button, with text that must be sent when the button is pressed
@@ -3352,8 +3379,12 @@ keyboardButtonTypeRequestChat id:int32 chat_is_channel:Bool restrict_chat_is_for
 keyboardButtonTypeWebApp url:string = KeyboardButtonType;
 
 
-//@description Represents a single button in a bot keyboard @text Text of the button @type Type of the button
-keyboardButton text:string type:KeyboardButtonType = KeyboardButton;
+//@description Represents a single button in a bot keyboard
+//@text Text of the button
+//@icon_custom_emoji_id Identifier of the custom emoji that must be shown on the button; 0 if none
+//@style Style of the button
+//@type Type of the button
+keyboardButton text:string icon_custom_emoji_id:int64 style:ButtonStyle type:KeyboardButtonType = KeyboardButton;
 
 
 //@class InlineKeyboardButtonType @description Describes the type of inline keyboard button
@@ -3389,8 +3420,12 @@ inlineKeyboardButtonTypeUser user_id:int53 = InlineKeyboardButtonType;
 inlineKeyboardButtonTypeCopyText text:string = InlineKeyboardButtonType;
 
 
-//@description Represents a single button in an inline keyboard @text Text of the button @type Type of the button
-inlineKeyboardButton text:string type:InlineKeyboardButtonType = InlineKeyboardButton;
+//@description Represents a single button in an inline keyboard
+//@text Text of the button
+//@icon_custom_emoji_id Identifier of the custom emoji that must be shown on the button; 0 if none
+//@style Style of the button
+//@type Type of the button
+inlineKeyboardButton text:string icon_custom_emoji_id:int64 style:ButtonStyle type:InlineKeyboardButtonType = InlineKeyboardButton;
 
 
 //@class ReplyMarkup @description Contains a description of a custom keyboard and actions that can be done with it to quickly reply to bots
@@ -4729,12 +4764,13 @@ messageCall is_video:Bool discard_reason:CallDiscardReason duration:int32 = Mess
 //@description A message with information about a group call not bound to a chat. If the message is incoming, the call isn't active, isn't missed, and has no duration,
 //-and getOption("can_accept_calls") is true, then incoming call screen must be shown to the user. Use getGroupCallParticipants to show current group call participants on the screen.
 //-Use joinGroupCall to accept the call or declineGroupCallInvitation to decline it. If the call become active or missed, then the call screen must be hidden
+//@unique_id Persistent unique group call identifier
 //@is_active True, if the call is active, i.e. the called user joined the call
 //@was_missed True, if the called user missed or declined the call
 //@is_video True, if the call is a video call
 //@duration Call duration, in seconds; for left calls only
 //@other_participant_ids Identifiers of some other call participants
-messageGroupCall is_active:Bool was_missed:Bool is_video:Bool duration:int32 other_participant_ids:vector<MessageSender> = MessageContent;
+messageGroupCall unique_id:int64 is_active:Bool was_missed:Bool is_video:Bool duration:int32 other_participant_ids:vector<MessageSender> = MessageContent;
 
 //@description A new video chat was scheduled @group_call_id Identifier of the video chat. The video chat can be received through the method getGroupCall @start_date Point in time (Unix timestamp) when the group call is expected to be started by an administrator
 messageVideoChatScheduled group_call_id:int32 start_date:int32 = MessageContent;
@@ -4762,6 +4798,12 @@ messageChatChangePhoto photo:chatPhoto = MessageContent;
 
 //@description A deleted chat photo
 messageChatDeletePhoto = MessageContent;
+
+//@description The owner of the chat has left @new_owner_user_id Identifier of the user who will become the new owner of the chat if the previous owner isn't return; 0 if none
+messageChatOwnerLeft new_owner_user_id:int53 = MessageContent;
+
+//@description The owner of the chat has changed @new_owner_user_id Identifier of the user who is the new owner of the chat
+messageChatOwnerChanged new_owner_user_id:int53 = MessageContent;
 
 //@description New chat members were added @member_user_ids User identifiers of the new members
 messageChatAddMembers member_user_ids:vector<int53> = MessageContent;
@@ -6266,6 +6308,7 @@ groupCallRecentSpeaker participant_id:MessageSender is_speaking:Bool = GroupCall
 
 //@description Describes a group call
 //@id Group call identifier
+//@unique_id Persistent unique group call identifier
 //@title Group call title; for video chats only
 //@invite_link Invite link for the group call; for group calls that aren't bound to a chat. For video chats call getVideoChatInviteLink to get the link.
 //-For live stories in chats with username call getInternalLink with internalLinkTypeLiveStory
@@ -6297,7 +6340,7 @@ groupCallRecentSpeaker participant_id:MessageSender is_speaking:Bool = GroupCall
 //@record_duration Duration of the ongoing group call recording, in seconds; 0 if none. An updateGroupCall update is not triggered when value of this field changes, but the same recording goes on
 //@is_video_recorded True, if a video file is being recorded for the call
 //@duration Call duration, in seconds; for ended calls only
-groupCall id:int32 title:string invite_link:string paid_message_star_count:int53 scheduled_start_date:int32 enabled_start_notification:Bool is_active:Bool is_video_chat:Bool is_live_story:Bool is_rtmp_stream:Bool is_joined:Bool need_rejoin:Bool is_owned:Bool can_be_managed:Bool participant_count:int32 has_hidden_listeners:Bool loaded_all_participants:Bool message_sender_id:MessageSender recent_speakers:vector<groupCallRecentSpeaker> is_my_video_enabled:Bool is_my_video_paused:Bool can_enable_video:Bool mute_new_participants:Bool can_toggle_mute_new_participants:Bool can_send_messages:Bool are_messages_allowed:Bool can_toggle_are_messages_allowed:Bool can_delete_messages:Bool record_duration:int32 is_video_recorded:Bool duration:int32 = GroupCall;
+groupCall id:int32 unique_id:int64 title:string invite_link:string paid_message_star_count:int53 scheduled_start_date:int32 enabled_start_notification:Bool is_active:Bool is_video_chat:Bool is_live_story:Bool is_rtmp_stream:Bool is_joined:Bool need_rejoin:Bool is_owned:Bool can_be_managed:Bool participant_count:int32 has_hidden_listeners:Bool loaded_all_participants:Bool message_sender_id:MessageSender recent_speakers:vector<groupCallRecentSpeaker> is_my_video_enabled:Bool is_my_video_paused:Bool can_enable_video:Bool mute_new_participants:Bool can_toggle_mute_new_participants:Bool can_send_messages:Bool are_messages_allowed:Bool can_toggle_are_messages_allowed:Bool can_delete_messages:Bool record_duration:int32 is_video_recorded:Bool duration:int32 = GroupCall;
 
 //@description Describes a group of video synchronization source identifiers @semantics The semantics of sources, one of "SIM" or "FID" @source_ids The list of synchronization source identifiers
 groupCallVideoSourceGroup semantics:string source_ids:vector<int32> = GroupCallVideoSourceGroup;
@@ -6425,11 +6468,12 @@ callProblemPixelatedVideo = CallProblem;
 
 //@description Describes a call
 //@id Call identifier, not persistent
+//@unique_id Persistent unique call identifier; 0 if isn't assigned yet by the server
 //@user_id User identifier of the other call participant
 //@is_outgoing True, if the call is outgoing
 //@is_video True, if the call is a video call
 //@state Call state
-call id:int32 user_id:int53 is_outgoing:Bool is_video:Bool state:CallState = Call;
+call id:int32 unique_id:int64 user_id:int53 is_outgoing:Bool is_video:Bool state:CallState = Call;
 
 
 //@class FirebaseAuthenticationSettings @description Contains settings for Firebase Authentication in the official applications
@@ -7663,10 +7707,10 @@ canPostStoryResultBoostNeeded = CanPostStoryResult;
 //@description The limit for the number of active stories exceeded. The user can buy Telegram Premium, delete an active story, or wait for the oldest story to expire
 canPostStoryResultActiveStoryLimitExceeded = CanPostStoryResult;
 
-//@description The weekly limit for the number of posted stories exceeded. The user needs to buy Telegram Premium or wait specified time @retry_after Time left before the user can post the next story
+//@description The weekly limit for the number of posted stories exceeded. The user needs to buy Telegram Premium or wait specified time @retry_after Time left before the user can post the next story, in seconds
 canPostStoryResultWeeklyLimitExceeded retry_after:int32 = CanPostStoryResult;
 
-//@description The monthly limit for the number of posted stories exceeded. The user needs to buy Telegram Premium or wait specified time @retry_after Time left before the user can post the next story
+//@description The monthly limit for the number of posted stories exceeded. The user needs to buy Telegram Premium or wait specified time @retry_after Time left before the user can post the next story, in seconds
 canPostStoryResultMonthlyLimitExceeded retry_after:int32 = CanPostStoryResult;
 
 //@description The user or the chat has an active live story. The live story must be deleted first @story_id Identifier of the active live story
@@ -11900,7 +11944,7 @@ deleteChatReplyMarkup chat_id:int53 message_id:int53 = Ok;
 
 //@description Sends a notification about user activity in a chat
 //@chat_id Chat identifier
-//@topic_id Identifier of the topic in which the action is performed
+//@topic_id Identifier of the topic in which the action is performed; pass null if none
 //@business_connection_id Unique identifier of business connection on behalf of which to send the request; for bots only
 //@action The action description; pass null to cancel the currently active action
 sendChatAction chat_id:int53 topic_id:MessageTopic business_connection_id:string action:ChatAction = Ok;

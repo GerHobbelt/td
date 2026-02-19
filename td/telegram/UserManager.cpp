@@ -5738,7 +5738,9 @@ void UserManager::set_business_profile_photo(BusinessConnectionId business_conne
 
 void UserManager::set_profile_photo(const td_api::object_ptr<td_api::InputChatPhoto> &input_photo, bool is_fallback,
                                     Promise<Unit> &&promise) {
-  dismiss_suggested_action(SuggestedAction{SuggestedAction::Type::UserpicSetup}, Promise<Unit>());
+  if (!td_->auth_manager_->is_bot()) {
+    dismiss_suggested_action(SuggestedAction{SuggestedAction::Type::UserpicSetup}, Promise<Unit>());
+  }
   set_profile_photo_impl(get_my_id(), input_photo, is_fallback, false, std::move(promise));
 }
 
@@ -6140,6 +6142,9 @@ void UserManager::delete_profile_photo(int64 profile_photo_id, bool is_recursive
         });
     reload_user_full(get_my_id(), std::move(reload_promise), "delete_profile_photo");
     return;
+  }
+  if (td_->auth_manager_->is_bot()) {
+    profile_photo_id = user_full->photo.id.get();
   }
   if (user_full->photo.id.get() == profile_photo_id || user_full->fallback_photo.id.get() == profile_photo_id) {
     td_->create_handler<UpdateProfilePhotoQuery>(std::move(promise))

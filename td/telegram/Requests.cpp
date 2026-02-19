@@ -6678,13 +6678,11 @@ void Requests::on_request(uint64 id, td_api::setBusinessStartPage &request) {
 }
 
 void Requests::on_request(uint64 id, const td_api::setProfilePhoto &request) {
-  CHECK_IS_USER();
   CREATE_OK_REQUEST_PROMISE();
   td_->user_manager_->set_profile_photo(request.photo_, request.is_public_, std::move(promise));
 }
 
 void Requests::on_request(uint64 id, const td_api::deleteProfilePhoto &request) {
-  CHECK_IS_USER();
   CREATE_OK_REQUEST_PROMISE();
   td_->user_manager_->delete_profile_photo(request.profile_photo_id_, false, std::move(promise));
 }
@@ -6696,7 +6694,6 @@ void Requests::on_request(uint64 id, const td_api::getUserProfilePhotos &request
 }
 
 void Requests::on_request(uint64 id, const td_api::getUserProfileAudios &request) {
-  CHECK_IS_USER();
   CREATE_REQUEST_PROMISE();
   td_->user_manager_->get_user_saved_music(UserId(request.user_id_), request.offset_, request.limit_,
                                            std::move(promise));
@@ -7092,17 +7089,16 @@ void Requests::on_request(uint64 id, const td_api::changeStickerSet &request) {
 
 void Requests::on_request(uint64 id, const td_api::viewTrendingStickerSets &request) {
   CHECK_IS_USER();
-  td_->stickers_manager_->view_featured_sticker_sets(
-      StickersManager::convert_sticker_set_ids(request.sticker_set_ids_));
+  td_->stickers_manager_->view_featured_sticker_sets(StickerSetId::get_sticker_set_ids(request.sticker_set_ids_));
   send_closure(td_actor_, &Td::send_result, id, td_api::make_object<td_api::ok>());
 }
 
 void Requests::on_request(uint64 id, const td_api::reorderInstalledStickerSets &request) {
   CHECK_IS_USER();
   CREATE_OK_REQUEST_PROMISE();
-  td_->stickers_manager_->reorder_installed_sticker_sets(
-      get_sticker_type(request.sticker_type_), StickersManager::convert_sticker_set_ids(request.sticker_set_ids_),
-      std::move(promise));
+  td_->stickers_manager_->reorder_installed_sticker_sets(get_sticker_type(request.sticker_type_),
+                                                         StickerSetId::get_sticker_set_ids(request.sticker_set_ids_),
+                                                         std::move(promise));
 }
 
 void Requests::on_request(uint64 id, td_api::uploadStickerFile &request) {

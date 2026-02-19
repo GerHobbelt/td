@@ -2418,6 +2418,7 @@ void MessagesManager::Message::store(StorerT &storer) const {
     STORE_FLAG(initial_is_topic_message);
     STORE_FLAG(has_schedule_repeat_period);
     STORE_FLAG(has_summary_from_language);
+    STORE_FLAG(is_quick_reply_message);
     END_STORE_FLAGS();
   }
   // update MessageDb::get_message_info when flags5 is added
@@ -2742,6 +2743,7 @@ void MessagesManager::Message::parse(ParserT &parser) {
     PARSE_FLAG(initial_is_topic_message);
     PARSE_FLAG(has_schedule_repeat_period);
     PARSE_FLAG(has_summary_from_language);
+    PARSE_FLAG(is_quick_reply_message);
     END_PARSE_FLAGS();
   }
 
@@ -20128,7 +20130,7 @@ unique_ptr<MessagesManager::Message> MessagesManager::create_message_to_send(
     Dialog *d, const MessageTopic &message_topic, MessageInputReplyTo &&input_reply_to,
     const MessageSendOptions &options, unique_ptr<MessageContent> &&content, bool invert_media,
     bool suppress_reply_info, unique_ptr<MessageForwardInfo> forward_info, DialogId real_forward_from_dialog_id,
-    bool is_copy, DialogId send_as_dialog_id) {
+    bool is_copy, DialogId send_as_dialog_id, bool is_quick_reply_message) {
   CHECK(d != nullptr);
   CHECK(content != nullptr);
 
@@ -20238,6 +20240,7 @@ unique_ptr<MessagesManager::Message> MessagesManager::create_message_to_send(
   m->is_channel_post = is_channel_post;
   m->is_outgoing = is_scheduled || dialog_id != DialogId(my_id);
   m->from_background = options.from_background;
+  m->is_quick_reply_message = is_quick_reply_message;
   m->update_stickersets_order = options.update_stickersets_order;
   m->noforwards = options.protect_content;
   m->allow_paid = options.allow_paid;
@@ -20315,12 +20318,12 @@ MessagesManager::Message *MessagesManager::get_message_to_send(
     Dialog *d, const MessageTopic &message_topic, MessageInputReplyTo &&input_reply_to,
     const MessageSendOptions &options, unique_ptr<MessageContent> &&content, bool invert_media,
     bool *need_update_dialog_pos, bool suppress_reply_info, unique_ptr<MessageForwardInfo> forward_info,
-    DialogId real_forward_from_dialog_id, bool is_copy, DialogId send_as_dialog_id) {
+    DialogId real_forward_from_dialog_id, bool is_copy, DialogId send_as_dialog_id, bool is_quick_reply_message) {
   d->was_opened = true;
 
-  auto message = create_message_to_send(d, message_topic, std::move(input_reply_to), options, std::move(content),
-                                        invert_media, suppress_reply_info, std::move(forward_info),
-                                        real_forward_from_dialog_id, is_copy, send_as_dialog_id);
+  auto message = create_message_to_send(
+      d, message_topic, std::move(input_reply_to), options, std::move(content), invert_media, suppress_reply_info,
+      std::move(forward_info), real_forward_from_dialog_id, is_copy, send_as_dialog_id, is_quick_reply_message);
   auto message_id = message->message_id;
   message->random_id = generate_new_random_id(d);
 
@@ -20977,7 +20980,7 @@ Result<td_api::object_ptr<td_api::message>> MessagesManager::send_message(
   if (message_send_options.only_preview) {
     message = create_message_to_send(d, message_topic, std::move(input_reply_to), message_send_options,
                                      std::move(content), message_content.invert_media, false, nullptr, DialogId(),
-                                     message_content.via_bot_user_id.is_valid(), DialogId());
+                                     message_content.via_bot_user_id.is_valid(), DialogId(), false);
     m = message.get();
   } else {
     m = get_message_to_send(d, message_topic, std::move(input_reply_to), message_send_options, std::move(content),
@@ -21141,7 +21144,7 @@ Result<td_api::object_ptr<td_api::messages>> MessagesManager::send_message_group
     if (message_send_options.only_preview) {
       message = create_message_to_send(d, message_topic, input_reply_to.clone(), message_send_options,
                                        std::move(message_content.content), message_content.invert_media, i != 0,
-                                       nullptr, DialogId(), false, DialogId());
+                                       nullptr, DialogId(), false, DialogId(), false);
       m = message.get();
     } else {
       m = get_message_to_send(d, message_topic, input_reply_to.clone(), message_send_options,
@@ -22252,7 +22255,7 @@ Result<td_api::object_ptr<td_api::message>> MessagesManager::send_inline_query_r
   if (message_send_options.only_preview) {
     message = create_message_to_send(d, message_topic, std::move(input_reply_to), message_send_options,
                                      std::move(message_content), content->invert_media, false, nullptr, DialogId(),
-                                     true, DialogId());
+                                     true, DialogId(), false);
     m = message.get();
   } else {
     m = get_message_to_send(d, message_topic, std::move(input_reply_to), message_send_options,
@@ -22541,7 +22544,7 @@ bool MessagesManager::can_resend_message(const Message *m) const {
       !begins_with(m->send_error_message, "ALLOW_PAYMENT_REQUIRED_")) {
     return false;
   }
-  if (m->is_bot_start_message) {
+  if (m->is_bot_start_message || m->is_quick_reply_message) {
     return false;
   }
   if (m->forward_info != nullptr || m->real_forward_from_dialog_id.is_valid()) {
@@ -24065,7 +24068,7 @@ Result<td_api::object_ptr<td_api::messages>> MessagesManager::forward_messages(
       message = create_message_to_send(to_dialog, message_topic, std::move(input_reply_to), message_send_options,
                                        std::move(content), forwarded_message_contents[j].invert_media,
                                        j + 1 != forwarded_message_contents.size(), std::move(forward_info),
-                                       from_dialog_id, false, DialogId());
+                                       from_dialog_id, false, DialogId(), false);
       m = message.get();
     } else {
       m = get_message_to_send(to_dialog, message_topic, std::move(input_reply_to), message_send_options,
@@ -24135,7 +24138,7 @@ Result<td_api::object_ptr<td_api::messages>> MessagesManager::forward_messages(
     if (message_send_options.only_preview) {
       message = create_message_to_send(to_dialog, message_topic, std::move(input_reply_to), message_send_options,
                                        std::move(copied_message.content), copied_message.invert_media, false, nullptr,
-                                       DialogId(), is_copy, DialogId());
+                                       DialogId(), is_copy, DialogId(), false);
       m = message.get();
     } else {
       if (need_invalidate_authentication_code) {
@@ -24225,7 +24228,7 @@ Result<td_api::object_ptr<td_api::messages>> MessagesManager::send_quick_reply_s
 
     Message *m = get_message_to_send(d, MessageTopic(), std::move(input_reply_to), message_send_options,
                                      std::move(content.content_), content.invert_media_, &need_update_dialog_pos, false,
-                                     nullptr, DialogId(), true);
+                                     nullptr, DialogId(), true, DialogId(), true);
     m->via_bot_user_id = content.via_bot_user_id_;
     m->reply_markup = std::move(content.reply_markup_);
     m->disable_web_page_preview = content.disable_web_page_preview_;
@@ -26072,7 +26075,7 @@ void MessagesManager::send_update_message_send_succeeded(Dialog *d, MessageId ol
     td_->star_manager_->add_pending_owned_star_count(m->paid_message_star_count, true);
   }
   auto stake_ton_count = get_message_content_stake_ton_count(m->content.get());
-  if (stake_ton_count > 0) {
+  if (stake_ton_count > 0 && !m->is_quick_reply_message) {
     auto prize_ton_count = get_message_content_prize_ton_count(m->content.get());
     td_->star_manager_->add_pending_owned_ton_count(prize_ton_count, false);
     td_->star_manager_->add_pending_owned_ton_count(stake_ton_count - prize_ton_count, true);
@@ -27388,7 +27391,7 @@ void MessagesManager::fail_send_message(MessageFullId message_full_id, int32 err
     td_->star_manager_->add_pending_owned_star_count(message->paid_message_star_count, false);
   }
   auto stake_ton_count = get_message_content_stake_ton_count(message->content.get());
-  if (stake_ton_count > 0) {
+  if (stake_ton_count > 0 && !message->is_quick_reply_message) {
     td_->star_manager_->add_pending_owned_ton_count(stake_ton_count, false);
   }
 
@@ -30626,7 +30629,7 @@ MessagesManager::Message *MessagesManager::add_message_to_dialog(Dialog *d, uniq
         td_->star_manager_->add_pending_owned_star_count(-m->paid_message_star_count, false);
       }
       auto stake_ton_count = get_message_content_stake_ton_count(m->content.get());
-      if (stake_ton_count > 0) {
+      if (stake_ton_count > 0 && !m->is_quick_reply_message) {
         td_->star_manager_->add_pending_owned_ton_count(-stake_ton_count, false);
       }
     }
