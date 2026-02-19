@@ -34,8 +34,7 @@
 namespace td {
 
 struct GroupCallJoinParameters;
-class JsonObject;
-class JsonValue;
+class GroupCallMessage;
 class Td;
 
 class GroupCallManager final : public Actor {
@@ -54,7 +53,7 @@ class GroupCallManager final : public Actor {
   // use get_group_call_is_joined internally instead
   bool is_group_call_joined(InputGroupCallId input_group_call_id) const;
 
-  GroupCallId get_group_call_id(InputGroupCallId input_group_call_id, DialogId dialog_id);
+  GroupCallId get_group_call_id(InputGroupCallId input_group_call_id, DialogId dialog_id, bool is_live_story);
 
   void get_group_call_join_as(DialogId dialog_id, Promise<td_api::object_ptr<td_api::messageSenders>> &&promise);
 
@@ -66,7 +65,7 @@ class GroupCallManager final : public Actor {
   void create_group_call(td_api::object_ptr<td_api::groupCallJoinParameters> &&join_parameters,
                          Promise<td_api::object_ptr<td_api::groupCallInfo>> &&promise);
 
-  void get_video_chat_rtmp_stream_url(DialogId dialog_id, bool revoke,
+  void get_video_chat_rtmp_stream_url(DialogId dialog_id, bool is_story, bool revoke,
                                       Promise<td_api::object_ptr<td_api::rtmpUrl>> &&promise);
 
   void get_group_call(GroupCallId group_call_id, Promise<td_api::object_ptr<td_api::groupCall>> &&promise);
@@ -77,7 +76,7 @@ class GroupCallManager final : public Actor {
                          Promise<td_api::object_ptr<td_api::groupCall>> &&promise);
 
   void get_group_call_streams(GroupCallId group_call_id,
-                              Promise<td_api::object_ptr<td_api::videoChatStreams>> &&promise);
+                              Promise<td_api::object_ptr<td_api::groupCallStreams>> &&promise);
 
   void get_group_call_stream_segment(GroupCallId group_call_id, int64 time_offset, int32 scale, int32 channel_id,
                                      td_api::object_ptr<td_api::GroupCallVideoQuality> quality,
@@ -177,7 +176,8 @@ class GroupCallManager final : public Actor {
   void on_update_group_call_chain_blocks(InputGroupCallId input_group_call_id, int32 sub_chain_id,
                                          vector<string> &&blocks, int32 next_offset);
 
-  void on_update_group_call(tl_object_ptr<telegram_api::GroupCall> group_call_ptr, DialogId dialog_id);
+  void on_update_group_call(telegram_api::object_ptr<telegram_api::GroupCall> group_call_ptr, DialogId dialog_id,
+                            bool is_live_story);
 
   void on_user_speaking_in_group_call(GroupCallId group_call_id, DialogId dialog_id, bool is_muted_by_admin, int32 date,
                                       bool is_recursive = false);
@@ -190,8 +190,8 @@ class GroupCallManager final : public Actor {
                                          vector<tl_object_ptr<telegram_api::groupCallParticipant>> &&participants,
                                          int32 version, bool is_recursive = false);
 
-  void on_new_group_call_message(InputGroupCallId input_group_call_id, DialogId sender_dialog_id, int64 random_id,
-                                 telegram_api::object_ptr<telegram_api::textWithEntities> &&message);
+  void on_new_group_call_message(InputGroupCallId input_group_call_id,
+                                 telegram_api::object_ptr<telegram_api::groupCallMessage> &&message);
 
   void on_new_encrypted_group_call_message(InputGroupCallId input_group_call_id, DialogId sender_dialog_id,
                                            string &&encrypted_message);
@@ -255,14 +255,14 @@ class GroupCallManager final : public Actor {
 
   GroupCallId get_next_group_call_id(InputGroupCallId input_group_call_id);
 
-  GroupCall *add_group_call(InputGroupCallId input_group_call_id, DialogId dialog_id);
+  GroupCall *add_group_call(InputGroupCallId input_group_call_id, DialogId dialog_id, bool is_live_story);
 
   const GroupCall *get_group_call(InputGroupCallId input_group_call_id) const;
   GroupCall *get_group_call(InputGroupCallId input_group_call_id);
 
   Status can_join_group_calls(DialogId dialog_id) const;
 
-  Status can_manage_group_calls(DialogId dialog_id) const;
+  Status can_manage_group_calls(DialogId dialog_id, bool allow_live_story) const;
 
   bool can_manage_group_call(InputGroupCallId input_group_call_id, bool allow_owned) const;
 
@@ -278,8 +278,8 @@ class GroupCallManager final : public Actor {
                              Result<tl_object_ptr<telegram_api::phone_groupCall>> &&result);
 
   void finish_get_group_call_streams(InputGroupCallId input_group_call_id, int32 audio_source,
-                                     Result<td_api::object_ptr<td_api::videoChatStreams>> &&result,
-                                     Promise<td_api::object_ptr<td_api::videoChatStreams>> &&promise);
+                                     Result<td_api::object_ptr<td_api::groupCallStreams>> &&result,
+                                     Promise<td_api::object_ptr<td_api::groupCallStreams>> &&promise);
 
   void finish_get_group_call_stream_segment(InputGroupCallId input_group_call_id, int32 audio_source,
                                             Result<string> &&result, Promise<string> &&promise);
@@ -468,7 +468,8 @@ class GroupCallManager final : public Actor {
 
   void on_group_call_left_impl(GroupCall *group_call, bool need_rejoin, const char *source);
 
-  InputGroupCallId update_group_call(const tl_object_ptr<telegram_api::GroupCall> &group_call_ptr, DialogId dialog_id);
+  InputGroupCallId update_group_call(const telegram_api::object_ptr<telegram_api::GroupCall> &group_call_ptr,
+                                     DialogId dialog_id, bool is_live_story);
 
   void on_receive_group_call_version(InputGroupCallId input_group_call_id, int32 version, bool immediate_sync = false);
 
@@ -489,6 +490,8 @@ class GroupCallManager final : public Actor {
 
   bool set_group_call_unmuted_video_count(GroupCall *group_call, int32 count, const char *source);
 
+  void add_group_call_message(GroupCall *group_call, GroupCallMessage &&group_call_message);
+
   void update_group_call_dialog(const GroupCall *group_call, const char *source, bool force);
 
   void on_call_state_updated(GroupCall *group_call, const char *source);
@@ -504,12 +507,6 @@ class GroupCallManager final : public Actor {
   void poll_group_call_blocks(GroupCall *group_call, int32 sub_chain_id);
 
   void on_poll_group_call_blocks(InputGroupCallId input_group_call_id, int32 sub_chain_id);
-
-  Result<MessageEntity> parse_message_entity(JsonValue &value);
-
-  Result<FormattedText> parse_text_with_entities(JsonObject &object);
-
-  Result<FormattedText> parse_group_call_message(JsonObject &object);
 
   vector<td_api::object_ptr<td_api::groupCallRecentSpeaker>> get_recent_speakers(const GroupCall *group_call,
                                                                                  bool for_update);

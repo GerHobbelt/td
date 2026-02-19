@@ -6,6 +6,7 @@
 //
 #include "td/telegram/UserManager.h"
 
+#include "td/telegram/ActiveStoryState.h"
 #include "td/telegram/AnimationsManager.h"
 #include "td/telegram/AudiosManager.h"
 #include "td/telegram/AuthManager.h"
@@ -1842,6 +1843,7 @@ void UserManager::User::store(StorerT &storer) const {
     STORE_FLAG(has_paid_message_star_count);
     STORE_FLAG(has_peer_color_collectible);
     STORE_FLAG(has_bot_forum_view);
+    STORE_FLAG(has_live_story);
     END_STORE_FLAGS();
   }
   store(first_name, storer);
@@ -1991,6 +1993,7 @@ void UserManager::User::parse(ParserT &parser) {
     PARSE_FLAG(has_paid_message_star_count);
     PARSE_FLAG(has_peer_color_collectible);
     PARSE_FLAG(has_bot_forum_view);
+    PARSE_FLAG(has_live_story);
     END_PARSE_FLAGS();
   }
   parse(first_name, parser);
@@ -3107,7 +3110,7 @@ void UserManager::on_get_user(telegram_api::object_ptr<telegram_api::User> &&use
   bool need_location_bot = user->bot_inline_geo_;
   bool need_apply_min_photo = user->apply_min_photo_;
   bool is_fake = user->fake_;
-  bool stories_available = user->stories_max_id_ > 0;
+  bool stories_available = user->stories_max_id_ != nullptr && user->stories_max_id_->max_id_ > 0;
   bool stories_unavailable = user->stories_unavailable_;
   bool stories_hidden = user->stories_hidden_;
   bool contact_require_premium = user->contact_require_premium_;
@@ -3290,7 +3293,7 @@ void UserManager::on_get_user(telegram_api::object_ptr<telegram_api::User> &&use
     }
     if (stories_available || stories_unavailable) {
       // update at the end, because it calls need_poll_user_active_stories
-      on_update_user_story_ids_impl(u, user_id, StoryId(user->stories_max_id_), StoryId());
+      on_update_user_story_ids_impl(u, user_id, std::move(user->stories_max_id_), StoryId());
     }
     auto restriction_reasons = get_restriction_reasons(std::move(user->restriction_reason_));
     if (restriction_reasons != u->restriction_reasons) {
@@ -3649,7 +3652,9 @@ void UserManager::on_update_user_emoji_status(User *u, UserId user_id, unique_pt
   }
 }
 
-void UserManager::on_update_user_story_ids(UserId user_id, StoryId max_active_story_id, StoryId max_read_story_id) {
+void UserManager::on_update_user_story_ids(UserId user_id,
+                                           telegram_api::object_ptr<telegram_api::recentStory> &&recent_story,
+                                           StoryId max_read_story_id) {
   if (!user_id.is_valid()) {
     LOG(ERROR) << "Receive invalid " << user_id;
     return;
@@ -3657,17 +3662,24 @@ void UserManager::on_update_user_story_ids(UserId user_id, StoryId max_active_st
 
   User *u = get_user_force(user_id, "on_update_user_story_ids");
   if (u != nullptr) {
-    on_update_user_story_ids_impl(u, user_id, max_active_story_id, max_read_story_id);
+    on_update_user_story_ids_impl(u, user_id, std::move(recent_story), max_read_story_id);
     update_user(u, user_id);
   } else {
     LOG(INFO) << "Ignore update user story identifiers about unknown " << user_id;
   }
 }
 
-void UserManager::on_update_user_story_ids_impl(User *u, UserId user_id, StoryId max_active_story_id,
+void UserManager::on_update_user_story_ids_impl(User *u, UserId user_id,
+                                                telegram_api::object_ptr<telegram_api::recentStory> &&recent_story,
                                                 StoryId max_read_story_id) {
   if (td_->auth_manager_->is_bot()) {
     return;
+  }
+  StoryId max_active_story_id;
+  bool has_live_story = false;
+  if (recent_story != nullptr) {
+    max_active_story_id = StoryId(recent_story->max_id_);
+    has_live_story = recent_story->live_;
   }
   if (max_active_story_id != StoryId() && !max_active_story_id.is_server()) {
     LOG(ERROR) << "Receive max active " << max_active_story_id << " for " << user_id;
@@ -3677,8 +3689,17 @@ void UserManager::on_update_user_story_ids_impl(User *u, UserId user_id, StoryId
     LOG(ERROR) << "Receive max read " << max_read_story_id << " for " << user_id;
     return;
   }
+  if (has_live_story && max_active_story_id == StoryId()) {
+    LOG(ERROR) << "Receive live story without identifier for " << user_id;
+    return;
+  }
 
-  auto has_unread_stories = get_user_has_unread_stories(u);
+  auto active_story_state = get_user_active_story_state(u);
+  if (u->has_live_story != has_live_story) {
+    LOG(DEBUG) << "Change has_live_story of " << user_id << " to " << has_live_story;
+    u->has_live_story = has_live_story;
+    u->need_save_to_database = true;
+  }
   if (u->max_active_story_id != max_active_story_id) {
     LOG(DEBUG) << "Change last active story of " << user_id << " from " << u->max_active_story_id << " to "
                << max_active_story_id;
@@ -3707,8 +3728,8 @@ void UserManager::on_update_user_story_ids_impl(User *u, UserId user_id, StoryId
     u->max_read_story_id = max_read_story_id;
     u->need_save_to_database = true;
   }
-  if (has_unread_stories != get_user_has_unread_stories(u)) {
-    LOG(DEBUG) << "Change has_unread_stories of " << user_id << " to " << !has_unread_stories;
+  if (active_story_state != get_user_active_story_state(u)) {
+    LOG(DEBUG) << "Change active_story_state of " << user_id;
     u->is_changed = true;
   }
 }
@@ -3728,15 +3749,15 @@ void UserManager::on_update_user_max_read_story_id(User *u, UserId user_id, Stor
     return;
   }
 
-  auto has_unread_stories = get_user_has_unread_stories(u);
+  auto active_story_state = get_user_active_story_state(u);
   if (max_read_story_id.get() > u->max_read_story_id.get()) {
     LOG(DEBUG) << "Change last read story of " << user_id << " from " << u->max_read_story_id << " to "
                << max_read_story_id;
     u->max_read_story_id = max_read_story_id;
     u->need_save_to_database = true;
   }
-  if (has_unread_stories != get_user_has_unread_stories(u)) {
-    LOG(DEBUG) << "Change has_unread_stories of " << user_id << " to " << !has_unread_stories;
+  if (active_story_state != get_user_active_story_state(u)) {
+    LOG(DEBUG) << "Change active_story_state of " << user_id;
     u->is_changed = true;
   }
 }
@@ -4879,7 +4900,7 @@ UserManager::User *UserManager::get_user_force(UserId user_id, const char *sourc
         false, need_apply_min_photo, false, false, false, false, 0, false, false, false, false, false, false, false,
         false, user_id.get(), 1, first_name, string(), username, phone_number, std::move(profile_photo), nullptr,
         bot_info_version, Auto(), string(), string(), nullptr,
-        vector<telegram_api::object_ptr<telegram_api::username>>(), 0, nullptr, nullptr, 0, 0, 0);
+        vector<telegram_api::object_ptr<telegram_api::username>>(), nullptr, nullptr, nullptr, 0, 0, 0);
     on_get_user(std::move(user), "get_user_force");
     u = get_user(user_id);
     CHECK(u != nullptr && u->is_received);
@@ -5013,13 +5034,13 @@ telegram_api::object_ptr<telegram_api::InputUser> UserManager::get_input_user_fo
 }
 
 bool UserManager::have_input_peer_user(UserId user_id, AccessRights access_rights) const {
-  if (user_id == get_my_id()) {
-    return true;
-  }
   return have_input_peer_user(get_user(user_id), user_id, access_rights);
 }
 
 bool UserManager::have_input_peer_user(const User *u, UserId user_id, AccessRights access_rights) const {
+  if (user_id == get_my_id()) {
+    return true;
+  }
   if (u == nullptr || u->access_hash == -1 || u->is_min_access_hash) {
     if (u == nullptr) {
       LOG(DEBUG) << "Have no user";
@@ -5164,7 +5185,7 @@ Result<UserManager::BotData> UserManager::get_bot_data(UserId user_id) const {
   }
 
   BotData bot_data;
-  bot_data.username = u->usernames.get_first_username();
+  bot_data.username = u->usernames.get_first_username().str();
   bot_data.can_be_edited = u->can_be_edited_bot;
   bot_data.can_join_groups = u->can_join_groups;
   bot_data.can_read_all_group_messages = u->can_read_all_group_messages;
@@ -5353,7 +5374,8 @@ string UserManager::get_secret_chat_title(SecretChatId secret_chat_id) const {
 
 RestrictedRights UserManager::get_user_default_permissions(UserId user_id) const {
   auto u = get_user(user_id);
-  if (u == nullptr || user_id == get_replies_bot_user_id() || user_id == get_verification_codes_bot_user_id()) {
+  if ((u == nullptr && user_id != get_my_id()) || user_id == get_replies_bot_user_id() ||
+      user_id == get_verification_codes_bot_user_id()) {
     return RestrictedRights(false, false, false, false, false, false, false, false, false, false, false, false, false,
                             false, false, u != nullptr, false, ChannelType::Unknown);
   }
@@ -5483,14 +5505,14 @@ void UserManager::for_each_secret_chat_with_user(UserId user_id, const std::func
   }
 }
 
-string UserManager::get_user_first_username(UserId user_id) const {
+Slice UserManager::get_user_first_username(UserId user_id) const {
   if (!user_id.is_valid()) {
-    return string();
+    return Slice();
   }
 
   auto u = get_user(user_id);
   if (u == nullptr) {
-    return string();
+    return Slice();
   }
   return u->usernames.get_first_username();
 }
@@ -6980,7 +7002,7 @@ void UserManager::get_user_saved_music(UserId user_id, int32 offset, int32 limit
     return promise.set_error(400, "User not found");
   }
 
-  auto user_saved_music = add_user_saved_music(user_id);
+  const auto *user_saved_music = add_user_saved_music(user_id);
   if (user_saved_music->count != -1) {  // know saved music count
     CHECK(user_saved_music->offset != -1);
     LOG(INFO) << "Have " << user_saved_music->count << " cached saved music files at offset "
@@ -7012,18 +7034,20 @@ void UserManager::get_user_saved_music(UserId user_id, int32 offset, int32 limit
   pending_request.offset = offset;
   pending_request.limit = limit;
   pending_request.promise = std::move(promise);
-  user_saved_music->pending_requests.push_back(std::move(pending_request));
-  if (user_saved_music->pending_requests.size() != 1u) {
+  auto &requests = pending_get_user_saved_music_requests_[user_id];
+  requests.push_back(std::move(pending_request));
+  if (requests.size() != 1u) {
     return;
   }
 
-  send_get_user_saved_music_query(user_id, user_saved_music);
+  send_get_user_saved_music_query(user_id, user_saved_music, requests);
 }
 
-void UserManager::send_get_user_saved_music_query(UserId user_id, const UserSavedMusic *user_saved_music) {
-  CHECK(!user_saved_music->pending_requests.empty());
-  auto offset = user_saved_music->pending_requests[0].offset;
-  auto limit = user_saved_music->pending_requests[0].limit;
+void UserManager::send_get_user_saved_music_query(UserId user_id, const UserSavedMusic *user_saved_music,
+                                                  const vector<PendingGetSavedMusicRequest> &requests) {
+  CHECK(!requests.empty());
+  auto offset = requests[0].offset;
+  auto limit = requests[0].limit;
 
   if (user_saved_music->count != -1 && offset >= user_saved_music->offset) {
     int32 cache_end = user_saved_music->offset + narrow_cast<int32>(user_saved_music->saved_music_file_ids.size());
@@ -7044,15 +7068,16 @@ void UserManager::send_get_user_saved_music_query(UserId user_id, const UserSave
 
 void UserManager::finish_get_user_saved_music(UserId user_id, Result<Unit> &&result) {
   G()->ignore_result_if_closing(result);
-  auto user_saved_music = add_user_saved_music(user_id);
-  auto pending_requests = std::move(user_saved_music->pending_requests);
+  auto pending_requests = std::move(pending_get_user_saved_music_requests_[user_id]);
   CHECK(!pending_requests.empty());
+  pending_get_user_saved_music_requests_.erase(user_id);
   if (result.is_error()) {
     for (auto &request : pending_requests) {
       request.promise.set_error(result.error().clone());
     }
     return;
   }
+  const auto *user_saved_music = add_user_saved_music(user_id);
   if (user_saved_music->count == -1) {
     CHECK(have_min_user(user_id));
     // received result has just been dropped; resend request
@@ -7063,8 +7088,9 @@ void UserManager::finish_get_user_saved_music(UserId user_id, Result<Unit> &&res
         return;
       }
     }
-    user_saved_music->pending_requests = std::move(pending_requests);
-    return send_get_user_saved_music_query(user_id, user_saved_music);
+    auto &requests = pending_get_user_saved_music_requests_[user_id];
+    requests = std::move(pending_requests);
+    return send_get_user_saved_music_query(user_id, user_saved_music, requests);
   }
 
   CHECK(user_saved_music->offset != -1);
@@ -7105,10 +7131,11 @@ void UserManager::finish_get_user_saved_music(UserId user_id, Result<Unit> &&res
   }
 
   if (!left_requests.empty()) {
-    bool need_send = user_saved_music->pending_requests.empty();
-    append(user_saved_music->pending_requests, std::move(left_requests));
+    auto &requests = pending_get_user_saved_music_requests_[user_id];
+    bool need_send = requests.empty();
+    append(requests, std::move(left_requests));
     if (need_send) {
-      send_get_user_saved_music_query(user_id, user_saved_music);
+      send_get_user_saved_music_query(user_id, user_saved_music, requests);
     }
   }
 }
@@ -7141,7 +7168,7 @@ void UserManager::on_get_user_saved_music(UserId user_id, int32 offset, int32 li
             << " with offset " << offset << " and limit " << limit;
   UserSavedMusic *user_saved_music = add_user_saved_music(user_id);
   user_saved_music->count = total_count;
-  CHECK(!user_saved_music->pending_requests.empty());
+  CHECK(pending_get_user_saved_music_requests_.count(user_id));
 
   if (user_saved_music->offset == -1) {
     user_saved_music->offset = 0;
@@ -9749,9 +9776,9 @@ td_api::object_ptr<td_api::UserStatus> UserManager::get_user_status_object(UserI
   }
 }
 
-bool UserManager::get_user_has_unread_stories(const User *u) {
+ActiveStoryState UserManager::get_user_active_story_state(const User *u) {
   CHECK(u != nullptr);
-  return u->max_active_story_id.get() > u->max_read_story_id.get();
+  return ActiveStoryState(u->max_active_story_id, u->max_read_story_id, u->has_live_story);
 }
 
 td_api::object_ptr<td_api::updateUser> UserManager::get_update_user_object(UserId user_id, const User *u) const {
@@ -9766,7 +9793,7 @@ td_api::object_ptr<td_api::updateUser> UserManager::get_update_unknown_user_obje
   return td_api::make_object<td_api::updateUser>(td_api::make_object<td_api::user>(
       user_id.get(), "", "", nullptr, "", td_api::make_object<td_api::userStatusEmpty>(), nullptr,
       td_->theme_manager_->get_accent_color_id_object(AccentColorId(user_id)), 0, nullptr, -1, 0, nullptr, false, false,
-      false, nullptr, false, false, nullptr, false, false, false, 0, have_access,
+      false, nullptr, false, false, nullptr, nullptr, false, 0, have_access,
       td_api::make_object<td_api::userTypeUnknown>(), "", false));
 }
 
@@ -9812,7 +9839,7 @@ td_api::object_ptr<td_api::user> UserManager::get_user_object(UserId user_id, co
   auto emoji_status = EmojiStatus::get_emoji_status_object(u->last_sent_emoji_status);
   auto verification_status =
       get_verification_status_object(td_, u->is_verified, u->is_scam, u->is_fake, u->bot_verification_icon);
-  auto have_access = user_id == get_my_id() || have_input_peer_user(u, user_id, AccessRights::Know);
+  auto have_access = have_input_peer_user(u, user_id, AccessRights::Know);
   auto restricts_new_chats = u->contact_require_premium && !u->is_mutual_contact;
   return td_api::make_object<td_api::user>(
       user_id.get(), u->first_name, u->last_name, u->usernames.get_usernames_object(), u->phone_number,
@@ -9824,9 +9851,9 @@ td_api::object_ptr<td_api::user> UserManager::get_user_object(UserId user_id, co
       td_->theme_manager_->get_profile_accent_color_id_object(u->profile_accent_color_id),
       u->profile_background_custom_emoji_id.get(), std::move(emoji_status), is_user_contact(u, user_id, false),
       is_user_contact(u, user_id, true), u->is_close_friend, std::move(verification_status), u->is_premium,
-      u->is_support, get_restriction_info_object(u->restriction_reasons), u->max_active_story_id.is_valid(),
-      get_user_has_unread_stories(u), restricts_new_chats, u->paid_message_star_count, have_access, std::move(type),
-      u->language_code, u->attach_menu_enabled);
+      u->is_support, get_restriction_info_object(u->restriction_reasons),
+      get_user_active_story_state(u).get_active_story_state_object(), restricts_new_chats, u->paid_message_star_count,
+      have_access, std::move(type), u->language_code, u->attach_menu_enabled);
 }
 
 vector<int64> UserManager::get_user_ids_object(const vector<UserId> &user_ids, const char *source) const {
@@ -9885,7 +9912,7 @@ td_api::object_ptr<td_api::userFullInfo> UserManager::get_user_full_info_object(
           nullptr, nullptr, nullptr);
     }
     if (u != nullptr && u->can_be_edited_bot && u->usernames.has_editable_username()) {
-      auto bot_username = u->usernames.get_editable_username();
+      auto bot_username = u->usernames.get_editable_username().str();
       bot_info->edit_commands_link_ = td_api::make_object<td_api::internalLinkTypeBotStart>(
           "botfather", PSTRING() << bot_username << "-commands", true);
       bot_info->edit_description_link_ = td_api::make_object<td_api::internalLinkTypeBotStart>(
@@ -9911,7 +9938,7 @@ td_api::object_ptr<td_api::userFullInfo> UserManager::get_user_full_info_object(
         return false;
       });
     }
-    bio_object = get_formatted_text_object(this, bio, true, 0);
+    bio_object = get_formatted_text_object(this, bio, true, -1);
   }
   auto voice_messages_forbidden = is_premium ? user_full->voice_messages_forbidden : false;
   auto block_list_id = BlockListId(user_full->is_blocked, user_full->is_blocked_for_stories);
@@ -9929,8 +9956,14 @@ td_api::object_ptr<td_api::userFullInfo> UserManager::get_user_full_info_object(
   auto user_rating = user_full->star_rating == nullptr ? nullptr : user_full->star_rating->get_user_rating_object();
   auto pending_user_rating =
       user_full->pending_star_rating == nullptr ? nullptr : user_full->pending_star_rating->get_user_rating_object();
-  auto note = is_contact && !user_full->note.text.empty() ? get_formatted_text_object(this, user_full->note, true, -1)
-                                                          : nullptr;
+  td_api::object_ptr<td_api::formattedText> note;
+  if (is_contact && !user_full->note.text.empty()) {
+    auto user_note = user_full->note;
+    if (fix_formatted_text(user_note.text, user_note.entities, false, false, true, true, false).is_ok()) {
+      note = get_formatted_text_object(this, user_note, true, -1);
+    }
+  }
+
   return td_api::make_object<td_api::userFullInfo>(
       get_chat_photo_object(td_->file_manager_.get(), user_full->personal_photo),
       get_chat_photo_object(td_->file_manager_.get(), user_full->photo),

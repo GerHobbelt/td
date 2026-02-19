@@ -695,6 +695,8 @@ class Requests {
 
   void on_request(uint64 id, td_api::postStory &request);
 
+  void on_request(uint64 id, td_api::startLiveStreamStory &request);
+
   void on_request(uint64 id, td_api::editStory &request);
 
   void on_request(uint64 id, const td_api::editStoryCover &request);
@@ -785,17 +787,17 @@ class Requests {
 
   void on_request(uint64 id, td_api::sendCallLog &request);
 
-  void on_request(uint64 id, const td_api::getVideoChatAvailableParticipants &request);
+  void on_request(uint64 id, const td_api::getGroupCallAvailableParticipants &request);
 
-  void on_request(uint64 id, const td_api::setVideoChatDefaultParticipant &request);
+  void on_request(uint64 id, const td_api::setGroupCallDefaultParticipant &request);
 
   void on_request(uint64 id, td_api::createVideoChat &request);
 
   void on_request(uint64 id, td_api::createGroupCall &request);
 
-  void on_request(uint64 id, const td_api::getVideoChatRtmpUrl &request);
+  void on_request(uint64 id, const td_api::getGroupCallRtmpUrl &request);
 
-  void on_request(uint64 id, const td_api::replaceVideoChatRtmpUrl &request);
+  void on_request(uint64 id, const td_api::replaceGroupCallRtmpUrl &request);
 
   void on_request(uint64 id, const td_api::getGroupCall &request);
 
@@ -857,9 +859,9 @@ class Requests {
 
   void on_request(uint64 id, const td_api::endGroupCall &request);
 
-  void on_request(uint64 id, const td_api::getVideoChatStreams &request);
+  void on_request(uint64 id, const td_api::getGroupCallStreams &request);
 
-  void on_request(uint64 id, td_api::getVideoChatStreamSegment &request);
+  void on_request(uint64 id, td_api::getGroupCallStreamSegment &request);
 
   void on_request(uint64 id, td_api::encryptGroupCallData &request);
 

@@ -342,6 +342,7 @@ set(TD_MTPROTO_SOURCE
 
 set(TDLIB_SOURCE_PART1
   td/telegram/AccountManager.cpp
+  td/telegram/ActiveStoryState.cpp
   td/telegram/AffiliateType.cpp
   td/telegram/AgeVerificationParameters.cpp
   td/telegram/AlarmManager.cpp
@@ -466,6 +467,7 @@ set(TDLIB_SOURCE_PART1
   td/telegram/GlobalPrivacySettings.cpp
   td/telegram/GroupCallJoinParameters.cpp
   td/telegram/GroupCallManager.cpp
+  td/telegram/GroupCallMessage.cpp
   td/telegram/GroupCallParticipant.cpp
   td/telegram/GroupCallParticipantOrder.cpp
   td/telegram/GroupCallVideoPayload.cpp
@@ -678,6 +680,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/AccentColorId.h
   td/telegram/AccessRights.h
   td/telegram/AccountManager.h
+  td/telegram/ActiveStoryState.h
   td/telegram/AffectedHistory.h
   td/telegram/AffiliateType.h
   td/telegram/AgeVerificationParameters.h
@@ -831,6 +834,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/GroupCallJoinParameters.h
   td/telegram/GroupCallId.h
   td/telegram/GroupCallManager.h
+  td/telegram/GroupCallMessage.h
   td/telegram/GroupCallParticipant.h
   td/telegram/GroupCallParticipantOrder.h
   td/telegram/GroupCallVideoPayload.h
