@@ -13,6 +13,8 @@
 #include "td/telegram/AudiosManager.hpp"
 #include "td/telegram/AuthManager.h"
 #include "td/telegram/BackgroundInfo.hpp"
+#include "td/telegram/Birthdate.h"
+#include "td/telegram/Birthdate.hpp"
 #include "td/telegram/CallDiscardReason.h"
 #include "td/telegram/ChannelId.h"
 #include "td/telegram/ChannelType.h"
@@ -1327,12 +1329,14 @@ class MessageStarGiftUnique final : public MessageContent {
   int64 saved_id = 0;
   StarGiftResalePrice resale_price;
   int64 transfer_star_count = 0;
+  int64 drop_original_details_star_count = 0;
   int32 can_transfer_at = 0;
   int32 can_resell_at = 0;
   int32 can_export_at = 0;
   bool is_saved = false;
   bool is_upgrade = false;
   bool is_prepaid_upgrade = false;
+  bool is_assigned = false;
   bool can_transfer = false;
   bool was_transferred = false;
   bool was_refunded = false;
@@ -1340,9 +1344,10 @@ class MessageStarGiftUnique final : public MessageContent {
   MessageStarGiftUnique() = default;
   MessageStarGiftUnique(MessageId gift_message_id, StarGift &&star_gift, DialogId sender_dialog_id,
                         DialogId owner_dialog_id, int64 saved_id, StarGiftResalePrice resale_price,
-                        int64 transfer_star_count, int32 can_transfer_at, int32 can_resell_at, int32 can_export_at,
-                        bool is_saved, bool is_upgrade, bool is_prepaid_upgrade, bool can_transfer,
-                        bool was_transferred, bool was_refunded)
+                        int64 transfer_star_count, int64 drop_original_details_star_count, int32 can_transfer_at,
+                        int32 can_resell_at, int32 can_export_at, bool is_saved, bool is_upgrade,
+                        bool is_prepaid_upgrade, bool is_assigned, bool can_transfer, bool was_transferred,
+                        bool was_refunded)
       : gift_message_id(gift_message_id)
       , star_gift(std::move(star_gift))
       , sender_dialog_id(sender_dialog_id)
@@ -1350,12 +1355,14 @@ class MessageStarGiftUnique final : public MessageContent {
       , saved_id(saved_id)
       , resale_price(resale_price)
       , transfer_star_count(transfer_star_count)
+      , drop_original_details_star_count(drop_original_details_star_count)
       , can_transfer_at(can_transfer_at)
       , can_resell_at(can_resell_at)
       , can_export_at(can_export_at)
       , is_saved(is_saved)
       , is_upgrade(is_upgrade)
       , is_prepaid_upgrade(is_prepaid_upgrade)
+      , is_assigned(is_assigned)
       , can_transfer(can_transfer)
       , was_transferred(was_transferred)
       , was_refunded(was_refunded) {
@@ -1545,6 +1552,19 @@ class MessageSuggestedPostApproval final : public MessageContent {
 
   MessageContentType get_type() const final {
     return MessageContentType::SuggestedPostApproval;
+  }
+};
+
+class MessageSuggestBirthday final : public MessageContent {
+ public:
+  Birthdate birthdate;
+
+  MessageSuggestBirthday() = default;
+  explicit MessageSuggestBirthday(Birthdate birthdate) : birthdate(std::move(birthdate)) {
+  }
+
+  MessageContentType get_type() const final {
+    return MessageContentType::SuggestBirthday;
   }
 };
 
@@ -2321,6 +2341,7 @@ static void store(const MessageContent *content, StorerT &storer) {
       bool has_can_resell_at = m->can_resell_at != 0;
       bool has_gift_message_id = m->gift_message_id.is_valid();
       bool has_resale_price = !m->resale_price.is_empty();
+      bool has_drop_original_details_star_count = m->drop_original_details_star_count != 0;
       BEGIN_STORE_FLAGS();
       STORE_FLAG(has_transfer_star_count);
       STORE_FLAG(has_can_export_at);
@@ -2338,6 +2359,8 @@ static void store(const MessageContent *content, StorerT &storer) {
       STORE_FLAG(has_gift_message_id);
       STORE_FLAG(has_resale_price);
       STORE_FLAG(m->is_prepaid_upgrade);
+      STORE_FLAG(has_drop_original_details_star_count);
+      STORE_FLAG(m->is_assigned);
       END_STORE_FLAGS();
       store(m->star_gift, storer);
       if (has_transfer_star_count) {
@@ -2366,6 +2389,9 @@ static void store(const MessageContent *content, StorerT &storer) {
       }
       if (has_resale_price) {
         store(m->resale_price, storer);
+      }
+      if (has_drop_original_details_star_count) {
+        store(m->drop_original_details_star_count, storer);
       }
       break;
     }
@@ -2519,6 +2545,13 @@ static void store(const MessageContent *content, StorerT &storer) {
       if (has_send_date) {
         store(m->send_date, storer);
       }
+      break;
+    }
+    case MessageContentType::SuggestBirthday: {
+      const auto *m = static_cast<const MessageSuggestBirthday *>(content);
+      BEGIN_STORE_FLAGS();
+      END_STORE_FLAGS();
+      store(m->birthdate, storer);
       break;
     }
     default:
@@ -3524,6 +3557,7 @@ static void parse(unique_ptr<MessageContent> &content, ParserT &parser) {
       bool has_resale_star_count;
       bool has_gift_message_id;
       bool has_resale_price;
+      bool has_drop_original_details_star_count;
       BEGIN_PARSE_FLAGS();
       PARSE_FLAG(has_transfer_star_count);
       PARSE_FLAG(has_can_export_at);
@@ -3541,6 +3575,8 @@ static void parse(unique_ptr<MessageContent> &content, ParserT &parser) {
       PARSE_FLAG(has_gift_message_id);
       PARSE_FLAG(has_resale_price);
       PARSE_FLAG(m->is_prepaid_upgrade);
+      PARSE_FLAG(has_drop_original_details_star_count);
+      PARSE_FLAG(m->is_assigned);
       END_PARSE_FLAGS();
       parse(m->star_gift, parser);
       if (has_transfer_star_count) {
@@ -3574,6 +3610,9 @@ static void parse(unique_ptr<MessageContent> &content, ParserT &parser) {
       }
       if (has_resale_price) {
         parse(m->resale_price, parser);
+      }
+      if (has_drop_original_details_star_count) {
+        parse(m->drop_original_details_star_count, parser);
       }
       if (!m->star_gift.is_valid() || m->star_gift.is_unique() == m->was_refunded) {
         is_bad = true;
@@ -3741,6 +3780,14 @@ static void parse(unique_ptr<MessageContent> &content, ParserT &parser) {
       if (has_send_date) {
         parse(m->send_date, parser);
       }
+      content = std::move(m);
+      break;
+    }
+    case MessageContentType::SuggestBirthday: {
+      auto m = make_unique<MessageSuggestBirthday>();
+      BEGIN_PARSE_FLAGS();
+      END_PARSE_FLAGS();
+      parse(m->birthdate, parser);
       content = std::move(m);
       break;
     }
@@ -4543,6 +4590,7 @@ bool can_message_content_have_input_media(const Td *td, const MessageContent *co
     case MessageContentType::SuggestedPostSuccess:
     case MessageContentType::SuggestedPostRefund:
     case MessageContentType::SuggestedPostApproval:
+    case MessageContentType::SuggestBirthday:
       return false;
     case MessageContentType::Animation:
     case MessageContentType::Audio:
@@ -4702,6 +4750,7 @@ SecretInputMedia get_message_content_secret_input_media(
     case MessageContentType::SuggestedPostSuccess:
     case MessageContentType::SuggestedPostRefund:
     case MessageContentType::SuggestedPostApproval:
+    case MessageContentType::SuggestBirthday:
       break;
     default:
       UNREACHABLE();
@@ -4890,6 +4939,7 @@ static telegram_api::object_ptr<telegram_api::InputMedia> get_message_content_in
     case MessageContentType::SuggestedPostSuccess:
     case MessageContentType::SuggestedPostRefund:
     case MessageContentType::SuggestedPostApproval:
+    case MessageContentType::SuggestBirthday:
       break;
     default:
       UNREACHABLE();
@@ -5115,6 +5165,7 @@ void delete_message_content_thumbnail(MessageContent *content, Td *td, int32 med
     case MessageContentType::SuggestedPostSuccess:
     case MessageContentType::SuggestedPostRefund:
     case MessageContentType::SuggestedPostApproval:
+    case MessageContentType::SuggestBirthday:
       break;
     default:
       UNREACHABLE();
@@ -5373,6 +5424,7 @@ Status can_send_message_content(DialogId dialog_id, const MessageContent *conten
     case MessageContentType::SuggestedPostSuccess:
     case MessageContentType::SuggestedPostRefund:
     case MessageContentType::SuggestedPostApproval:
+    case MessageContentType::SuggestBirthday:
       UNREACHABLE();
   }
   return Status::OK();
@@ -5544,6 +5596,7 @@ static int32 get_message_content_media_index_mask(const MessageContent *content,
     case MessageContentType::SuggestedPostSuccess:
     case MessageContentType::SuggestedPostRefund:
     case MessageContentType::SuggestedPostApproval:
+    case MessageContentType::SuggestBirthday:
       return 0;
     default:
       UNREACHABLE();
@@ -5922,6 +5975,8 @@ vector<UserId> get_message_content_min_user_ids(const Td *td, const MessageConte
     case MessageContentType::SuggestedPostRefund:
       break;
     case MessageContentType::SuggestedPostApproval:
+      break;
+    case MessageContentType::SuggestBirthday:
       break;
     default:
       UNREACHABLE();
@@ -6391,6 +6446,7 @@ void merge_message_contents(Td *td, const MessageContent *old_content, MessageCo
     case MessageContentType::SuggestedPostSuccess:
     case MessageContentType::SuggestedPostRefund:
     case MessageContentType::SuggestedPostApproval:
+    case MessageContentType::SuggestBirthday:
       break;
     default:
       UNREACHABLE();
@@ -6558,6 +6614,7 @@ bool merge_message_content_file_id(Td *td, MessageContent *message_content, File
     case MessageContentType::SuggestedPostSuccess:
     case MessageContentType::SuggestedPostRefund:
     case MessageContentType::SuggestedPostApproval:
+    case MessageContentType::SuggestBirthday:
       LOG(ERROR) << "Receive new file " << new_file_id << " in a sent message of the type " << content_type;
       break;
     default:
@@ -7184,10 +7241,12 @@ void compare_message_contents(Td *td, const MessageContent *old_content, const M
       if (lhs->gift_message_id != rhs->gift_message_id || lhs->star_gift != rhs->star_gift ||
           lhs->sender_dialog_id != rhs->sender_dialog_id || lhs->owner_dialog_id != rhs->owner_dialog_id ||
           lhs->saved_id != rhs->saved_id || lhs->resale_price != rhs->resale_price ||
-          lhs->transfer_star_count != rhs->transfer_star_count || lhs->can_transfer_at != rhs->can_transfer_at ||
-          lhs->can_resell_at != rhs->can_resell_at || lhs->can_export_at != rhs->can_export_at ||
-          lhs->is_saved != rhs->is_saved || lhs->is_upgrade != rhs->is_upgrade ||
-          lhs->is_prepaid_upgrade != rhs->is_prepaid_upgrade || lhs->can_transfer != rhs->can_transfer ||
+          lhs->transfer_star_count != rhs->transfer_star_count ||
+          lhs->drop_original_details_star_count != rhs->drop_original_details_star_count ||
+          lhs->can_transfer_at != rhs->can_transfer_at || lhs->can_resell_at != rhs->can_resell_at ||
+          lhs->can_export_at != rhs->can_export_at || lhs->is_saved != rhs->is_saved ||
+          lhs->is_upgrade != rhs->is_upgrade || lhs->is_prepaid_upgrade != rhs->is_prepaid_upgrade ||
+          lhs->is_assigned != rhs->is_assigned || lhs->can_transfer != rhs->can_transfer ||
           lhs->was_transferred != rhs->was_transferred || lhs->was_refunded != rhs->was_refunded) {
         need_update = true;
       }
@@ -7278,6 +7337,14 @@ void compare_message_contents(Td *td, const MessageContent *old_content, const M
       if (lhs->suggested_post_message_id != rhs->suggested_post_message_id || lhs->price != rhs->price ||
           lhs->comment != rhs->comment || lhs->send_date != rhs->send_date || lhs->is_rejected != rhs->is_rejected ||
           lhs->is_balance_too_low != rhs->is_balance_too_low) {
+        need_update = true;
+      }
+      break;
+    }
+    case MessageContentType::SuggestBirthday: {
+      const auto *lhs = static_cast<const MessageSuggestBirthday *>(old_content);
+      const auto *rhs = static_cast<const MessageSuggestBirthday *>(new_content);
+      if (lhs->birthdate != rhs->birthdate) {
         need_update = true;
       }
       break;
@@ -8605,6 +8672,7 @@ unique_ptr<MessageContent> dup_message_content(Td *td, DialogId dialog_id, const
     case MessageContentType::SuggestedPostSuccess:
     case MessageContentType::SuggestedPostRefund:
     case MessageContentType::SuggestedPostApproval:
+    case MessageContentType::SuggestBirthday:
       return nullptr;
     default:
       UNREACHABLE();
@@ -9234,8 +9302,9 @@ unique_ptr<MessageContent> get_action_message_content(Td *td, tl_object_ptr<tele
       return td::make_unique<MessageStarGiftUnique>(
           reply_to_message_id, std::move(star_gift), gift_sender_dialog_id, gift_owner_dialog_id, saved_id,
           StarGiftResalePrice(std::move(action->resale_amount_)), StarManager::get_star_count(action->transfer_stars_),
-          max(0, action->can_transfer_at_), max(0, action->can_resell_at_), max(0, action->can_export_at_),
-          action->saved_, action->upgrade_, action->prepaid_upgrade_,
+          StarManager::get_star_count(action->drop_original_details_stars_), max(0, action->can_transfer_at_),
+          max(0, action->can_resell_at_), max(0, action->can_export_at_), action->saved_, action->upgrade_,
+          action->prepaid_upgrade_, action->assigned_,
           (action->flags_ & telegram_api::messageActionStarGiftUnique::TRANSFER_STARS_MASK) != 0, action->transferred_,
           action->refunded_);
     }
@@ -9340,8 +9409,10 @@ unique_ptr<MessageContent> get_action_message_content(Td *td, tl_object_ptr<tele
                                              std::move(action->crypto_currency_), action->crypto_amount_,
                                              std::move(action->transaction_id_));
     }
-    case telegram_api::messageActionSuggestBirthday::ID:
-      return td::make_unique<MessageUnsupported>();
+    case telegram_api::messageActionSuggestBirthday::ID: {
+      auto action = telegram_api::move_object_as<telegram_api::messageActionSuggestBirthday>(action_ptr);
+      return td::make_unique<MessageSuggestBirthday>(Birthdate(std::move(action->birthday_)));
+    }
     default:
       UNREACHABLE();
   }
@@ -9880,6 +9951,9 @@ td_api::object_ptr<td_api::MessageContent> get_message_content_object(
         receiver_dialog_id = m->is_upgrade != is_outgoing ? dialog_id : td->dialog_manager_->get_my_dialog_id();
       }
       auto origin = [&]() -> td_api::object_ptr<td_api::UpgradedGiftOrigin> {
+        if (m->is_assigned) {
+          return td_api::make_object<td_api::upgradedGiftOriginBlockchain>();
+        }
         if (m->is_prepaid_upgrade) {
           return td_api::make_object<td_api::upgradedGiftOriginPrepaidUpgrade>();
         }
@@ -9917,7 +9991,7 @@ td_api::object_ptr<td_api::MessageContent> get_message_content_object(
               : get_message_sender_object(td, sender_dialog_id, "messageUpgradedGift sender"),
           get_message_sender_object(td, receiver_dialog_id, "messageUpgradedGift receiver"), std::move(origin),
           star_gift_id.get_star_gift_id(), m->is_saved, m->can_transfer, m->was_transferred, m->transfer_star_count,
-          m->can_transfer_at, m->can_resell_at, m->can_export_at);
+          m->drop_original_details_star_count, m->can_transfer_at, m->can_resell_at, m->can_export_at);
     }
     case MessageContentType::PaidMessagesRefunded: {
       const auto *m = static_cast<const MessagePaidMessagesRefunded *>(content);
@@ -10012,6 +10086,10 @@ td_api::object_ptr<td_api::MessageContent> get_message_content_object(
       return td_api::make_object<td_api::messageSuggestedPostApproved>(
           m->suggested_post_message_id.get(), m->price.get_suggested_post_price_object(), m->send_date);
     }
+    case MessageContentType::SuggestBirthday: {
+      const auto *m = static_cast<const MessageSuggestBirthday *>(content);
+      return td_api::make_object<td_api::messageSuggestBirthdate>(m->birthdate.get_birthdate_object());
+    }
     default:
       UNREACHABLE();
       return nullptr;
@@ -10033,7 +10111,8 @@ td_api::object_ptr<td_api::upgradeGiftResult> get_message_content_upgrade_gift_r
       }
       return td_api::make_object<td_api::upgradeGiftResult>(
           m->star_gift.get_upgraded_gift_object(td), star_gift_id.get_star_gift_id(), m->is_saved, m->can_transfer,
-          m->transfer_star_count, m->can_transfer_at, m->can_resell_at, m->can_export_at);
+          m->transfer_star_count, m->drop_original_details_star_count, m->can_transfer_at, m->can_resell_at,
+          m->can_export_at);
     }
     default:
       UNREACHABLE();
@@ -10695,6 +10774,7 @@ string get_message_content_search_text(const Td *td, const MessageContent *conte
     case MessageContentType::SuggestedPostSuccess:
     case MessageContentType::SuggestedPostRefund:
     case MessageContentType::SuggestedPostApproval:
+    case MessageContentType::SuggestBirthday:
       return string();
     default:
       UNREACHABLE();
@@ -11177,6 +11257,8 @@ void add_message_content_dependencies(Dependencies &dependencies, const MessageC
     case MessageContentType::SuggestedPostRefund:
       break;
     case MessageContentType::SuggestedPostApproval:
+      break;
+    case MessageContentType::SuggestBirthday:
       break;
     default:
       UNREACHABLE();

@@ -3151,6 +3151,11 @@ class CliClient final : public Actor {
       get_args(args, received_gift_id, new_owner_id, star_count);
       send_request(td_api::make_object<td_api::transferGift>(business_connection_id_, received_gift_id,
                                                              as_message_sender(new_owner_id), star_count));
+    } else if (op == "dgod") {
+      string received_gift_id;
+      int64 star_count;
+      get_args(args, received_gift_id, star_count);
+      send_request(td_api::make_object<td_api::dropGiftOriginalDetails>(received_gift_id, star_count));
     } else if (op == "srg") {
       string gift_name;
       string owner_id;
@@ -3167,12 +3172,13 @@ class CliClient final : public Actor {
       bool exclude_upgradable;
       bool exclude_non_upgradable;
       bool exclude_upgraded;
+      bool exclude_without_colors;
       get_args(args, owner_id, limit, offset, exclude_unsaved, exclude_saved, exclude_unlimited, exclude_upgradable,
-               exclude_non_upgradable, exclude_upgraded);
+               exclude_non_upgradable, exclude_upgraded, exclude_without_colors);
       send_request(td_api::make_object<td_api::getReceivedGifts>(
           business_connection_id_, as_message_sender(owner_id), gift_collection_id_, exclude_unsaved, exclude_saved,
-          exclude_unlimited, exclude_upgradable, exclude_non_upgradable, exclude_upgraded, op == "grgsp", offset,
-          limit));
+          exclude_unlimited, exclude_upgradable, exclude_non_upgradable, exclude_upgraded, exclude_without_colors,
+          op == "grgsp", offset, limit));
     } else if (op == "grg") {
       string received_gift_id;
       get_args(args, received_gift_id);
@@ -3303,13 +3309,14 @@ class CliClient final : public Actor {
       send_request(td_api::make_object<td_api::getUserLink>());
     } else if (op == "subt") {
       send_request(td_api::make_object<td_api::searchUserByToken>(args));
-    } else if (op == "aco") {
+    } else if (op == "aco" || op == "acon") {
       UserId user_id;
       string first_name;
       string last_name;
       get_args(args, user_id, first_name, last_name);
       send_request(td_api::make_object<td_api::addContact>(
-          td_api::make_object<td_api::contact>(string(), first_name, last_name, string(), user_id), false));
+          td_api::make_object<td_api::contact>(string(), first_name, last_name, string(), user_id),
+          op == "acon" ? get_caption() : nullptr, false));
     } else if (op == "subpn" || op == "subpnl") {
       string phone_number;
       get_args(args, phone_number);
@@ -7551,11 +7558,31 @@ class CliClient final : public Actor {
       InputChatPhoto input_chat_photo;
       get_args(args, user_id, input_chat_photo);
       send_request(td_api::make_object<td_api::setUserPersonalProfilePhoto>(user_id, input_chat_photo));
+    } else if (op == "sunote") {
+      UserId user_id;
+      string note;
+      get_args(args, user_id, note);
+      if (note.empty()) {
+        note = caption_;
+      }
+      send_request(td_api::make_object<td_api::setUserNote>(user_id, as_formatted_text(note)));
     } else if (op == "supp") {
       UserId user_id;
       InputChatPhoto input_chat_photo;
       get_args(args, user_id, input_chat_photo);
       send_request(td_api::make_object<td_api::suggestUserProfilePhoto>(user_id, input_chat_photo));
+    } else if (op == "sub") {
+      UserId user_id;
+      int32 day;
+      int32 month;
+      int32 year;
+      get_args(args, user_id, day, month, year);
+      if (day == 0) {
+        send_request(td_api::make_object<td_api::suggestUserBirthdate>(user_id, nullptr));
+      } else {
+        send_request(td_api::make_object<td_api::suggestUserBirthdate>(
+            user_id, td_api::make_object<td_api::birthdate>(day, month, year)));
+      }
     } else if (op == "tbcmes") {
       UserId user_id;
       bool can_manage_emoji_status;
@@ -7790,6 +7817,10 @@ class CliClient final : public Actor {
       CustomEmojiId background_custom_emoji_id;
       get_args(args, accent_color_id, background_custom_emoji_id);
       send_request(td_api::make_object<td_api::setAccentColor>(accent_color_id, background_custom_emoji_id));
+    } else if (op == "sugc") {
+      int64 upgraded_gift_colors_id;
+      get_args(args, upgraded_gift_colors_id);
+      send_request(td_api::make_object<td_api::setUpgradedGiftColors>(upgraded_gift_colors_id));
     } else if (op == "spac") {
       int32 profile_accent_color_id;
       CustomEmojiId profile_background_custom_emoji_id;

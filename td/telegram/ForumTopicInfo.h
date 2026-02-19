@@ -21,6 +21,7 @@ namespace td {
 class Td;
 
 class ForumTopicInfo {
+  DialogId dialog_id_;
   MessageId top_thread_message_id_;
   string title_;
   ForumTopicIcon icon_;
@@ -29,6 +30,7 @@ class ForumTopicInfo {
   bool is_outgoing_ = false;
   bool is_closed_ = false;
   bool is_hidden_ = false;
+  bool is_title_missing_ = false;
 
   friend bool operator==(const ForumTopicInfo &lhs, const ForumTopicInfo &rhs);
 
@@ -37,22 +39,30 @@ class ForumTopicInfo {
  public:
   ForumTopicInfo() = default;
 
-  ForumTopicInfo(Td *td, const tl_object_ptr<telegram_api::ForumTopic> &forum_topic_ptr);
+  ForumTopicInfo(Td *td, const telegram_api::object_ptr<telegram_api::ForumTopic> &forum_topic_ptr,
+                 DialogId expected_dialog_id);
 
-  ForumTopicInfo(MessageId top_thread_message_id, string title, ForumTopicIcon icon, int32 creation_date,
-                 DialogId creator_dialog_id, bool is_outgoing, bool is_closed, bool is_hidden)
-      : top_thread_message_id_(top_thread_message_id)
+  ForumTopicInfo(DialogId dialog_id, MessageId top_thread_message_id, string title, ForumTopicIcon icon,
+                 int32 creation_date, DialogId creator_dialog_id, bool is_outgoing, bool is_closed, bool is_hidden,
+                 bool is_title_missing)
+      : dialog_id_(dialog_id)
+      , top_thread_message_id_(top_thread_message_id)
       , title_(std::move(title))
       , icon_(std::move(icon))
       , creation_date_(creation_date)
       , creator_dialog_id_(creator_dialog_id)
       , is_outgoing_(is_outgoing)
       , is_closed_(is_closed)
-      , is_hidden_(is_hidden) {
+      , is_hidden_(is_hidden)
+      , is_title_missing_(is_title_missing) {
   }
 
   bool is_empty() const {
     return !top_thread_message_id_.is_valid();
+  }
+
+  DialogId get_dialog_id() const {
+    return dialog_id_;
   }
 
   MessageId get_top_thread_message_id() const {
@@ -77,7 +87,7 @@ class ForumTopicInfo {
 
   bool apply_edited_data(const ForumTopicEditedData &edited_data);
 
-  td_api::object_ptr<td_api::forumTopicInfo> get_forum_topic_info_object(Td *td, DialogId dialog_id) const;
+  td_api::object_ptr<td_api::forumTopicInfo> get_forum_topic_info_object(Td *td) const;
 
   template <class StorerT>
   void store(StorerT &storer) const;

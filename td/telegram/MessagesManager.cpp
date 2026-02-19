@@ -4322,7 +4322,7 @@ void MessagesManager::on_update_read_channel_messages_contents(
   }
 }
 
-void MessagesManager::on_update_read_message_comments(DialogId dialog_id, MessageId message_id,
+void MessagesManager::on_update_read_message_comments(DialogId dialog_id, MessageId top_thread_message_id,
                                                       MessageId max_message_id, MessageId last_read_inbox_message_id,
                                                       MessageId last_read_outbox_message_id, int32 unread_count) {
   Dialog *d = get_dialog_force(dialog_id, "on_update_read_message_comments");
@@ -4331,19 +4331,21 @@ void MessagesManager::on_update_read_message_comments(DialogId dialog_id, Messag
     return;
   }
 
-  if (message_id == MessageId(ServerMessageId(1))) {
-    td_->forum_topic_manager_->on_update_forum_topic_unread(
-        dialog_id, message_id, max_message_id, last_read_inbox_message_id, last_read_outbox_message_id, unread_count);
+  if (top_thread_message_id == MessageId(ServerMessageId(1))) {
+    td_->forum_topic_manager_->on_update_forum_topic_unread(dialog_id, top_thread_message_id, max_message_id,
+                                                            last_read_inbox_message_id, last_read_outbox_message_id,
+                                                            unread_count);
     return;
   }
 
-  auto m = get_message_force(d, message_id, "on_update_read_message_comments");
+  auto m = get_message_force(d, top_thread_message_id, "on_update_read_message_comments");
   if (m == nullptr || !m->message_id.is_server() || m->top_thread_message_id != m->message_id) {
     return;
   }
   if (m->is_topic_message) {
-    td_->forum_topic_manager_->on_update_forum_topic_unread(
-        dialog_id, message_id, max_message_id, last_read_inbox_message_id, last_read_outbox_message_id, unread_count);
+    td_->forum_topic_manager_->on_update_forum_topic_unread(dialog_id, top_thread_message_id, max_message_id,
+                                                            last_read_inbox_message_id, last_read_outbox_message_id,
+                                                            unread_count);
   }
   if (!is_active_message_reply_info(dialog_id, m->reply_info)) {
     return;
@@ -5414,11 +5416,16 @@ void MessagesManager::process_pts_update(tl_object_ptr<telegram_api::Update> &&u
       auto update = move_tl_object_as<telegram_api::updateReadHistoryInbox>(update_ptr);
       LOG(INFO) << "Process updateReadHistoryInbox";
       DialogId dialog_id(update->peer_);
+      auto last_read_inbox_message_id = MessageId(ServerMessageId(update->max_id_));
       on_update_dialog_folder_id(dialog_id, FolderId(update->folder_id_));
-      if (update->top_msg_id_ == 0) {
-        read_history_inbox(dialog_id, MessageId(ServerMessageId(update->max_id_)), -1 /*update->still_unread_count*/,
-                           "updateReadHistoryInbox");
+      if (update->top_msg_id_ != 0) {
+        td_->forum_topic_manager_->on_update_forum_topic_unread(
+            dialog_id, MessageId(ServerMessageId(update->top_msg_id_)), MessageId(), last_read_inbox_message_id,
+            MessageId(), -1);
+        break;
       }
+      read_history_inbox(dialog_id, last_read_inbox_message_id, -1 /*update->still_unread_count*/,
+                         "updateReadHistoryInbox");
       break;
     }
     case telegram_api::updateReadHistoryOutbox::ID: {
@@ -10822,10 +10829,8 @@ MessagesManager::MessageInfo MessagesManager::parse_telegram_api_message(
       }
       message_info.date = message->date_;
       message_info.forward_header = std::move(message->fwd_from_);
-      bool can_have_thread = message_info.dialog_id.get_type() == DialogType::Channel &&
-                             !td->dialog_manager_->is_broadcast_channel(message_info.dialog_id);
       message_info.reply_header = MessageReplyHeader(td, std::move(message->reply_to_), message_info.dialog_id,
-                                                     message_info.message_id, message_info.date, can_have_thread);
+                                                     message_info.message_id, message_info.date);
       message_info.via_bot_user_id = UserId(message->via_bot_id_);
       if (message_info.via_bot_user_id != UserId() && !message_info.via_bot_user_id.is_valid()) {
         LOG(ERROR) << "Receive invalid " << message_info.via_bot_user_id << " from " << source;
@@ -10911,10 +10916,8 @@ MessagesManager::MessageInfo MessagesManager::parse_telegram_api_message(
       message_info.has_mention = message->mentioned_;
       message_info.has_unread_content = message->media_unread_;
       message_info.reactions_are_possible = message->reactions_are_possible_;
-      bool can_have_thread = message_info.dialog_id.get_type() == DialogType::Channel &&
-                             !td->dialog_manager_->is_broadcast_channel(message_info.dialog_id);
       message_info.reply_header = MessageReplyHeader(td, std::move(message->reply_to_), message_info.dialog_id,
-                                                     message_info.message_id, message_info.date, can_have_thread);
+                                                     message_info.message_id, message_info.date);
       message_info.content =
           get_action_message_content(td, std::move(message->action_), message_info.dialog_id, message_info.date,
                                      message_info.reply_header.replied_message_info_, is_business_message);
@@ -16697,6 +16700,7 @@ td_api::object_ptr<td_api::chat> MessagesManager::get_chat_object(const Dialog *
       get_chat_photo_info_object(td_->file_manager_.get(), td_->dialog_manager_->get_dialog_photo(d->dialog_id)),
       td_->dialog_manager_->get_dialog_accent_color_id_object(d->dialog_id),
       td_->dialog_manager_->get_dialog_background_custom_emoji_id(d->dialog_id).get(),
+      td_->dialog_manager_->get_dialog_upgraded_gift_colors_object(d->dialog_id),
       td_->dialog_manager_->get_dialog_profile_accent_color_id_object(d->dialog_id),
       td_->dialog_manager_->get_dialog_profile_background_custom_emoji_id(d->dialog_id).get(),
       td_->dialog_manager_->get_dialog_default_permissions(d->dialog_id).get_chat_permissions_object(),
@@ -28636,6 +28640,7 @@ void MessagesManager::on_dialog_accent_colors_updated(DialogId dialog_id) {
                      get_chat_id_object(dialog_id, "updateChatAccentColors"),
                      td_->dialog_manager_->get_dialog_accent_color_id_object(dialog_id),
                      td_->dialog_manager_->get_dialog_background_custom_emoji_id(dialog_id).get(),
+                     td_->dialog_manager_->get_dialog_upgraded_gift_colors_object(d->dialog_id),
                      td_->dialog_manager_->get_dialog_profile_accent_color_id_object(dialog_id),
                      td_->dialog_manager_->get_dialog_profile_background_custom_emoji_id(dialog_id).get()));
   }

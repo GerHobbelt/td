@@ -745,6 +745,8 @@ class Requests {
 
   void on_request(uint64 id, td_api::sendChatAction &request);
 
+  void on_request(uint64 id, td_api::sendTextMessageDraft &request);
+
   void on_request(uint64 id, td_api::forwardMessages &request);
 
   void on_request(uint64 id, const td_api::sendQuickReplyShortcutMessages &request);
@@ -1169,7 +1171,11 @@ class Requests {
 
   void on_request(uint64 id, const td_api::setUserPersonalProfilePhoto &request);
 
+  void on_request(uint64 id, td_api::setUserNote &request);
+
   void on_request(uint64 id, const td_api::suggestUserProfilePhoto &request);
+
+  void on_request(uint64 id, const td_api::suggestUserBirthdate &request);
 
   void on_request(uint64 id, const td_api::toggleBotCanManageEmojiStatus &request);
 
@@ -1193,7 +1199,7 @@ class Requests {
 
   void on_request(uint64 id, td_api::reorderActiveUsernames &request);
 
-  void on_request(uint64 id, td_api::setBirthdate &request);
+  void on_request(uint64 id, const td_api::setBirthdate &request);
 
   void on_request(uint64 id, const td_api::setMainProfileTab &request);
 
@@ -1298,6 +1304,8 @@ class Requests {
   void on_request(uint64 id, const td_api::removeProfileAudio &request);
 
   void on_request(uint64 id, const td_api::setAccentColor &request);
+
+  void on_request(uint64 id, const td_api::setUpgradedGiftColors &request);
 
   void on_request(uint64 id, const td_api::setProfileAccentColor &request);
 
@@ -1656,6 +1664,8 @@ class Requests {
   void on_request(uint64 id, td_api::buyGiftUpgrade &request);
 
   void on_request(uint64 id, td_api::transferGift &request);
+
+  void on_request(uint64 id, const td_api::dropGiftOriginalDetails &request);
 
   void on_request(uint64 id, td_api::sendResoldGift &request);
 

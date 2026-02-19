@@ -4515,6 +4515,18 @@ void Requests::on_request(uint64 id, td_api::sendChatAction &request) {
                                                   DialogAction(std::move(request.action_)), std::move(promise));
 }
 
+void Requests::on_request(uint64 id, td_api::sendTextMessageDraft &request) {
+  CHECK_IS_BOT();
+  CREATE_OK_REQUEST_PROMISE();
+  DialogId dialog_id(request.chat_id_);
+  TRY_RESULT_PROMISE(
+      promise, text,
+      get_formatted_text(td_, dialog_id, std::move(request.text_), td_->auth_manager_->is_bot(), false, true, false));
+  td_->dialog_action_manager_->send_dialog_action(dialog_id, MessageId(request.message_thread_id_),
+                                                  BusinessConnectionId(),
+                                                  DialogAction(request.draft_id_, std::move(text)), std::move(promise));
+}
+
 void Requests::on_request(uint64 id, td_api::forwardMessages &request) {
   auto input_message_ids = MessageId::get_message_ids(request.message_ids_);
   auto message_copy_options =
@@ -6011,7 +6023,8 @@ void Requests::on_request(uint64 id, td_api::addContact &request) {
     return send_closure(td_actor_, &Td::send_error, id, r_contact.move_as_error());
   }
   CREATE_OK_REQUEST_PROMISE();
-  td_->user_manager_->add_contact(r_contact.move_as_ok(), request.share_phone_number_, std::move(promise));
+  td_->user_manager_->add_contact(r_contact.move_as_ok(), std::move(request.note_), request.share_phone_number_,
+                                  std::move(promise));
 }
 
 void Requests::on_request(uint64 id, td_api::importContacts &request) {
@@ -6087,10 +6100,23 @@ void Requests::on_request(uint64 id, const td_api::setUserPersonalProfilePhoto &
   td_->user_manager_->set_user_profile_photo(UserId(request.user_id_), request.photo_, false, std::move(promise));
 }
 
+void Requests::on_request(uint64 id, td_api::setUserNote &request) {
+  CHECK_IS_USER();
+  CREATE_OK_REQUEST_PROMISE();
+  td_->user_manager_->set_user_note(UserId(request.user_id_), std::move(request.note_), std::move(promise));
+}
+
 void Requests::on_request(uint64 id, const td_api::suggestUserProfilePhoto &request) {
   CHECK_IS_USER();
   CREATE_OK_REQUEST_PROMISE();
   td_->user_manager_->set_user_profile_photo(UserId(request.user_id_), request.photo_, true, std::move(promise));
+}
+
+void Requests::on_request(uint64 id, const td_api::suggestUserBirthdate &request) {
+  CHECK_IS_USER();
+  CREATE_OK_REQUEST_PROMISE();
+  td_->user_manager_->suggest_user_birthdate(UserId(request.user_id_), Birthdate(request.birthdate_),
+                                             std::move(promise));
 }
 
 void Requests::on_request(uint64 id, const td_api::toggleBotCanManageEmojiStatus &request) {
@@ -6168,10 +6194,10 @@ void Requests::on_request(uint64 id, td_api::reorderActiveUsernames &request) {
   td_->user_manager_->reorder_usernames(std::move(request.usernames_), std::move(promise));
 }
 
-void Requests::on_request(uint64 id, td_api::setBirthdate &request) {
+void Requests::on_request(uint64 id, const td_api::setBirthdate &request) {
   CHECK_IS_USER();
   CREATE_OK_REQUEST_PROMISE();
-  td_->user_manager_->set_birthdate(Birthdate(std::move(request.birthdate_)), std::move(promise));
+  td_->user_manager_->set_birthdate(Birthdate(request.birthdate_), std::move(promise));
 }
 
 void Requests::on_request(uint64 id, const td_api::setMainProfileTab &request) {
@@ -6511,6 +6537,12 @@ void Requests::on_request(uint64 id, const td_api::setAccentColor &request) {
   CREATE_OK_REQUEST_PROMISE();
   td_->user_manager_->set_accent_color(AccentColorId(request.accent_color_id_),
                                        CustomEmojiId(request.background_custom_emoji_id_), std::move(promise));
+}
+
+void Requests::on_request(uint64 id, const td_api::setUpgradedGiftColors &request) {
+  CHECK_IS_USER();
+  CREATE_OK_REQUEST_PROMISE();
+  td_->user_manager_->set_peer_color_collectible(request.upgraded_gift_colors_id_, std::move(promise));
 }
 
 void Requests::on_request(uint64 id, const td_api::setProfileAccentColor &request) {
@@ -7806,6 +7838,13 @@ void Requests::on_request(uint64 id, td_api::transferGift &request) {
                                          std::move(promise));
 }
 
+void Requests::on_request(uint64 id, const td_api::dropGiftOriginalDetails &request) {
+  CHECK_IS_USER();
+  CREATE_OK_REQUEST_PROMISE();
+  td_->star_gift_manager_->drop_gift_original_details(StarGiftId(request.received_gift_id_), request.star_count_,
+                                                      std::move(promise));
+}
+
 void Requests::on_request(uint64 id, td_api::sendResoldGift &request) {
   CHECK_IS_USER();
   CLEAN_INPUT_STRING(request.gift_name_);
@@ -7825,7 +7864,8 @@ void Requests::on_request(uint64 id, td_api::getReceivedGifts &request) {
       BusinessConnectionId(std::move(request.business_connection_id_)), owner_dialog_id,
       StarGiftCollectionId(request.collection_id_), request.exclude_unsaved_, request.exclude_saved_,
       request.exclude_unlimited_, request.exclude_upgradable_, request.exclude_non_upgradable_,
-      request.exclude_upgraded_, request.sort_by_price_, request.offset_, request.limit_, std::move(promise));
+      request.exclude_upgraded_, request.exclude_without_colors_, request.sort_by_price_, request.offset_,
+      request.limit_, std::move(promise));
 }
 
 void Requests::on_request(uint64 id, const td_api::getReceivedGift &request) {

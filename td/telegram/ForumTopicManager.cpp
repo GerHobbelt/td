@@ -107,9 +107,9 @@ class CreateForumTopicQuery final : public Td::ResultHandler {
 
     auto action = static_cast<const telegram_api::messageActionTopicCreate *>(service_message->action_.get());
     auto forum_topic_info =
-        td::make_unique<ForumTopicInfo>(MessageId(ServerMessageId(service_message->id_)), action->title_,
-                                        ForumTopicIcon(action->icon_color_, action->icon_emoji_id_),
-                                        service_message->date_, creator_dialog_id_, true, false, false);
+        td::make_unique<ForumTopicInfo>(DialogId(channel_id_), MessageId(ServerMessageId(service_message->id_)),
+                                        action->title_, ForumTopicIcon(action->icon_color_, action->icon_emoji_id_),
+                                        service_message->date_, creator_dialog_id_, true, false, false, false);
     td_->updates_manager_->on_get_updates(
         std::move(ptr),
         PromiseCreator::lambda([dialog_id = DialogId(channel_id_), forum_topic_info = std::move(forum_topic_info),
@@ -550,13 +550,13 @@ void ForumTopicManager::on_forum_topic_created(DialogId dialog_id, unique_ptr<Fo
   MessageId top_thread_message_id = forum_topic_info->get_top_thread_message_id();
   auto topic = add_topic(dialog_id, top_thread_message_id);
   if (topic == nullptr) {
-    return promise.set_value(forum_topic_info->get_forum_topic_info_object(td_, dialog_id));
+    return promise.set_value(forum_topic_info->get_forum_topic_info_object(td_));
   }
   if (topic->info_ == nullptr) {
     set_topic_info(dialog_id, topic, std::move(forum_topic_info));
   }
   save_topic_to_database(dialog_id, topic);
-  promise.set_value(topic->info_->get_forum_topic_info_object(td_, dialog_id));
+  promise.set_value(topic->info_->get_forum_topic_info_object(td_));
 }
 
 void ForumTopicManager::edit_forum_topic(DialogId dialog_id, MessageId top_thread_message_id, string &&title,
@@ -679,7 +679,7 @@ void ForumTopicManager::on_update_forum_topic_is_pinned(DialogId dialog_id, Mess
   if (!td_->dialog_manager_->have_dialog_force(dialog_id, "on_update_forum_topic_is_pinned")) {
     return;
   }
-  if (!can_be_forum(dialog_id)) {
+  if (!can_be_forum(dialog_id, true)) {
     LOG(ERROR) << "Receive pinned topics in " << dialog_id;
     return;
   }
@@ -701,7 +701,7 @@ void ForumTopicManager::on_update_pinned_forum_topics(DialogId dialog_id, vector
   if (!td_->dialog_manager_->have_dialog_force(dialog_id, "on_update_pinned_forum_topics")) {
     return;
   }
-  if (!can_be_forum(dialog_id)) {
+  if (!can_be_forum(dialog_id, true)) {
     LOG(ERROR) << "Receive pinned topics in " << dialog_id;
     return;
   }
@@ -981,7 +981,7 @@ void ForumTopicManager::on_forum_topic_edited(DialogId dialog_id, MessageId top_
     return;
   }
   if (topic->info_->apply_edited_data(edited_data)) {
-    send_update_forum_topic_info(dialog_id, topic->info_.get());
+    send_update_forum_topic_info(topic->info_.get());
     topic->need_save_to_database_ = true;
   }
   save_topic_to_database(dialog_id, topic);
@@ -1013,7 +1013,29 @@ void ForumTopicManager::on_get_forum_topic_infos(DialogId dialog_id,
   if (forum_topics.empty()) {
     return;
   }
-  if (!can_be_forum(dialog_id)) {
+  if (dialog_id == DialogId()) {
+    for (auto &forum_topic : forum_topics) {
+      auto forum_topic_info = td::make_unique<ForumTopicInfo>(td_, forum_topic, DialogId());
+      MessageId top_thread_message_id = forum_topic_info->get_top_thread_message_id();
+      if (can_be_message_thread_id(top_thread_message_id).is_error()) {
+        continue;
+      }
+      dialog_id = forum_topic_info->get_dialog_id();
+      if (!can_be_forum(dialog_id, true)) {
+        LOG(ERROR) << "Receive forum topics in " << dialog_id << " from " << source;
+        return;
+      }
+      auto dialog_topics = add_dialog_topics(dialog_id);
+      CHECK(dialog_topics != nullptr);
+      auto topic = add_topic(dialog_topics, top_thread_message_id);
+      if (topic != nullptr) {
+        set_topic_info(dialog_id, topic, std::move(forum_topic_info));
+        save_topic_to_database(dialog_id, topic);
+      }
+    }
+    return;
+  }
+  if (!can_be_forum(dialog_id, true)) {
     LOG(ERROR) << "Receive forum topics in " << dialog_id << " from " << source;
     return;
   }
@@ -1021,7 +1043,7 @@ void ForumTopicManager::on_get_forum_topic_infos(DialogId dialog_id,
   auto dialog_topics = add_dialog_topics(dialog_id);
   CHECK(dialog_topics != nullptr);
   for (auto &forum_topic : forum_topics) {
-    auto forum_topic_info = td::make_unique<ForumTopicInfo>(td_, forum_topic);
+    auto forum_topic_info = td::make_unique<ForumTopicInfo>(td_, forum_topic, dialog_id);
     MessageId top_thread_message_id = forum_topic_info->get_top_thread_message_id();
     if (can_be_message_thread_id(top_thread_message_id).is_error()) {
       continue;
@@ -1049,7 +1071,7 @@ MessageId ForumTopicManager::on_get_forum_topic_impl(DialogId dialog_id,
       return MessageId();
     }
     case telegram_api::forumTopic::ID: {
-      auto forum_topic_info = td::make_unique<ForumTopicInfo>(td_, forum_topic);
+      auto forum_topic_info = td::make_unique<ForumTopicInfo>(td_, forum_topic, dialog_id);
       MessageId top_thread_message_id = forum_topic_info->get_top_thread_message_id();
       Topic *topic = add_topic(dialog_id, top_thread_message_id);
       if (topic == nullptr) {
@@ -1098,9 +1120,22 @@ Status ForumTopicManager::is_forum(DialogId dialog_id) {
   return Status::OK();
 }
 
-bool ForumTopicManager::can_be_forum(DialogId dialog_id) const {
-  return dialog_id.get_type() == DialogType::Channel &&
-         td_->chat_manager_->is_megagroup_channel(dialog_id.get_channel_id());
+bool ForumTopicManager::can_be_forum(DialogId dialog_id, bool allow_bots) const {
+  switch (dialog_id.get_type()) {
+    case DialogType::User:
+      if (allow_bots) {
+        return td_->auth_manager_->is_bot() || td_->user_manager_->is_user_bot(dialog_id.get_user_id());
+      }
+      break;
+    case DialogType::Channel:
+      return !td_->chat_manager_->is_broadcast_channel(dialog_id.get_channel_id());
+    case DialogType::Chat:
+    case DialogType::SecretChat:
+    case DialogType::None:
+    default:
+      break;
+  }
+  return false;
 }
 
 Status ForumTopicManager::can_be_message_thread_id(MessageId top_thread_message_id) {
@@ -1181,21 +1216,21 @@ const ForumTopicInfo *ForumTopicManager::get_topic_info(DialogId dialog_id, Mess
 void ForumTopicManager::set_topic_info(DialogId dialog_id, Topic *topic, unique_ptr<ForumTopicInfo> forum_topic_info) {
   if (topic->info_ == nullptr || *topic->info_ != *forum_topic_info) {
     topic->info_ = std::move(forum_topic_info);
-    send_update_forum_topic_info(dialog_id, topic->info_.get());
+    send_update_forum_topic_info(topic->info_.get());
     topic->need_save_to_database_ = true;
   }
 }
 
 td_api::object_ptr<td_api::updateForumTopicInfo> ForumTopicManager::get_update_forum_topic_info_object(
-    DialogId dialog_id, const ForumTopicInfo *topic_info) const {
-  return td_api::make_object<td_api::updateForumTopicInfo>(topic_info->get_forum_topic_info_object(td_, dialog_id));
+    const ForumTopicInfo *topic_info) const {
+  return td_api::make_object<td_api::updateForumTopicInfo>(topic_info->get_forum_topic_info_object(td_));
 }
 
-void ForumTopicManager::send_update_forum_topic_info(DialogId dialog_id, const ForumTopicInfo *topic_info) const {
+void ForumTopicManager::send_update_forum_topic_info(const ForumTopicInfo *topic_info) const {
   if (td_->auth_manager_->is_bot()) {
     return;
   }
-  send_closure(G()->td(), &Td::send_update, get_update_forum_topic_info_object(dialog_id, topic_info));
+  send_closure(G()->td(), &Td::send_update, get_update_forum_topic_info_object(topic_info));
 }
 
 td_api::object_ptr<td_api::updateForumTopic> ForumTopicManager::get_update_forum_topic_object(
