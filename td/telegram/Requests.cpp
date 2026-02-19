@@ -7713,8 +7713,7 @@ void Requests::on_request(uint64 id, const td_api::getLoginUrl &request) {
 void Requests::on_request(uint64 id, const td_api::shareUsersWithBot &request) {
   CHECK_IS_USER();
   CREATE_OK_REQUEST_PROMISE();
-  auto user_ids = UserId::get_user_ids(request.shared_user_ids_);
-  auto dialog_ids = transform(user_ids, [](UserId user_id) { return DialogId(user_id); });
+  auto dialog_ids = DialogId::get_dialog_ids(UserId::get_user_ids(request.shared_user_ids_));
   td_->messages_manager_->share_dialogs_with_bot({DialogId(request.chat_id_), MessageId(request.message_id_)},
                                                  request.button_id_, std::move(dialog_ids), true, request.only_check_,
                                                  std::move(promise));
@@ -8063,6 +8062,12 @@ void Requests::on_request(uint64 id, td_api::buyGiftUpgrade &request) {
                                             std::move(promise));
 }
 
+void Requests::on_request(uint64 id, const td_api::craftGift &request) {
+  CHECK_IS_USER();
+  CREATE_REQUEST_PROMISE();
+  td_->star_gift_manager_->craft_gift(StarGiftId::get_star_gift_ids(request.received_gift_ids_), std::move(promise));
+}
+
 void Requests::on_request(uint64 id, td_api::transferGift &request) {
   CHECK_IS_USER_OR_BUSINESS();
   CREATE_OK_REQUEST_PROMISE();
@@ -8122,6 +8127,14 @@ void Requests::on_request(uint64 id, const td_api::getReceivedGift &request) {
   CHECK_IS_USER();
   CREATE_REQUEST_PROMISE();
   td_->star_gift_manager_->get_saved_star_gift(StarGiftId(request.received_gift_id_), std::move(promise));
+}
+
+void Requests::on_request(uint64 id, td_api::getGiftsForCrafting &request) {
+  CHECK_IS_USER();
+  CLEAN_INPUT_STRING(request.offset_);
+  CREATE_REQUEST_PROMISE();
+  td_->star_gift_manager_->get_craft_star_gifts(request.regular_gift_id_, request.offset_, request.limit_,
+                                                std::move(promise));
 }
 
 void Requests::on_request(uint64 id, td_api::getUpgradedGift &request) {
@@ -8189,9 +8202,7 @@ void Requests::on_request(uint64 id, const td_api::reorderGiftCollections &reque
   CREATE_OK_REQUEST_PROMISE();
   TRY_RESULT_PROMISE(promise, owner_dialog_id, get_message_sender_dialog_id(td_, request.owner_id_, true, false));
   td_->star_gift_manager_->reorder_gift_collections(
-      owner_dialog_id,
-      transform(request.collection_ids_, [](int32 collection_id) { return StarGiftCollectionId(collection_id); }),
-      std::move(promise));
+      owner_dialog_id, StarGiftCollectionId::get_star_gift_collection_ids(request.collection_ids_), std::move(promise));
 }
 
 void Requests::on_request(uint64 id, const td_api::deleteGiftCollection &request) {

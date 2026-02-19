@@ -1377,11 +1377,13 @@ class MessageStarGiftUnique final : public MessageContent {
   int32 can_transfer_at = 0;
   int32 can_resell_at = 0;
   int32 can_export_at = 0;
+  int32 can_craft_at = 0;
   bool is_saved = false;
   bool is_upgrade = false;
   bool is_prepaid_upgrade = false;
   bool is_assigned = false;
   bool from_offer = false;
+  bool from_craft = false;
   bool can_transfer = false;
   bool was_transferred = false;
   bool was_refunded = false;
@@ -1390,8 +1392,8 @@ class MessageStarGiftUnique final : public MessageContent {
   MessageStarGiftUnique(MessageId gift_message_id, StarGift &&star_gift, DialogId sender_dialog_id,
                         DialogId owner_dialog_id, int64 saved_id, StarGiftResalePrice resale_price,
                         int64 transfer_star_count, int64 drop_original_details_star_count, int32 can_transfer_at,
-                        int32 can_resell_at, int32 can_export_at, bool is_saved, bool is_upgrade,
-                        bool is_prepaid_upgrade, bool is_assigned, bool from_offer, bool can_transfer,
+                        int32 can_resell_at, int32 can_export_at, int32 can_craft_at, bool is_saved, bool is_upgrade,
+                        bool is_prepaid_upgrade, bool is_assigned, bool from_offer, bool from_craft, bool can_transfer,
                         bool was_transferred, bool was_refunded)
       : gift_message_id(gift_message_id)
       , star_gift(std::move(star_gift))
@@ -1404,11 +1406,13 @@ class MessageStarGiftUnique final : public MessageContent {
       , can_transfer_at(can_transfer_at)
       , can_resell_at(can_resell_at)
       , can_export_at(can_export_at)
+      , can_craft_at(can_craft_at)
       , is_saved(is_saved)
       , is_upgrade(is_upgrade)
       , is_prepaid_upgrade(is_prepaid_upgrade)
       , is_assigned(is_assigned)
       , from_offer(from_offer)
+      , from_craft(from_craft)
       , can_transfer(can_transfer)
       , was_transferred(was_transferred)
       , was_refunded(was_refunded) {
@@ -2473,26 +2477,29 @@ static void store(const MessageContent *content, StorerT &storer) {
       bool has_gift_message_id = m->gift_message_id.is_valid();
       bool has_resale_price = !m->resale_price.is_empty();
       bool has_drop_original_details_star_count = m->drop_original_details_star_count != 0;
+      bool has_can_craft_at = m->can_craft_at != 0;
       BEGIN_STORE_FLAGS();
       STORE_FLAG(has_transfer_star_count);
       STORE_FLAG(has_can_export_at);
       STORE_FLAG(m->is_saved);
       STORE_FLAG(m->is_upgrade);
       STORE_FLAG(m->was_transferred);
-      STORE_FLAG(m->can_transfer);
+      STORE_FLAG(m->can_transfer);  // 5
       STORE_FLAG(m->was_refunded);
       STORE_FLAG(has_owner_dialog_id);
       STORE_FLAG(has_saved_id);
       STORE_FLAG(has_sender_dialog_id);
-      STORE_FLAG(has_can_transfer_at);
+      STORE_FLAG(has_can_transfer_at);  // 10
       STORE_FLAG(has_can_resell_at);
       STORE_FLAG(false);  // has_resale_star_count
       STORE_FLAG(has_gift_message_id);
       STORE_FLAG(has_resale_price);
-      STORE_FLAG(m->is_prepaid_upgrade);
+      STORE_FLAG(m->is_prepaid_upgrade);  // 15
       STORE_FLAG(has_drop_original_details_star_count);
       STORE_FLAG(m->is_assigned);
       STORE_FLAG(m->from_offer);
+      STORE_FLAG(m->from_craft);
+      STORE_FLAG(has_can_craft_at);  // 20
       END_STORE_FLAGS();
       store(m->star_gift, storer);
       if (has_transfer_star_count) {
@@ -2524,6 +2531,9 @@ static void store(const MessageContent *content, StorerT &storer) {
       }
       if (has_drop_original_details_star_count) {
         store(m->drop_original_details_star_count, storer);
+      }
+      if (has_can_craft_at) {
+        store(m->can_craft_at, storer);
       }
       break;
     }
@@ -3766,6 +3776,7 @@ static void parse(unique_ptr<MessageContent> &content, ParserT &parser) {
       bool has_gift_message_id;
       bool has_resale_price;
       bool has_drop_original_details_star_count;
+      bool has_can_craft_at;
       BEGIN_PARSE_FLAGS();
       PARSE_FLAG(has_transfer_star_count);
       PARSE_FLAG(has_can_export_at);
@@ -3786,6 +3797,8 @@ static void parse(unique_ptr<MessageContent> &content, ParserT &parser) {
       PARSE_FLAG(has_drop_original_details_star_count);
       PARSE_FLAG(m->is_assigned);
       PARSE_FLAG(m->from_offer);
+      PARSE_FLAG(m->from_craft);
+      PARSE_FLAG(has_can_craft_at);
       END_PARSE_FLAGS();
       parse(m->star_gift, parser);
       if (has_transfer_star_count) {
@@ -3822,6 +3835,9 @@ static void parse(unique_ptr<MessageContent> &content, ParserT &parser) {
       }
       if (has_drop_original_details_star_count) {
         parse(m->drop_original_details_star_count, parser);
+      }
+      if (has_can_craft_at) {
+        parse(m->can_craft_at, parser);
       }
       if (!m->star_gift.is_valid() || m->star_gift.is_unique() == m->was_refunded) {
         is_bad = true;
@@ -7560,9 +7576,10 @@ void compare_message_contents(Td *td, const MessageContent *old_content, const M
           lhs->transfer_star_count != rhs->transfer_star_count ||
           lhs->drop_original_details_star_count != rhs->drop_original_details_star_count ||
           lhs->can_transfer_at != rhs->can_transfer_at || lhs->can_resell_at != rhs->can_resell_at ||
-          lhs->can_export_at != rhs->can_export_at || lhs->is_saved != rhs->is_saved ||
-          lhs->is_upgrade != rhs->is_upgrade || lhs->is_prepaid_upgrade != rhs->is_prepaid_upgrade ||
-          lhs->is_assigned != rhs->is_assigned || lhs->from_offer != rhs->from_offer ||
+          lhs->can_export_at != rhs->can_export_at || lhs->can_craft_at != rhs->can_craft_at ||
+          lhs->is_saved != rhs->is_saved || lhs->is_upgrade != rhs->is_upgrade ||
+          lhs->is_prepaid_upgrade != rhs->is_prepaid_upgrade || lhs->is_assigned != rhs->is_assigned ||
+          lhs->from_offer != rhs->from_offer || lhs->from_craft != rhs->from_craft ||
           lhs->can_transfer != rhs->can_transfer || lhs->was_transferred != rhs->was_transferred ||
           lhs->was_refunded != rhs->was_refunded) {
         need_update = true;
@@ -9086,6 +9103,8 @@ unique_ptr<MessageContent> get_action_message_content(Td *td, tl_object_ptr<tele
       case telegram_api::messageActionSuggestedPostApproval::ID:
       case telegram_api::messageActionSuggestedPostSuccess::ID:
       case telegram_api::messageActionSuggestedPostRefund::ID:
+      case telegram_api::messageActionNewCreatorPending::ID:
+      case telegram_api::messageActionChangeCreator::ID:
         LOG(ERROR) << "Receive business " << to_string(action_ptr);
         break;
       case telegram_api::messageActionHistoryClear::ID:
@@ -9683,8 +9702,8 @@ unique_ptr<MessageContent> get_action_message_content(Td *td, tl_object_ptr<tele
           reply_to_message_id, std::move(star_gift), gift_sender_dialog_id, gift_owner_dialog_id, saved_id,
           StarGiftResalePrice(std::move(action->resale_amount_)), StarManager::get_star_count(action->transfer_stars_),
           StarManager::get_star_count(action->drop_original_details_stars_), max(0, action->can_transfer_at_),
-          max(0, action->can_resell_at_), max(0, action->can_export_at_), action->saved_, action->upgrade_,
-          action->prepaid_upgrade_, action->assigned_, action->from_offer_,
+          max(0, action->can_resell_at_), max(0, action->can_export_at_), max(0, action->can_craft_at_), action->saved_,
+          action->upgrade_, action->prepaid_upgrade_, action->assigned_, action->from_offer_, action->craft_,
           (action->flags_ & telegram_api::messageActionStarGiftUnique::TRANSFER_STARS_MASK) != 0, action->transferred_,
           action->refunded_);
     }
@@ -9817,6 +9836,10 @@ unique_ptr<MessageContent> get_action_message_content(Td *td, tl_object_ptr<tele
       return td::make_unique<MessageStarGiftPurchaseOfferDeclined>(
           std::move(star_gift), StarGiftResalePrice(std::move(action->price_)), reply_to_message_id, action->expired_);
     }
+    case telegram_api::messageActionNewCreatorPending::ID:
+      return td::make_unique<MessageUnsupported>();
+    case telegram_api::messageActionChangeCreator::ID:
+      return td::make_unique<MessageUnsupported>();
     default:
       UNREACHABLE();
   }
@@ -10370,6 +10393,9 @@ td_api::object_ptr<td_api::MessageContent> get_message_content_object(
         receiver_dialog_id = m->is_upgrade != is_outgoing ? dialog_id : td->dialog_manager_->get_my_dialog_id();
       }
       auto origin = [&]() -> td_api::object_ptr<td_api::UpgradedGiftOrigin> {
+        if (m->from_craft) {
+          return td_api::make_object<td_api::upgradedGiftOriginCraft>();
+        }
         if (m->from_offer) {
           return td_api::make_object<td_api::upgradedGiftOriginOffer>(m->resale_price.get_gift_resale_price_object());
         }
@@ -10413,7 +10439,7 @@ td_api::object_ptr<td_api::MessageContent> get_message_content_object(
               : get_message_sender_object(td, sender_dialog_id, "messageUpgradedGift sender"),
           get_message_sender_object(td, receiver_dialog_id, "messageUpgradedGift receiver"), std::move(origin),
           star_gift_id.get_star_gift_id(), m->is_saved, m->can_transfer, m->was_transferred, m->transfer_star_count,
-          m->drop_original_details_star_count, m->can_transfer_at, m->can_resell_at, m->can_export_at);
+          m->drop_original_details_star_count, m->can_transfer_at, m->can_resell_at, m->can_export_at, m->can_craft_at);
     }
     case MessageContentType::PaidMessagesRefunded: {
       const auto *m = static_cast<const MessagePaidMessagesRefunded *>(content);
@@ -10556,6 +10582,21 @@ td_api::object_ptr<td_api::upgradeGiftResult> get_message_content_upgrade_gift_r
           m->star_gift.get_upgraded_gift_object(td), star_gift_id.get_star_gift_id(), m->is_saved, m->can_transfer,
           m->transfer_star_count, m->drop_original_details_star_count, m->can_transfer_at, m->can_resell_at,
           m->can_export_at);
+    }
+    default:
+      UNREACHABLE();
+      return nullptr;
+  }
+}
+
+td_api::object_ptr<td_api::CraftGiftResult> get_message_content_craft_gift_result_object(const MessageContent *content,
+                                                                                         Td *td, MessageId message_id) {
+  switch (content->get_type()) {
+    case MessageContentType::StarGiftUnique: {
+      const auto *m = static_cast<const MessageStarGiftUnique *>(content);
+      StarGiftId star_gift_id = StarGiftId(message_id.get_server_message_id());
+      return td_api::make_object<td_api::craftGiftResultSuccess>(m->star_gift.get_upgraded_gift_object(td),
+                                                                 star_gift_id.get_star_gift_id());
     }
     default:
       UNREACHABLE();

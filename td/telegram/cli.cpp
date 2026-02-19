@@ -3221,6 +3221,10 @@ class CliClient final : public Actor {
       get_args(args, owner_id, upgrade_gift_hash, star_count);
       send_request(
           td_api::make_object<td_api::buyGiftUpgrade>(as_message_sender(owner_id), upgrade_gift_hash, star_count));
+    } else if (op == "cg") {
+      string received_gift_ids;
+      get_args(args, received_gift_ids);
+      send_request(td_api::make_object<td_api::craftGift>(autosplit_str(received_gift_ids)));
     } else if (op == "tg") {
       string received_gift_id;
       string new_owner_id;
@@ -3273,6 +3277,12 @@ class CliClient final : public Actor {
       string received_gift_id;
       get_args(args, received_gift_id);
       send_request(td_api::make_object<td_api::getReceivedGift>(received_gift_id));
+    } else if (op == "ggfc") {
+      int64 gift_id;
+      int32 limit;
+      string offset;
+      get_args(args, gift_id, limit, offset);
+      send_request(td_api::make_object<td_api::getGiftsForCrafting>(gift_id, offset, limit));
     } else if (op == "gug") {
       string name;
       get_args(args, name);

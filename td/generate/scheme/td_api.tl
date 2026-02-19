@@ -678,13 +678,14 @@ userTypeDeleted = UserType;
 //@can_read_all_group_messages True, if the bot can read all messages in basic group or supergroup chats and not just those addressed to the bot. In private and channel chats a bot can always read all messages
 //@has_main_web_app True, if the bot has the main Web App
 //@has_topics True, if the bot has topics
+//@has_user_manageable_topics True, if users can create and delete topics in the chat with the bot 
 //@is_inline True, if the bot supports inline queries
 //@inline_query_placeholder Placeholder for inline queries (displayed on the application input field)
 //@need_location True, if the location of the user is expected to be sent with every inline query to this bot
 //@can_connect_to_business True, if the bot supports connection to Telegram Business accounts
 //@can_be_added_to_attachment_menu True, if the bot can be added to attachment or side menu
 //@active_user_count The number of recently active users of the bot
-userTypeBot can_be_edited:Bool can_join_groups:Bool can_read_all_group_messages:Bool has_main_web_app:Bool has_topics:Bool is_inline:Bool inline_query_placeholder:string need_location:Bool can_connect_to_business:Bool can_be_added_to_attachment_menu:Bool active_user_count:int32 = UserType;
+userTypeBot can_be_edited:Bool can_join_groups:Bool can_read_all_group_messages:Bool has_main_web_app:Bool has_topics:Bool has_user_manageable_topics:Bool is_inline:Bool inline_query_placeholder:string need_location:Bool can_connect_to_business:Bool can_be_added_to_attachment_menu:Bool active_user_count:int32 = UserType;
 
 //@description No information on the user besides the user identifier is available, yet this user has not been deleted. This object is extremely rare and must be handled like a deleted user. It is not possible to perform any actions on users of this type
 userTypeUnknown = UserType;
@@ -1302,6 +1303,9 @@ upgradedGiftOriginPrepaidUpgrade = UpgradedGiftOrigin;
 //@description The gift was bought through an offer @price Price paid for the gift
 upgradedGiftOriginOffer price:GiftResalePrice = UpgradedGiftOrigin;
 
+//@description The gift was crafted from other gifts
+upgradedGiftOriginCraft = UpgradedGiftOrigin;
+
 
 //@description Describes a model of an upgraded gift
 //@name Name of the model
@@ -1376,6 +1380,8 @@ gift id:int64 publisher_chat_id:int53 sticker:sticker star_count:int53 default_s
 //@number Unique number of the upgraded gift among gifts upgraded from the same gift
 //@total_upgraded_count Total number of gifts that were upgraded from the same gift
 //@max_upgraded_count The maximum number of gifts that can be upgraded from the same gift
+//@is_burned True, if the gift was used to craft another gift
+//@is_crafted True, if the gift was craft from another gifts
 //@is_premium True, if the original gift could have been bought only by Telegram Premium subscribers
 //@is_theme_available True, if the gift can be used to set a theme in a chat
 //@used_theme_chat_id Identifier of the chat for which the gift is used to set a theme; 0 if none or the gift isn't owned by the current user
@@ -1394,7 +1400,7 @@ gift id:int64 publisher_chat_id:int53 sticker:sticker star_count:int53 default_s
 //@value_currency ISO 4217 currency code of the currency in which value of the gift is represented; may be empty if unavailable
 //@value_amount Estimated value of the gift; in the smallest units of the currency; 0 if unavailable
 //@value_usd_amount Estimated value of the gift in USD; in USD cents; 0 if unavailable
-upgradedGift id:int64 regular_gift_id:int64 publisher_chat_id:int53 title:string name:string number:int32 total_upgraded_count:int32 max_upgraded_count:int32 is_premium:Bool is_theme_available:Bool used_theme_chat_id:int53 host_id:MessageSender owner_id:MessageSender owner_address:string owner_name:string gift_address:string model:upgradedGiftModel symbol:upgradedGiftSymbol backdrop:upgradedGiftBackdrop original_details:upgradedGiftOriginalDetails colors:upgradedGiftColors resale_parameters:giftResaleParameters can_send_purchase_offer:Bool value_currency:string value_amount:int53 value_usd_amount:int53 = UpgradedGift;
+upgradedGift id:int64 regular_gift_id:int64 publisher_chat_id:int53 title:string name:string number:int32 total_upgraded_count:int32 max_upgraded_count:int32 is_burned:Bool is_crafted:Bool is_premium:Bool is_theme_available:Bool used_theme_chat_id:int53 host_id:MessageSender owner_id:MessageSender owner_address:string owner_name:string gift_address:string model:upgradedGiftModel symbol:upgradedGiftSymbol backdrop:upgradedGiftBackdrop original_details:upgradedGiftOriginalDetails colors:upgradedGiftColors resale_parameters:giftResaleParameters can_send_purchase_offer:Bool value_currency:string value_amount:int53 value_usd_amount:int53 = UpgradedGift;
 
 //@description Contains information about value of an upgraded gift
 //@currency ISO 4217 currency code of the currency in which the prices are represented
@@ -1424,6 +1430,18 @@ upgradedGiftValueInfo currency:string value:int53 is_value_average:Bool initial_
 //@next_resale_date Point in time (Unix timestamp) when the gift can be resold to another user; can be in the past; 0 if the gift can't be resold; only for the receiver of the gift
 //@export_date Point in time (Unix timestamp) when the gift can be transferred to the TON blockchain as an NFT; can be in the past
 upgradeGiftResult gift:upgradedGift received_gift_id:string is_saved:Bool can_be_transferred:Bool transfer_star_count:int53 drop_original_details_star_count:int53 next_transfer_date:int32 next_resale_date:int32 export_date:int32 = UpgradeGiftResult;
+
+
+//@class CraftGiftResult @description Contains result of gift crafting
+
+//@description Craft was successful
+//@gift The created gift
+//@received_gift_id Unique identifier of the received gift for the current user
+craftGiftResultSuccess gift:upgradedGift received_gift_id:string = CraftGiftResult;
+
+//@description Craft has failed
+craftGiftResultFail = CraftGiftResult;
+
 
 //@description Describes a gift that is available for purchase
 //@gift The gift
@@ -1532,7 +1550,8 @@ sentGiftUpgraded gift:upgradedGift = SentGift;
 //@next_resale_date Point in time (Unix timestamp) when the gift can be resold to another user; can be in the past; 0 if the gift can't be resold; only for the receiver of the gift
 //@export_date Point in time (Unix timestamp) when the upgraded gift can be transferred to the TON blockchain as an NFT; can be in the past; 0 if NFT export isn't possible; only for the receiver of the gift
 //@prepaid_upgrade_hash If non-empty, then the user can pay for an upgrade of the gift using buyGiftUpgrade
-receivedGift received_gift_id:string sender_id:MessageSender text:formattedText unique_gift_number:int32 is_private:Bool is_saved:Bool is_pinned:Bool can_be_upgraded:Bool can_be_transferred:Bool was_refunded:Bool date:int32 gift:SentGift collection_ids:vector<int32> sell_star_count:int53 prepaid_upgrade_star_count:int53 is_upgrade_separate:Bool transfer_star_count:int53 drop_original_details_star_count:int53 next_transfer_date:int32 next_resale_date:int32 export_date:int32 prepaid_upgrade_hash:string = ReceivedGift;
+//@craft_date Point in time (Unix timestamp) when the gift can be used to craft another gift can be in the past; only for the receiver of the gift
+receivedGift received_gift_id:string sender_id:MessageSender text:formattedText unique_gift_number:int32 is_private:Bool is_saved:Bool is_pinned:Bool can_be_upgraded:Bool can_be_transferred:Bool was_refunded:Bool date:int32 gift:SentGift collection_ids:vector<int32> sell_star_count:int53 prepaid_upgrade_star_count:int53 is_upgrade_separate:Bool transfer_star_count:int53 drop_original_details_star_count:int53 next_transfer_date:int32 next_resale_date:int32 export_date:int32 prepaid_upgrade_hash:string craft_date:int32 = ReceivedGift;
 
 //@description Represents a list of gifts received by a user or a chat
 //@total_count The total number of received gifts
@@ -1876,6 +1895,12 @@ tonTransactionTypeUpgradedGiftPurchase user_id:int53 gift:upgradedGift = TonTran
 //@commission_toncoin_amount The Toncoin amount that was received by the Telegram; in the smallest units of the currency
 //@via_offer True, if the gift was sold through a purchase offer
 tonTransactionTypeUpgradedGiftSale user_id:int53 gift:upgradedGift commission_per_mille:int32 commission_toncoin_amount:int53 via_offer:Bool = TonTransactionType;
+
+//@description The transaction is a payment for stake dice throw
+tonTransactionTypeStakeDiceStake = TonTransactionType;
+
+//@description The transaction is a payment for successful stake dice throw
+tonTransactionTypeStakeDicePayout = TonTransactionType;
 
 //@description The transaction is a transaction of an unsupported type
 tonTransactionTypeUnsupported = TonTransactionType;
@@ -4931,7 +4956,8 @@ messageGift gift:gift sender_id:MessageSender receiver_id:MessageSender received
 //@next_transfer_date Point in time (Unix timestamp) when the gift can be transferred to another owner; can be in the past; 0 if the gift can be transferred immediately or transfer isn't possible; only for the receiver of the gift
 //@next_resale_date Point in time (Unix timestamp) when the gift can be resold to another user; can be in the past; 0 if the gift can't be resold; only for the receiver of the gift
 //@export_date Point in time (Unix timestamp) when the gift can be transferred to the TON blockchain as an NFT; can be in the past; 0 if NFT export isn't possible; only for the receiver of the gift
-messageUpgradedGift gift:upgradedGift sender_id:MessageSender receiver_id:MessageSender origin:UpgradedGiftOrigin received_gift_id:string is_saved:Bool can_be_transferred:Bool was_transferred:Bool transfer_star_count:int53 drop_original_details_star_count:int53 next_transfer_date:int32 next_resale_date:int32 export_date:int32 = MessageContent;
+//@craft_date Point in time (Unix timestamp) when the gift can be used to craft another gift can be in the past; only for the receiver of the gift
+messageUpgradedGift gift:upgradedGift sender_id:MessageSender receiver_id:MessageSender origin:UpgradedGiftOrigin received_gift_id:string is_saved:Bool can_be_transferred:Bool was_transferred:Bool transfer_star_count:int53 drop_original_details_star_count:int53 next_transfer_date:int32 next_resale_date:int32 export_date:int32 craft_date:int32 = MessageContent;
 
 //@description A gift which purchase, upgrade or transfer were refunded
 //@gift The gift
@@ -8254,10 +8280,146 @@ reportStoryResultOptionRequired title:string options:vector<reportOption> = Repo
 reportStoryResultTextRequired option_id:bytes is_optional:Bool = ReportStoryResult;
 
 
-//@class InternalLinkType @description Describes an internal https://t.me or tg: link, which must be processed by the application in a special way
+//@class SettingsSection @description Describes a section of the application settings
 
-//@description The link is a link to the Devices section of the application. Use getActiveSessions to get the list of active sessions and show them to the user
-internalLinkTypeActiveSessions = InternalLinkType;
+//@description The appearance section @subsection Subsection of the section if any; may be one of
+//-"themes/edit", "themes/create", "wallpapers", "wallpapers/edit", "wallpapers/set", "wallpapers/choose-photo",
+//-"your-color/profile", "your-color/profile/add-icons", "your-color/profile/use-gift", "your-color/profile/reset",
+//-"your-color/name", "your-color/name/add-icons", "your-color/name/use-gift", "night-mode", "auto-night-mode",
+//-"text-size", "text-size/use-system", "message-corners", "animations", "stickers-and-emoji",
+//-"stickers-and-emoji/edit", "stickers-and-emoji/trending", "stickers-and-emoji/archived",
+//-"stickers-and-emoji/archived/edit", "stickers-and-emoji/emoji", "stickers-and-emoji/emoji/edit",
+//-"stickers-and-emoji/emoji/archived", "stickers-and-emoji/emoji/archived/edit", "stickers-and-emoji/emoji/suggest",
+//-"stickers-and-emoji/emoji/quick-reaction", "stickers-and-emoji/emoji/quick-reaction/choose",
+//-"stickers-and-emoji/suggest-by-emoji", "stickers-and-emoji/emoji/large-emoji", "stickers-and-emoji/emoji/dynamic-order",
+//-"stickers-and-emoji/emoji/show-more", "app-icon", "tap-for-next-media"
+settingsSectionAppearance subsection:string = SettingsSection;
+
+//@description The "Ask a question" section
+settingsSectionAskQuestion = SettingsSection;
+
+//@description The "Telegram Business" section @subsection Subsection of the section if any; may be one of
+//-"do-not-hide-ads"
+settingsSectionBusiness subsection:string = SettingsSection;
+
+//@description The chat folder settings section @subsection Subsection of the section if any; may be one of
+//-"edit", "create", "add-recommended", "show-tags", "tab-view"
+settingsSectionChatFolders subsection:string = SettingsSection;
+
+//@description The data and storage settings section @subsection Subsection of the section if any; may be one of
+//-"storage", "storage/edit", "storage/auto-remove", "storage/clear-cache", "storage/max-cache", "usage",
+//-"usage/mobile", "usage/mobile/auto-download", "usage/mobile/auto-download/enable",
+//-"usage/mobile/auto-download/usage", "usage/mobile/auto-download/photos", "usage/mobile/auto-download/stories",
+//-"usage/mobile/auto-download/videos", "usage/mobile/auto-download/files", "usage/wifi", "usage/wifi/auto-download",
+//-"usage/wifi/auto-download/enable", "usage/wifi/auto-download/usage", "usage/wifi/auto-download/photos",
+//-"usage/wifi/auto-download/stories", "usage/wifi/auto-download/videos", "usage/wifi/auto-download/files",
+//-"usage/wifi/reset", "usage/roaming", "usage/roaming/auto-download", "usage/roaming/auto-download/enable",
+//-"usage/roaming/auto-download/usage", "usage/roaming/auto-download/photos", "usage/roaming/auto-download/stories",
+//-"usage/roaming/auto-download/videos", "usage/roaming/auto-download/files", "auto-download/data",
+//-"auto-download/data/enable", "auto-download/data/usage", "auto-download/data/photos",
+//-"auto-download/data/stories", "auto-download/data/videos", "auto-download/data/files", "auto-download/wifi",
+//-"auto-download/wifi/enable", "auto-download/wifi/usage", "auto-download/wifi/photos",
+//-"auto-download/wifi/stories", "auto-download/wifi/videos", "auto-download/wifi/files", "auto-download/roaming",
+//-"auto-download/roaming/enable", "auto-download/roaming/usage", "auto-download/roaming/photos",
+//-"auto-download/roaming/stories", "auto-download/roaming/videos", "auto-download/roaming/files",
+//-"auto-download/reset", "save-to-photos/chats", "save-to-photos/chats/max-video-size",
+//-"save-to-photos/chats/add-exception", "save-to-photos/chats/delete-all", "save-to-photos/groups",
+//-"save-to-photos/groups/max-video-size", "save-to-photos/groups/add-exception", "save-to-photos/groups/delete-all",
+//-"save-to-photos/channels", "save-to-photos/channels/max-video-size", "save-to-photos/channels/add-exception",
+//-"save-to-photos/channels/delete-all", "less-data-calls", "open-links", "share-sheet",
+//-"share-sheet/suggested-chats", "share-sheet/suggest-by", "share-sheet/reset", "saved-edited-photos",
+//-"pause-music", "raise-to-listen", "raise-to-speak", "show-18-content", "proxy", "proxy/edit", "proxy/use-proxy",
+//-"proxy/add-proxy", "proxy/share-list", "proxy/use-for-calls"
+settingsSectionDataAndStorage subsection:string = SettingsSection;
+
+//@description The Devices section @subsection Subsection of the section if any; may be one of
+//-"edit", "link-desktop", "terminate-sessions", "auto-terminate"
+settingsSectionDevices subsection:string = SettingsSection;
+
+//@description The profile edit section @subsection Subsection of the section if any; may be one of "set-photo", "first-name", "last-name",
+//-"emoji-status", "bio", "birthday", "change-number", "username", "your-color", "channel", "add-account", "log-out",
+//-"profile-color/profile", "profile-color/profile/add-icons", "profile-color/profile/use-gift", "profile-color/name",
+//-"profile-color/name/add-icons", "profile-color/name/use-gift", "profile-photo/use-emoji"
+settingsSectionEditProfile subsection:string = SettingsSection;
+
+//@description The FAQ section
+settingsSectionFaq = SettingsSection;
+
+//@description The "Telegram Features" section
+settingsSectionFeatures = SettingsSection;
+
+//@description The in-app browser settings section @subsection Subsection of the section if any; may be one of
+//-"enable-browser", "clear-cookies", "clear-cache", "history", "clear-history", "never-open", "clear-list", "search"
+settingsSectionInAppBrowser subsection:string = SettingsSection;
+
+//@description The application language section @subsection Subsection of the section if any; may be one of "show-button" for Show Translate Button toggle,
+//-"translate-chats" for Translate Entire Chats toggle, "do-not-translate" - for Do Not Translate language list
+settingsSectionLanguage subsection:string = SettingsSection;
+
+//@description The Telegram Star balance and transaction section @subsection Subsection of the section if any; may be one of
+//-"top-up", "stats", "gift", "earn"
+settingsSectionMyStars subsection:string = SettingsSection;
+
+//@description The Toncoin balance and transaction section
+settingsSectionMyToncoins = SettingsSection;
+
+//@description The notification settings section @subsection Subsection of the section if any; may be one of
+//-"accounts", "private-chats", "private-chats/edit", "private-chats/show", "private-chats/preview",
+//-"private-chats/sound", "private-chats/add-exception", "private-chats/delete-exceptions",
+//-"private-chats/light-color", "private-chats/vibrate", "private-chats/priority", "groups", "groups/edit",
+//-"groups/show", "groups/preview", "groups/sound", "groups/add-exception", "groups/delete-exceptions",
+//-"groups/light-color", "groups/vibrate", "groups/priority", "channels", "channels/edit", "channels/show",
+//-"channels/preview", "channels/sound", "channels/add-exception", "channels/delete-exceptions",
+//-"channels/light-color", "channels/vibrate", "channels/priority", "stories", "stories/new", "stories/important",
+//-"stories/show-sender", "stories/sound", "stories/add-exception", "stories/delete-exceptions",
+//-"stories/light-color", "stories/vibrate", "stories/priority", "reactions", "reactions/messages",
+//-"reactions/stories", "reactions/show-sender", "reactions/sound", "reactions/light-color", "reactions/vibrate",
+//-"reactions/priority", "in-app-sounds", "in-app-vibrate", "in-app-preview", "in-chat-sounds", "in-app-popup",
+//-"lock-screen-names", "include-channels", "include-muted-chats", "count-unread-messages", "new-contacts",
+//-"pinned-messages", "reset", "web"
+settingsSectionNotifications subsection:string = SettingsSection;
+
+//@description The power saving settings section @subsection Subsection of the section if any; may be one of
+//-"videos", "gifs", "stickers", "emoji", "effects", "preload", "background", "call-animations", "particles", "transitions"
+settingsSectionPowerSaving subsection:string = SettingsSection;
+
+//@description The "Telegram Premium" section
+settingsSectionPremium = SettingsSection;
+
+//@description The privacy and security section @subsection Subsection of the section if any; may be one of
+//-"blocked", "blocked/edit", "blocked/block-user", "blocked/block-user/chats", "blocked/block-user/contacts",
+//-"active-websites", "active-websites/edit", "active-websites/disconnect-all", "passcode", "passcode/disable",
+//-"passcode/change", "passcode/auto-lock", "passcode/face-id", "passcode/fingerprint", "2sv", "2sv/change",
+//-"2sv/disable", "2sv/change-email", "passkey", "passkey/create", "auto-delete", "auto-delete/set-custom",
+//-"login-email", "phone-number", "phone-number/never", "phone-number/always", "last-seen", "last-seen/never",
+//-"last-seen/always", "last-seen/hide-read-time", "profile-photos", "profile-photos/never", "profile-photos/always",
+//-"profile-photos/set-public", "profile-photos/update-public", "profile-photos/remove-public", "bio", "bio/never",
+//-"bio/always", "gifts", "gifts/show-icon", "gifts/never", "gifts/always", "gifts/accepted-types", "birthday",
+//-"birthday/add", "birthday/never", "birthday/always", "saved-music", "saved-music/never", "saved-music/always",
+//-"forwards", "forwards/never", "forwards/always", "calls", "calls/never", "calls/always", "calls/p2p",
+//-"calls/p2p/never", "calls/p2p/always", "calls/ios-integration", "voice", "voice/never", "voice/always",
+//-"messages", "messages/set-price", "messages/exceptions", "invites", "invites/never", "invites/always",
+//-"self-destruct", "data-settings", "data-settings/sync-contacts", "data-settings/delete-synced",
+//-"data-settings/suggest-contacts", "data-settings/delete-cloud-drafts", "data-settings/clear-payment-info",
+//-"data-settings/link-previews", "data-settings/bot-settings", "data-settings/map-provider", "archive-and-mute"
+settingsSectionPrivacyAndSecurity subsection:string = SettingsSection;
+
+//@description The "Privacy Policy" section
+settingsSectionPrivacyPolicy = SettingsSection;
+
+//@description The current user's QR code section @subsection Subsection of the section if any; may be one of
+//-"share", "scan"
+settingsSectionQrCode subsection:string = SettingsSection;
+
+//@description Search in Settings
+settingsSectionSearch = SettingsSection;
+
+//@description The "Send a gift" section @subsection Subsection of the section if any; may be one of
+//-"self"
+settingsSectionSendGift subsection:string = SettingsSection;
+
+
+//@class InternalLinkType @description Describes an internal https://t.me or tg: link, which must be processed by the application in a special way
 
 //@description The link is a link to an attachment menu bot to be opened in the specified or a chosen chat. Process given target_chat to open the chat.
 //-Then, call searchPublicChat with the given bot username, check that the user is a bot and can be added to attachment menu. Then, use getAttachmentMenuBot to receive information about the bot.
@@ -8312,8 +8474,9 @@ internalLinkTypeBusinessChat link_name:string = InternalLinkType;
 //@purpose Purpose of Telegram Star purchase. Arbitrary string specified by the server, for example, "subs" if the Telegram Stars are required to extend channel subscriptions
 internalLinkTypeBuyStars star_count:int53 purpose:string = InternalLinkType;
 
-//@description The link is a link to the change phone number section of the application
-internalLinkTypeChangePhoneNumber = InternalLinkType;
+//@description The link is a link to the Call tab @section Section of the page if any; may be one of
+//-"all", "missed", "edit", "show-tab", "start-call"
+internalLinkTypeCalls section:string = InternalLinkType;
 
 //@description The link is an affiliate program link. Call searchChatAffiliateProgram with the given username and referrer to process the link
 //@username Username to be passed to searchChatAffiliateProgram
@@ -8331,24 +8494,15 @@ internalLinkTypeChatBoost url:string = InternalLinkType;
 //@invite_link Internal representation of the invite link
 internalLinkTypeChatFolderInvite invite_link:string = InternalLinkType;
 
-//@description The link is a link to the folder section of the application settings
-internalLinkTypeChatFolderSettings = InternalLinkType;
-
 //@description The link is a chat invite link. Call checkChatInviteLink with the given invite link to process the link.
 //-If the link is valid and the user wants to join the chat, then call joinChatByInviteLink
 //@invite_link Internal representation of the invite link
 internalLinkTypeChatInvite invite_link:string = InternalLinkType;
 
-//@description The link is a link to the default message auto-delete timer settings section of the application settings
-internalLinkTypeDefaultMessageAutoDeleteTimerSettings = InternalLinkType;
-
 //@description The link is a link to a channel direct messages chat by username of the channel. Call searchPublicChat with the given chat username to process the link.
 //-If the chat is found and is channel, open the direct messages chat of the channel
 //@channel_username Username of the channel
 internalLinkTypeDirectMessagesChat channel_username:string = InternalLinkType;
-
-//@description The link is a link to the edit profile section of the application settings
-internalLinkTypeEditProfileSettings = InternalLinkType;
 
 //@description The link is a link to a game. Call searchPublicChat with the given bot username, check that the user is a bot,
 //-ask the current user to select a chat to send the game, and then call sendMessage with inputMessageGame
@@ -8385,16 +8539,10 @@ internalLinkTypeInvoice invoice_name:string = InternalLinkType;
 //@language_pack_id Language pack identifier
 internalLinkTypeLanguagePack language_pack_id:string = InternalLinkType;
 
-//@description The link is a link to the language section of the application settings
-internalLinkTypeLanguageSettings = InternalLinkType;
-
 //@description The link is a link to a live story. Call searchPublicChat with the given chat username, then getChatActiveStories to get active stories in the chat,
 //-then find a live story among active stories of the chat, and then joinLiveStory to join the live story
 //@story_poster_username Username of the poster of the story
 internalLinkTypeLiveStory story_poster_username:string = InternalLinkType;
-
-//@description The link is a link to the login email set up section of the application settings, forcing set up of the login email
-internalLinkTypeLoginEmailSettings = InternalLinkType;
 
 //@description The link is a link to the main Web App of a bot. Call searchPublicChat with the given bot username, check that the user is a bot and has the main Web App.
 //-If the bot can be added to attachment menu, then use getAttachmentMenuBot to receive information about the bot, then if the bot isn't added to side menu,
@@ -8416,11 +8564,12 @@ internalLinkTypeMessage url:string = InternalLinkType;
 //@contains_link True, if the first line of the text contains a link. If true, the input field needs to be focused and the text after the link must be selected
 internalLinkTypeMessageDraft text:formattedText contains_link:Bool = InternalLinkType;
 
-//@description The link is a link to the screen with information about Telegram Star balance and transactions of the current user
-internalLinkTypeMyStars = InternalLinkType;
+//@description The link is a link to the My Profile application page @section Section of the page if any; may be one of
+//-"posts", "posts/all-stories", "posts/add-album", "gifts", "archived-posts"
+internalLinkTypeMyProfile section:string = InternalLinkType;
 
-//@description The link is a link to the screen with information about Toncoin balance and transactions of the current user
-internalLinkTypeMyToncoins = InternalLinkType;
+//@description The link is a link to the screen for creating a new private chat with a contact
+internalLinkTypeNewPrivateChat = InternalLinkType;
 
 //@description The link contains a request of Telegram passport data. Call getPassportAuthorizationForm with the given parameters to process the link if the link was received from outside of the application; otherwise, ignore it
 //@bot_user_id User identifier of the service's bot; the corresponding user may be unknown yet
@@ -8431,17 +8580,11 @@ internalLinkTypeMyToncoins = InternalLinkType;
 //-If empty, then onActivityResult method must be used to return response on Android, or the link tgbot{bot_user_id}://passport/success or tgbot{bot_user_id}://passport/cancel must be opened otherwise
 internalLinkTypePassportDataRequest bot_user_id:int53 scope:string public_key:string nonce:string callback_url:string = InternalLinkType;
 
-//@description The link is a link to the password section of the application settings
-internalLinkTypePasswordSettings = InternalLinkType;
-
 //@description The link can be used to confirm ownership of a phone number to prevent account deletion. Call sendPhoneNumberCode with the given phone number and with phoneNumberCodeTypeConfirmOwnership with the given hash to process the link.
 //-If succeeded, call checkPhoneNumberCode to check entered by the user code, or resendPhoneNumberCode to resend it
 //@hash Hash value from the link
 //@phone_number Phone number value from the link
 internalLinkTypePhoneNumberConfirmation hash:string phone_number:string = InternalLinkType;
-
-//@description The link is a link to the phone number privacy settings section of the application settings
-internalLinkTypePhoneNumberPrivacySettings = InternalLinkType;
 
 //@description The link is a link to the Premium features screen of the application from which the user can subscribe to Telegram Premium. Call getPremiumFeatures with the given referrer to process the link
 //@referrer Referrer specified in the link
@@ -8455,9 +8598,6 @@ internalLinkTypePremiumGift referrer:string = InternalLinkType;
 //-If the code is valid and the user wants to apply it, then call applyPremiumGiftCode
 //@code The Telegram Premium gift code
 internalLinkTypePremiumGiftCode code:string = InternalLinkType;
-
-//@description The link is a link to the privacy and security section of the application settings
-internalLinkTypePrivacyAndSecuritySettings = InternalLinkType;
 
 //@description The link is a link to a proxy. Call addProxy with the given parameters to process the link and add the proxy
 //@server Proxy server domain or IP address
@@ -8480,8 +8620,11 @@ internalLinkTypeQrCodeAuthentication = InternalLinkType;
 //@description The link forces restore of App Store purchases when opened. For official iOS application only
 internalLinkTypeRestorePurchases = InternalLinkType;
 
-//@description The link is a link to application settings
-internalLinkTypeSettings = InternalLinkType;
+//@description The link is a link to the Saved Messages chat. Call createPrivateChat with getOption("my_id") and open the chat
+internalLinkTypeSavedMessages = InternalLinkType;
+
+//@description The link is a link to application settings @section Section of the application settings to open; may be null if none
+internalLinkTypeSettings section:SettingsSection = InternalLinkType;
 
 //@description The link is a link to a sticker set. Call searchStickerSet with the given sticker set name to process the link and show the sticker set.
 //-If the sticker set is found and the user wants to add it, then call changeStickerSet
@@ -8502,9 +8645,6 @@ internalLinkTypeStoryAlbum story_album_owner_username:string story_album_id:int3
 
 //@description The link is a link to a cloud theme. TDLib has no theme support yet @theme_name Name of the theme
 internalLinkTypeTheme theme_name:string = InternalLinkType;
-
-//@description The link is a link to the theme section of the application settings
-internalLinkTypeThemeSettings = InternalLinkType;
 
 //@description The link is an unknown tg: link. Call getDeepLinkInfo to process the link @link Link to be passed to getDeepLinkInfo
 internalLinkTypeUnknownDeepLink link:string = InternalLinkType;
@@ -13770,6 +13910,10 @@ upgradeGift business_connection_id:string received_gift_id:string keep_original_
 //@star_count The Telegram Star amount the user agreed to pay for the upgrade; must be equal to gift.upgrade_star_count
 buyGiftUpgrade owner_id:MessageSender prepaid_upgrade_hash:string star_count:int53 = Ok;
 
+//@description Crafts a new gift from other gifts that will be permanently lost
+//@received_gift_ids Identifier of the gifts to use for crafting
+craftGift received_gift_ids:vector<string> = CraftGiftResult;
+
 //@description Sends an upgraded gift to another user or channel chat
 //@business_connection_id Unique identifier of business connection on behalf of which to send the request; for bots only
 //@received_gift_id Identifier of the gift
@@ -13821,6 +13965,12 @@ getReceivedGifts business_connection_id:string owner_id:MessageSender collection
 
 //@description Returns information about a received gift @received_gift_id Identifier of the gift
 getReceivedGift received_gift_id:string = ReceivedGift;
+
+//@description Returns upgraded gifts of the current user that can be used to craft another gifts
+//@regular_gift_id Identifier of the regular gift that will be used for crafting
+//@offset Offset of the first entry to return as received from the previous request; use empty string to get the first chunk of results
+//@limit The maximum number of gifts to be returned; must be positive and can't be greater than 100. For optimal performance, the number of returned objects is chosen by TDLib and can be smaller than the specified limit
+getGiftsForCrafting regular_gift_id:int64 offset:string limit:int32 = ReceivedGifts;
 
 //@description Returns information about an upgraded gift by its name @name Unique name of the upgraded gift
 getUpgradedGift name:string = UpgradedGift;
