@@ -15413,7 +15413,7 @@ Status MessagesManager::set_dialog_draft_message(DialogId dialog_id,
   return set_dialog_draft_message(d, message_topic, std::move(new_draft_message));
 }
 
-Status MessagesManager::set_dialog_draft_message(Dialog *d, MessageTopic message_topic,
+Status MessagesManager::set_dialog_draft_message(Dialog *d, const MessageTopic &message_topic,
                                                  unique_ptr<DraftMessage> &&draft_message) {
   if (message_topic.is_thread()) {
     auto top_thread_message_id = message_topic.get_top_thread_message_id();
@@ -15430,7 +15430,6 @@ Status MessagesManager::set_dialog_draft_message(Dialog *d, MessageTopic message
     return Status::OK();
   }
   if (message_topic.is_forum()) {
-    CHECK(message_topic.get_forum_topic_id() != ForumTopicId::general());  // checked in get_send_message_topic
     return td_->forum_topic_manager_->set_forum_topic_draft_message(d->dialog_id, message_topic.get_forum_topic_id(),
                                                                     std::move(draft_message));
   }
@@ -20140,10 +20139,11 @@ unique_ptr<MessagesManager::Message> MessagesManager::create_message_to_send(
   auto my_id = td_->user_manager_->get_my_id();
 
   int64 reply_to_random_id = 0;
-  bool is_topic_message = message_topic.is_forum();  // message_topic can't be General forum topic here
-  auto top_thread_message_id = MessageId(ServerMessageId(message_topic.get_input_top_msg_id()));
-  auto initial_is_topic_message = is_topic_message;
-  auto initial_top_thread_message_id = top_thread_message_id;
+  bool is_general = message_topic.is_forum_general();
+  auto initial_is_topic_message = message_topic.is_forum() && !is_general;
+  auto initial_top_thread_message_id = MessageId(ServerMessageId(message_topic.get_input_top_msg_id()));
+  bool is_topic_message = initial_is_topic_message;
+  auto top_thread_message_id = is_general ? MessageId() : initial_top_thread_message_id;
   auto same_chat_reply_to_message_id = input_reply_to.get_same_chat_reply_to_message_id();
   if (same_chat_reply_to_message_id.is_valid() || same_chat_reply_to_message_id.is_valid_scheduled()) {
     // the message was forcely preloaded in create_message_input_reply_to
@@ -20170,6 +20170,7 @@ unique_ptr<MessagesManager::Message> MessagesManager::create_message_to_send(
       is_topic_message = top_m->is_topic_message;
     }
   }
+  LOG(DEBUG) << "Create " << (is_topic_message ? "" : "non-") << "topic message in thread of " << top_thread_message_id;
 
   auto message = make_unique<Message>();
   auto *m = message.get();
@@ -20328,14 +20329,8 @@ MessagesManager::Message *MessagesManager::get_message_to_send(
   auto result =
       add_message_to_dialog(d, std::move(message), false, true, &need_update, need_update_dialog_pos, "send message");
   LOG_CHECK(result != nullptr) << message_id << ' ' << debug_add_message_to_dialog_fail_reason_;
-  if (result->message_id.is_scheduled()) {
-    send_update_chat_has_scheduled_messages(d, false);
-  }
   if (options.update_stickersets_order && !td_->auth_manager_->is_bot()) {
     move_message_content_sticker_set_to_top(td_, result->content.get());
-  }
-  if (result->paid_message_star_count > 0) {
-    td_->star_manager_->add_pending_owned_star_count(-result->paid_message_star_count, false);
   }
   return result;
 }
@@ -23912,7 +23907,7 @@ Result<MessagesManager::ForwardedMessages> MessagesManager::get_forwarded_messag
     bool is_broken_server_copy = [&] {
       switch (forwarded_message->content->get_type()) {
         case MessageContentType::Dice:
-          return true;
+          return true;  // server always forwards the dice, despite it is possible to send a new one
         default:
           return false;
       }
@@ -26076,6 +26071,12 @@ void MessagesManager::send_update_message_send_succeeded(Dialog *d, MessageId ol
   if (m->paid_message_star_count > 0) {
     td_->star_manager_->add_pending_owned_star_count(m->paid_message_star_count, true);
   }
+  auto stake_ton_count = get_message_content_stake_ton_count(m->content.get());
+  if (stake_ton_count > 0) {
+    auto prize_ton_count = get_message_content_prize_ton_count(m->content.get());
+    td_->star_manager_->add_pending_owned_ton_count(prize_ton_count, false);
+    td_->star_manager_->add_pending_owned_ton_count(stake_ton_count - prize_ton_count, true);
+  }
   if (!td_->auth_manager_->is_bot()) {
     yet_unsent_message_full_id_to_persistent_message_id_.emplace({d->dialog_id, old_message_id}, m->message_id);
 
@@ -27386,6 +27387,10 @@ void MessagesManager::fail_send_message(MessageFullId message_full_id, int32 err
   if (message->paid_message_star_count > 0) {
     td_->star_manager_->add_pending_owned_star_count(message->paid_message_star_count, false);
   }
+  auto stake_ton_count = get_message_content_stake_ton_count(message->content.get());
+  if (stake_ton_count > 0) {
+    td_->star_manager_->add_pending_owned_ton_count(stake_ton_count, false);
+  }
 
   bool need_update = false;
   Message *m = add_message_to_dialog(d, std::move(message), false, true, &need_update, &need_update_dialog_pos,
@@ -27513,11 +27518,6 @@ bool MessagesManager::update_dialog_draft_message(Dialog *d, unique_ptr<DraftMes
   CHECK(d != nullptr);
   if (!td_->auth_manager_->is_bot() && need_update_draft_message(d->draft_message, draft_message, from_update)) {
     d->draft_message = std::move(draft_message);
-    if (d->dialog_id.get_type() == DialogType::Channel &&
-        td_->chat_manager_->is_megagroup_channel(d->dialog_id.get_channel_id())) {
-      td_->forum_topic_manager_->on_update_forum_topic_draft_message(d->dialog_id, ForumTopicId::general(),
-                                                                     DraftMessage::clone(d->draft_message));
-    }
     if (need_update_dialog_pos) {
       update_dialog_pos(d, "update_dialog_draft_message", false);
     }
@@ -30617,6 +30617,19 @@ MessagesManager::Message *MessagesManager::add_message_to_dialog(Dialog *d, uniq
     // must be called after the message is added to correctly update replies
     update_message_max_reply_media_timestamp(d, result_message, false);
     update_message_max_own_media_timestamp(d, result_message);
+
+    if (m->message_id.is_yet_unsent()) {
+      if (m->message_id.is_scheduled()) {
+        send_update_chat_has_scheduled_messages(d, false);
+      }
+      if (m->paid_message_star_count > 0) {
+        td_->star_manager_->add_pending_owned_star_count(-m->paid_message_star_count, false);
+      }
+      auto stake_ton_count = get_message_content_stake_ton_count(m->content.get());
+      if (stake_ton_count > 0) {
+        td_->star_manager_->add_pending_owned_ton_count(-stake_ton_count, false);
+      }
+    }
   }
 
   result_message->debug_source = source;

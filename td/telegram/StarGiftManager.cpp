@@ -23,6 +23,7 @@
 #include "td/telegram/MessageSender.h"
 #include "td/telegram/MessagesManager.h"
 #include "td/telegram/OnlineManager.h"
+#include "td/telegram/OptionManager.h"
 #include "td/telegram/PasswordManager.h"
 #include "td/telegram/StarGift.h"
 #include "td/telegram/StarGiftAttribute.h"
@@ -703,13 +704,17 @@ class GetUpgradeGiftPreviewQuery final : public Td::ResultHandler {
 
 class GetStarGiftUpgradeAttributesQuery final : public Td::ResultHandler {
   Promise<td_api::object_ptr<td_api::giftUpgradeVariants>> promise_;
+  bool return_upgrade_models_;
+  bool return_craft_models_;
 
  public:
   explicit GetStarGiftUpgradeAttributesQuery(Promise<td_api::object_ptr<td_api::giftUpgradeVariants>> &&promise)
       : promise_(std::move(promise)) {
   }
 
-  void send(int64 gift_id) {
+  void send(int64 gift_id, bool return_upgrade_models, bool return_craft_models) {
+    return_upgrade_models_ = return_upgrade_models;
+    return_craft_models_ = return_craft_models;
     send_query(G()->net_query_creator().create(telegram_api::payments_getStarGiftUpgradeAttributes(gift_id)));
   }
 
@@ -729,7 +734,7 @@ class GetStarGiftUpgradeAttributesQuery final : public Td::ResultHandler {
               td_, telegram_api::move_object_as<telegram_api::starGiftAttributeModel>(attribute));
           if (!model.is_valid()) {
             LOG(ERROR) << "Receive invalid model";
-          } else {
+          } else if ((!model.is_crafted() && return_upgrade_models_) || (model.is_crafted() && return_craft_models_)) {
             result->models_.push_back(model.get_upgraded_gift_model_object(td_));
           }
           break;
@@ -1562,6 +1567,8 @@ class SendStarGiftOfferQuery final : public Td::ResultHandler {
 
     auto ptr = result_ptr.move_as_ok();
     LOG(INFO) << "Receive result for SendStarGiftOfferQuery: " << to_string(ptr);
+    td_->star_manager_->add_pending_owned_star_count(paid_message_star_count_, true);
+    td_->star_manager_->add_pending_owned_amount(price_, 1, true);
     td_->updates_manager_->on_get_updates(std::move(ptr), std::move(promise_));
   }
 
@@ -1740,10 +1747,10 @@ class GetSavedStarGiftQuery final : public Td::ResultHandler {
 };
 
 class GetCraftStarGiftsQuery final : public Td::ResultHandler {
-  Promise<td_api::object_ptr<td_api::receivedGifts>> promise_;
+  Promise<td_api::object_ptr<td_api::giftsForCrafting>> promise_;
 
  public:
-  explicit GetCraftStarGiftsQuery(Promise<td_api::object_ptr<td_api::receivedGifts>> &&promise)
+  explicit GetCraftStarGiftsQuery(Promise<td_api::object_ptr<td_api::giftsForCrafting>> &&promise)
       : promise_(std::move(promise)) {
   }
 
@@ -1780,8 +1787,12 @@ class GetCraftStarGiftsQuery final : public Td::ResultHandler {
       }
       gifts.push_back(user_gift.get_received_gift_object(td_));
     }
-    promise_.set_value(
-        td_api::make_object<td_api::receivedGifts>(total_count, std::move(gifts), true, ptr->next_offset_));
+    auto attribute_persistence_per_mille = transform(
+        full_split(td_->option_manager_->get_option_string("stargifts_craft_attribute_permilles", "60,180,450,1000"),
+                   ','),
+        to_integer<int32>);
+    promise_.set_value(td_api::make_object<td_api::giftsForCrafting>(
+        total_count, std::move(gifts), std::move(attribute_persistence_per_mille), ptr->next_offset_));
   }
 
   void on_error(Status status) final {
@@ -1932,7 +1943,7 @@ class GetResaleStarGiftsQuery final : public Td::ResultHandler {
       : promise_(std::move(promise)) {
   }
 
-  void send(int64 gift_id, const td_api::object_ptr<td_api::GiftForResaleOrder> &order,
+  void send(int64 gift_id, const td_api::object_ptr<td_api::GiftForResaleOrder> &order, bool for_craft,
             const vector<StarGiftAttributeId> &attribute_ids, const string &offset, int32 limit) {
     int32 flags = 0;
     auto order_id = order->get_id();
@@ -1944,8 +1955,8 @@ class GetResaleStarGiftsQuery final : public Td::ResultHandler {
       flags |= telegram_api::payments_getResaleStarGifts::ATTRIBUTES_HASH_MASK;
     }
     send_query(G()->net_query_creator().create(telegram_api::payments_getResaleStarGifts(
-        flags, order_id == td_api::giftForResaleOrderPrice::ID, order_id == td_api::giftForResaleOrderNumber::ID, false,
-        0, gift_id, std::move(attributes), offset, limit)));
+        flags, order_id == td_api::giftForResaleOrderPrice::ID, order_id == td_api::giftForResaleOrderNumber::ID,
+        for_craft, 0, gift_id, std::move(attributes), offset, limit)));
   }
 
   void on_result(BufferSlice packet) final {
@@ -2871,9 +2882,10 @@ void StarGiftManager::get_gift_upgrade_preview(int64 gift_id,
   td_->create_handler<GetUpgradeGiftPreviewQuery>(std::move(promise))->send(gift_id);
 }
 
-void StarGiftManager::get_gift_upgrade_variants(int64 gift_id,
+void StarGiftManager::get_gift_upgrade_variants(int64 gift_id, bool return_upgrade_models, bool return_craft_models,
                                                 Promise<td_api::object_ptr<td_api::giftUpgradeVariants>> &&promise) {
-  td_->create_handler<GetStarGiftUpgradeAttributesQuery>(std::move(promise))->send(gift_id);
+  td_->create_handler<GetStarGiftUpgradeAttributesQuery>(std::move(promise))
+      ->send(gift_id, return_upgrade_models, return_craft_models);
 }
 
 void StarGiftManager::upgrade_gift(BusinessConnectionId business_connection_id, StarGiftId star_gift_id,
@@ -3088,7 +3100,7 @@ void StarGiftManager::get_saved_star_gift(StarGiftId star_gift_id,
 }
 
 void StarGiftManager::get_craft_star_gifts(int64 gift_id, const string &offset, int32 limit,
-                                           Promise<td_api::object_ptr<td_api::receivedGifts>> &&promise) {
+                                           Promise<td_api::object_ptr<td_api::giftsForCrafting>> &&promise) {
   if (limit < 0) {
     return promise.set_error(400, "Limit must be non-negative");
   }
@@ -3142,7 +3154,7 @@ void StarGiftManager::set_star_gift_price(StarGiftId star_gift_id, StarGiftResal
 }
 
 void StarGiftManager::get_resale_star_gifts(
-    int64 gift_id, const td_api::object_ptr<td_api::GiftForResaleOrder> &order,
+    int64 gift_id, const td_api::object_ptr<td_api::GiftForResaleOrder> &order, bool for_craft,
     const vector<td_api::object_ptr<td_api::UpgradedGiftAttributeId>> &attributes, const string &offset, int32 limit,
     Promise<td_api::object_ptr<td_api::giftsForResale>> &&promise) {
   if (limit < 0) {
@@ -3153,7 +3165,8 @@ void StarGiftManager::get_resale_star_gifts(
   }
   TRY_RESULT_PROMISE(promise, attribute_ids, StarGiftAttributeId::get_star_gift_attribute_ids(attributes));
 
-  td_->create_handler<GetResaleStarGiftsQuery>(std::move(promise))->send(gift_id, order, attribute_ids, offset, limit);
+  td_->create_handler<GetResaleStarGiftsQuery>(std::move(promise))
+      ->send(gift_id, order, for_craft, attribute_ids, offset, limit);
 }
 
 void StarGiftManager::get_gift_collections(DialogId dialog_id,

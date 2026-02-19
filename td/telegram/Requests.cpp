@@ -3401,7 +3401,8 @@ void Requests::on_request(uint64 id, td_api::getExternalLink &request) {
   CHECK_IS_USER();
   CLEAN_INPUT_STRING(request.link_);
   CREATE_REQUEST_PROMISE();
-  td_->link_manager_->get_link_login_url(request.link_, request.allow_write_access_, std::move(promise));
+  td_->link_manager_->get_link_login_url(request.link_, request.allow_write_access_, request.allow_phone_number_access_,
+                                         std::move(promise));
 }
 
 void Requests::on_request(uint64 id, const td_api::getChatHistory &request) {
@@ -5848,6 +5849,12 @@ void Requests::on_request(uint64 id, td_api::transferChatOwnership &request) {
                                                               request.password_, std::move(promise));
 }
 
+void Requests::on_request(uint64 id, const td_api::getChatOwnerAfterLeaving &request) {
+  CHECK_IS_USER();
+  CREATE_REQUEST_PROMISE();
+  td_->dialog_participant_manager_->get_future_creator_after_leave(DialogId(request.chat_id_), std::move(promise));
+}
+
 void Requests::on_request(uint64 id, const td_api::getChatMember &request) {
   CREATE_REQUEST_PROMISE();
   TRY_RESULT_PROMISE(promise, participant_dialog_id,
@@ -8036,13 +8043,14 @@ void Requests::on_request(uint64 id, const td_api::toggleChatGiftNotifications &
 void Requests::on_request(uint64 id, const td_api::getGiftUpgradePreview &request) {
   CHECK_IS_USER();
   CREATE_REQUEST_PROMISE();
-  td_->star_gift_manager_->get_gift_upgrade_preview(request.gift_id_, std::move(promise));
+  td_->star_gift_manager_->get_gift_upgrade_preview(request.regular_gift_id_, std::move(promise));
 }
 
-void Requests::on_request(uint64 id, const td_api::getGiftUpgradeVariants &request) {
+void Requests::on_request(uint64 id, const td_api::getUpgradedGiftVariants &request) {
   CHECK_IS_USER();
   CREATE_REQUEST_PROMISE();
-  td_->star_gift_manager_->get_gift_upgrade_variants(request.gift_id_, std::move(promise));
+  td_->star_gift_manager_->get_gift_upgrade_variants(request.regular_gift_id_, request.return_upgrade_models_,
+                                                     request.return_craft_models_, std::move(promise));
 }
 
 void Requests::on_request(uint64 id, td_api::upgradeGift &request) {
@@ -8177,8 +8185,9 @@ void Requests::on_request(uint64 id, td_api::searchGiftsForResale &request) {
   CHECK_IS_USER();
   CLEAN_INPUT_STRING(request.offset_);
   CREATE_REQUEST_PROMISE();
-  td_->star_gift_manager_->get_resale_star_gifts(request.gift_id_, request.order_, request.attributes_, request.offset_,
-                                                 request.limit_, std::move(promise));
+  td_->star_gift_manager_->get_resale_star_gifts(request.gift_id_, request.order_, request.for_crafting_,
+                                                 request.attributes_, request.offset_, request.limit_,
+                                                 std::move(promise));
 }
 
 void Requests::on_request(uint64 id, const td_api::getGiftCollections &request) {
@@ -8766,20 +8775,18 @@ void Requests::on_request(uint64 id, td_api::saveApplicationLogEvent &request) {
 }
 
 void Requests::on_request(uint64 id, td_api::addProxy &request) {
-  CLEAN_INPUT_STRING(request.server_);
   CREATE_REQUEST_PROMISE();
-  send_closure(G()->connection_creator(), &ConnectionCreator::add_proxy, -1, std::move(request.server_), request.port_,
-               request.enable_, std::move(request.type_), std::move(promise));
+  send_closure(G()->connection_creator(), &ConnectionCreator::add_proxy, -1, std::move(request.proxy_), request.enable_,
+               std::move(promise));
 }
 
 void Requests::on_request(uint64 id, td_api::editProxy &request) {
   if (request.proxy_id_ < 0) {
     return send_error_raw(id, 400, "Proxy identifier invalid");
   }
-  CLEAN_INPUT_STRING(request.server_);
   CREATE_REQUEST_PROMISE();
-  send_closure(G()->connection_creator(), &ConnectionCreator::add_proxy, request.proxy_id_, std::move(request.server_),
-               request.port_, request.enable_, std::move(request.type_), std::move(promise));
+  send_closure(G()->connection_creator(), &ConnectionCreator::add_proxy, request.proxy_id_, std::move(request.proxy_),
+               request.enable_, std::move(promise));
 }
 
 void Requests::on_request(uint64 id, const td_api::enableProxy &request) {
@@ -8802,12 +8809,7 @@ void Requests::on_request(uint64 id, const td_api::getProxies &request) {
   send_closure(G()->connection_creator(), &ConnectionCreator::get_proxies, std::move(promise));
 }
 
-void Requests::on_request(uint64 id, const td_api::getProxyLink &request) {
-  CREATE_HTTP_URL_REQUEST_PROMISE();
-  send_closure(G()->connection_creator(), &ConnectionCreator::get_proxy_link, request.proxy_id_, std::move(promise));
-}
-
-void Requests::on_request(uint64 id, const td_api::pingProxy &request) {
+void Requests::on_request(uint64 id, td_api::pingProxy &request) {
   CREATE_REQUEST_PROMISE();
   auto query_promise = PromiseCreator::lambda([promise = std::move(promise)](Result<double> result) mutable {
     if (result.is_error()) {
@@ -8816,7 +8818,8 @@ void Requests::on_request(uint64 id, const td_api::pingProxy &request) {
       promise.set_value(td_api::make_object<td_api::seconds>(result.move_as_ok()));
     }
   });
-  send_closure(G()->connection_creator(), &ConnectionCreator::ping_proxy, request.proxy_id_, std::move(query_promise));
+  send_closure(G()->connection_creator(), &ConnectionCreator::ping_proxy, std::move(request.proxy_),
+               std::move(query_promise));
 }
 
 void Requests::on_request(uint64 id, const td_api::getUserSupportInfo &request) {
@@ -8954,8 +8957,8 @@ void Requests::on_request(uint64 id, const td_api::testNetwork &request) {
   td_->country_info_manager_->get_current_country_code(std::move(query_promise));
 }
 
-void Requests::on_request(uint64 id, td_api::testProxy &request) {
-  auto r_proxy = Proxy::create_proxy(std::move(request.server_), request.port_, request.type_.get());
+void Requests::on_request(uint64 id, const td_api::testProxy &request) {
+  auto r_proxy = Proxy::create_proxy(request.proxy_.get());
   if (r_proxy.is_error()) {
     return send_closure(td_actor_, &Td::send_error, id, r_proxy.move_as_error());
   }

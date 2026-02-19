@@ -1102,6 +1102,8 @@ class Requests {
 
   void on_request(uint64 id, td_api::transferChatOwnership &request);
 
+  void on_request(uint64 id, const td_api::getChatOwnerAfterLeaving &request);
+
   void on_request(uint64 id, const td_api::getChatMember &request);
 
   void on_request(uint64 id, td_api::searchChatMembers &request);
@@ -1726,7 +1728,7 @@ class Requests {
 
   void on_request(uint64 id, const td_api::getGiftUpgradePreview &request);
 
-  void on_request(uint64 id, const td_api::getGiftUpgradeVariants &request);
+  void on_request(uint64 id, const td_api::getUpgradedGiftVariants &request);
 
   void on_request(uint64 id, td_api::upgradeGift &request);
 
@@ -1930,9 +1932,7 @@ class Requests {
 
   void on_request(uint64 id, const td_api::getProxies &request);
 
-  void on_request(uint64 id, const td_api::getProxyLink &request);
-
-  void on_request(uint64 id, const td_api::pingProxy &request);
+  void on_request(uint64 id, td_api::pingProxy &request);
 
   void on_request(uint64 id, const td_api::getUserSupportInfo &request);
 
@@ -1994,7 +1994,7 @@ class Requests {
 
   void on_request(uint64 id, const td_api::testNetwork &request);
 
-  void on_request(uint64 id, td_api::testProxy &request);
+  void on_request(uint64 id, const td_api::testProxy &request);
 
   void on_request(uint64 id, const td_api::testGetDifference &request);
 
