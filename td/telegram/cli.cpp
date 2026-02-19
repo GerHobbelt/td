@@ -606,20 +606,24 @@ class CliClient final : public Actor {
     return to_integer<int32>(trim(str));
   }
 
-  vector<int32> as_story_ids(Slice story_ids) const {
-    return transform(autosplit(story_ids), [this](Slice str) { return as_story_id(str); });
+  static vector<int32> as_story_ids(Slice story_ids) {
+    return transform(autosplit(story_ids), [](Slice str) { return as_story_id(str); });
   }
 
   static int32 as_story_album_id(Slice str) {
     return to_integer<int32>(trim(str));
   }
 
-  vector<int32> as_story_album_ids(Slice story_album_ids) const {
-    return transform(autosplit(story_album_ids), [this](Slice str) { return as_story_album_id(str); });
+  static vector<int32> as_story_album_ids(Slice story_album_ids) {
+    return transform(autosplit(story_album_ids), [](Slice str) { return as_story_album_id(str); });
   }
 
   static int32 as_gift_collection_id(Slice str) {
     return to_integer<int32>(trim(str));
+  }
+
+  static vector<int32> as_gift_collection_ids(Slice gift_collection_ids) {
+    return transform(autosplit(gift_collection_ids), [](Slice str) { return as_gift_collection_id(str); });
   }
 
   td_api::object_ptr<td_api::businessRecipients> as_business_recipients(string chat_ids) const {
@@ -1089,7 +1093,7 @@ class CliClient final : public Actor {
     return to_integer<int32>(trim(str));
   }
 
-  vector<int32> as_shortcut_ids(Slice shortcut_ids) const {
+  static vector<int32> as_shortcut_ids(Slice shortcut_ids) {
     return transform(autosplit(shortcut_ids), as_shortcut_id);
   }
 
@@ -1119,11 +1123,16 @@ class CliClient final : public Actor {
     return nullptr;
   }
 
-  int64 as_saved_messages_topic_id(int64 saved_messages_topic_id) const {
+  static int64 as_saved_messages_topic_id(int64 saved_messages_topic_id) {
     if (saved_messages_topic_id == -1) {
       return 2666000;
     }
     return saved_messages_topic_id;
+  }
+
+  vector<int64> as_saved_messages_topic_ids(Slice saved_messages_topic_ids) const {
+    return transform(autosplit(saved_messages_topic_ids),
+                     [this](Slice str) { return as_saved_messages_topic_id(as_chat_id(str)); });
   }
 
   int64 get_saved_messages_topic_id() const {
@@ -3129,10 +3138,39 @@ class CliClient final : public Actor {
       get_args(args, gift_id, owner_id, pay_for_upgrade, text);
       send_request(td_api::make_object<td_api::sendGift>(gift_id, as_message_sender(owner_id), as_formatted_text(text),
                                                          op == "sendgp", pay_for_upgrade));
+    } else if (op == "ggas") {
+      string auction_id;
+      get_args(args, auction_id);
+      send_request(td_api::make_object<td_api::getGiftAuctionState>(auction_id));
+    } else if (op == "ggaag") {
+      int64 gift_id;
+      get_args(args, gift_id);
+      send_request(td_api::make_object<td_api::getGiftAuctionAcquiredGifts>(gift_id));
+    } else if (op == "oga") {
+      int64 gift_id;
+      get_args(args, gift_id);
+      send_request(td_api::make_object<td_api::openGiftAuction>(gift_id));
+    } else if (op == "cga") {
+      int64 gift_id;
+      get_args(args, gift_id);
+      send_request(td_api::make_object<td_api::closeGiftAuction>(gift_id));
     } else if (op == "sellg") {
       string star_gift_id;
       get_args(args, star_gift_id);
       send_request(td_api::make_object<td_api::sellGift>(business_connection_id_, star_gift_id));
+    } else if (op == "pgab" || op == "pgabp") {
+      int64 gift_id;
+      int64 star_count;
+      UserId user_id;
+      string text;
+      get_args(args, gift_id, star_count, user_id, text);
+      send_request(td_api::make_object<td_api::placeGiftAuctionBid>(gift_id, star_count, user_id,
+                                                                    as_formatted_text(text), op == "pgabp"));
+    } else if (op == "igab") {
+      int64 gift_id;
+      int64 star_count;
+      get_args(args, gift_id, star_count);
+      send_request(td_api::make_object<td_api::increaseGiftAuctionBid>(gift_id, star_count));
     } else if (op == "tgis") {
       string star_gift_id;
       bool is_saved;
@@ -3279,9 +3317,8 @@ class CliClient final : public Actor {
       string owner_id;
       string collection_ids;
       get_args(args, owner_id, collection_ids);
-      send_request(td_api::make_object<td_api::reorderGiftCollections>(
-          as_message_sender(owner_id),
-          transform(autosplit(collection_ids), [this](Slice str) { return as_gift_collection_id(str); })));
+      send_request(td_api::make_object<td_api::reorderGiftCollections>(as_message_sender(owner_id),
+                                                                       as_gift_collection_ids(collection_ids)));
     } else if (op == "dgic") {
       string owner_id;
       GiftCollectionId gift_collection_id;
@@ -3483,8 +3520,7 @@ class CliClient final : public Actor {
       send_request(
           td_api::make_object<td_api::toggleSavedMessagesTopicIsPinned>(get_saved_messages_topic_id(), is_pinned));
     } else if (op == "spsmt") {
-      send_request(td_api::make_object<td_api::setPinnedSavedMessagesTopics>(
-          transform(autosplit(args), [this](Slice str) { return as_saved_messages_topic_id(as_chat_id(str)); })));
+      send_request(td_api::make_object<td_api::setPinnedSavedMessagesTopics>(as_saved_messages_topic_ids(args)));
     } else if (op == "gcc") {
       UserId user_id;
       ChatId offset_chat_id;

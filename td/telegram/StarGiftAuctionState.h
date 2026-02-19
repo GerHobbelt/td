@@ -19,6 +19,7 @@ class StarGiftAuctionUserState;
 class Td;
 
 class StarGiftAuctionState {
+  bool is_not_modified_ = false;
   bool is_active_ = false;
   int32 start_date_ = 0;
   int32 end_date_ = 0;
@@ -39,12 +40,26 @@ class StarGiftAuctionState {
   friend bool operator==(const StarGiftAuctionState &lhs, const StarGiftAuctionState &rhs);
 
  public:
-  explicit StarGiftAuctionState(telegram_api::object_ptr<telegram_api::StarGiftAuctionState> &state_ptr);
+  StarGiftAuctionState() = default;
+
+  explicit StarGiftAuctionState(const telegram_api::object_ptr<telegram_api::StarGiftAuctionState> &state_ptr);
+
+  bool is_not_modified() const {
+    return is_not_modified_;
+  }
+
+  int32 get_version() const {
+    return version_;
+  }
 
   td_api::object_ptr<td_api::AuctionState> get_auction_state_object(Td *td,
                                                                     const StarGiftAuctionUserState &user_state) const;
 };
 
 bool operator==(const StarGiftAuctionState &lhs, const StarGiftAuctionState &rhs);
+
+inline bool operator!=(const StarGiftAuctionState &lhs, const StarGiftAuctionState &rhs) {
+  return !(lhs == rhs);
+}
 
 }  // namespace td

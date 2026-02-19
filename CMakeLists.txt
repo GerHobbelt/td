@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.10 FATAL_ERROR)
 
-project(TDLib VERSION 1.8.57 LANGUAGES CXX C)
+project(TDLib VERSION 1.8.58 LANGUAGES CXX C)
 
 if (NOT DEFINED CMAKE_MODULE_PATH)
   set(CMAKE_MODULE_PATH "")
@@ -612,6 +612,8 @@ set(TDLIB_SOURCE_PART2
   td/telegram/StarGiftAttribute.cpp
   td/telegram/StarGiftAttributeId.cpp
   td/telegram/StarGiftAuctionState.cpp
+  td/telegram/StarGiftAuctionUserState.cpp
+  td/telegram/StarGiftBackground.cpp
   td/telegram/StarGiftCollection.cpp
   td/telegram/StarGiftId.cpp
   td/telegram/StarGiftManager.cpp
@@ -649,6 +651,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/TargetDialogTypes.cpp
   td/telegram/Td.cpp
   td/telegram/TdDb.cpp
+  td/telegram/TempPasswordState.cpp
   td/telegram/TermsOfService.cpp
   td/telegram/TermsOfServiceManager.cpp
   td/telegram/ThemeManager.cpp
@@ -1016,6 +1019,8 @@ set(TDLIB_SOURCE_PART2
   td/telegram/StarGiftAttribute.h
   td/telegram/StarGiftAttributeId.h
   td/telegram/StarGiftAuctionState.h
+  td/telegram/StarGiftAuctionUserState.h
+  td/telegram/StarGiftBackground.h
   td/telegram/StarGiftCollection.h
   td/telegram/StarGiftCollectionId.h
   td/telegram/StarGiftId.h
@@ -1061,6 +1066,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/Td.h
   td/telegram/TdCallback.h
   td/telegram/TdDb.h
+  td/telegram/TempPasswordState.h
   td/telegram/TermsOfService.h
   td/telegram/TermsOfServiceManager.h
   td/telegram/ThemeManager.h
@@ -1182,6 +1188,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/StarAmount.hpp
   td/telegram/StarGift.hpp
   td/telegram/StarGiftAttribute.hpp
+  td/telegram/StarGiftBackground.hpp
   td/telegram/StarGiftId.hpp
   td/telegram/StarGiftResalePrice.hpp
   td/telegram/StarGiftSettings.hpp
@@ -1196,6 +1203,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/SuggestedAction.hpp
   td/telegram/SuggestedPost.hpp
   td/telegram/SuggestedPostPrice.hpp
+  td/telegram/TempPasswordState.hpp
   td/telegram/TermsOfService.hpp
   td/telegram/ThemeSettings.hpp
   td/telegram/ToDoCompletion.hpp

@@ -1210,6 +1210,12 @@ giftSettings show_gift_button:Bool accepted_gift_types:acceptedGiftTypes = GiftS
 //@gifts_per_round Number of gifts distributed in each round
 giftAuction id:string gifts_per_round:int32 = GiftAuction;
 
+//@description Describes background of a gift
+//@center_color Center color in RGB format
+//@edge_color Edge color in RGB format
+//@text_color Text color in RGB format
+giftBackground center_color:int32 edge_color:int32 text_color:int32 = GiftBackground;
+
 //@description Describes the maximum number of times that a specific gift can be purchased
 //@total_count The maximum number of times the gifts can be purchased
 //@remaining_count Number of remaining times the gift can be purchased
@@ -1508,6 +1514,14 @@ giftUpgradePreview models:vector<upgradedGiftModel> symbols:vector<upgradedGiftS
 //@position Position of the bid in the list of all bids
 auctionBid star_count:int53 bid_date:int32 position:int32 = AuctionBid;
 
+//@description Describes a bid of the current user in an auction
+//@star_count The number of Telegram Stars that were put in the bid
+//@bid_date Point in time (Unix timestamp) when the bid was made
+//@next_bid_star_count The minimum number of Telegram Stars that can be put for the next bid
+//@owner_id Identifier of the user or the chat that will receive the auctioned item. If the auction is opened in context of another user or chat, then a warning is supposed to be shown to the current user
+//@was_returned True, if the bid was returned to the user, because it was outbid and can't win anymore
+userAuctionBid star_count:int53 bid_date:int32 next_bid_star_count:int53 owner_id:MessageSender was_returned:Bool = UserAuctionBid;
+
 
 //@class AuctionState @description Describes state of an auction
 
@@ -1520,14 +1534,36 @@ auctionBid star_count:int53 bid_date:int32 position:int32 = AuctionBid;
 //@current_round_end_date Point in time (Unix timestamp) when the current round will end
 //@current_round_number 1-based number of the current round
 //@total_round_count The total number of rounds
-//@left_item_count The number of items that have to be distributed on the auciton
-auctionStateActive start_date:int32 end_date:int32 min_bid:int53 bid_levels:vector<auctionBid> top_bidder_user_ids:vector<int53> current_round_end_date:int32 current_round_number:int32 total_round_count:int32 left_item_count:int32 = AuctionState;
+//@left_item_count The number of items that have to be distributed on the auction
+//@acquired_item_count The number of items that were purchased by the current user on the auction
+//@user_bid Bid of the current user in the auction; may be null if none
+auctionStateActive start_date:int32 end_date:int32 min_bid:int53 bid_levels:vector<auctionBid> top_bidder_user_ids:vector<int53> current_round_end_date:int32 current_round_number:int32 total_round_count:int32 left_item_count:int32 acquired_item_count:int32 user_bid:userAuctionBid = AuctionState;
 
 //@description Contains information about a finished auction
 //@start_date Point in time (Unix timestamp) when the auction started
 //@end_date Point in time (Unix timestamp) when the auction will be ended
 //@average_price Average price of bought items in Telegram Stars
-auctionStateFinished start_date:int32 end_date:int32 average_price:int53 = AuctionState;
+//@acquired_item_count The number of items that were purchased by the current user on the auction
+auctionStateFinished start_date:int32 end_date:int32 average_price:int53 acquired_item_count:int32 = AuctionState;
+
+
+//@description Represent auction state of a gift
+//@gift The gift
+//@state Auction state of the gift
+giftAuctionState gift:gift state:AuctionState = GiftAuctionState;
+
+//@description Represents a gift that was acquired by the current user on an auction
+//@receiver_id Receiver of the gift
+//@date Point in time (Unix timestamp) when the gift was acquired
+//@star_count The number of Telegram Stars that were paid for the gift
+//@auction_round_number Identifier of the auction round in which the gift was acquired
+//@auction_round_position Position of the user in the round among all auction participants
+//@text Message added to the gift
+//@is_private True, if the sender and gift text are shown only to the gift receiver; otherwise, everyone will be able to see them
+giftAuctionAcquiredGift receiver_id:MessageSender date:int32 star_count:int53 auction_round_number:int32 auction_round_position:int32 text:formattedText is_private:Bool = GiftAuctionAcquiredGift;
+
+//@description Represents a list of gifts that were acquired by the current user on an auction @gifts The list of acquired gifts
+giftAuctionAcquiredGifts gifts:vector<giftAuctionAcquiredGift> = GiftAuctionAcquiredGifts;
 
 
 //@class TransactionDirection @description Describes direction of transactions in a transaction list
@@ -1541,81 +1577,81 @@ transactionDirectionOutgoing = TransactionDirection;
 
 //@class StarTransactionType @description Describes type of transaction with Telegram Stars
 
-//@description The transaction is a deposit of Telegram Stars from the Premium bot; for regular users only
+//@description The transaction is a deposit of Telegram Stars from the Premium bot; relevant for regular users only
 starTransactionTypePremiumBotDeposit = StarTransactionType;
 
-//@description The transaction is a deposit of Telegram Stars from App Store; for regular users only
+//@description The transaction is a deposit of Telegram Stars from App Store; relevant for regular users only
 starTransactionTypeAppStoreDeposit = StarTransactionType;
 
-//@description The transaction is a deposit of Telegram Stars from Google Play; for regular users only
+//@description The transaction is a deposit of Telegram Stars from Google Play; relevant for regular users only
 starTransactionTypeGooglePlayDeposit = StarTransactionType;
 
-//@description The transaction is a deposit of Telegram Stars from Fragment; for regular users and bots only
+//@description The transaction is a deposit of Telegram Stars from Fragment; relevant for regular users and bots only
 starTransactionTypeFragmentDeposit = StarTransactionType;
 
-//@description The transaction is a deposit of Telegram Stars by another user; for regular users only
+//@description The transaction is a deposit of Telegram Stars by another user; relevant for regular users only
 //@user_id Identifier of the user that gifted Telegram Stars; 0 if the user was anonymous
 //@sticker The sticker to be shown in the transaction information; may be null if unknown
 starTransactionTypeUserDeposit user_id:int53 sticker:sticker = StarTransactionType;
 
-//@description The transaction is a deposit of Telegram Stars from a giveaway; for regular users only
+//@description The transaction is a deposit of Telegram Stars from a giveaway; relevant for regular users only
 //@chat_id Identifier of a supergroup or a channel chat that created the giveaway
 //@giveaway_message_id Identifier of the message with the giveaway; can be 0 or an identifier of a deleted message
 starTransactionTypeGiveawayDeposit chat_id:int53 giveaway_message_id:int53 = StarTransactionType;
 
-//@description The transaction is a withdrawal of earned Telegram Stars to Fragment; for regular users, bots, supergroup and channel chats only
+//@description The transaction is a withdrawal of earned Telegram Stars to Fragment; relevant for regular users, bots, supergroup and channel chats only
 //@withdrawal_state State of the withdrawal; may be null for refunds from Fragment
 starTransactionTypeFragmentWithdrawal withdrawal_state:RevenueWithdrawalState = StarTransactionType;
 
-//@description The transaction is a withdrawal of earned Telegram Stars to Telegram Ad platform; for bots and channel chats only
+//@description The transaction is a withdrawal of earned Telegram Stars to Telegram Ad platform; relevant for bots and channel chats only
 starTransactionTypeTelegramAdsWithdrawal = StarTransactionType;
 
-//@description The transaction is a payment for Telegram API usage; for bots only @request_count The number of billed requests
+//@description The transaction is a payment for Telegram API usage; relevant for bots only @request_count The number of billed requests
 starTransactionTypeTelegramApiUsage request_count:int32 = StarTransactionType;
 
-//@description The transaction is a purchase of paid media from a bot or a business account by the current user; for regular users only
+//@description The transaction is a purchase of paid media from a bot or a business account by the current user; relevant for regular users only
 //@user_id Identifier of the bot or the business account user that sent the paid media
 //@media The bought media if the transaction wasn't refunded
 starTransactionTypeBotPaidMediaPurchase user_id:int53 media:vector<PaidMedia> = StarTransactionType;
 
-//@description The transaction is a sale of paid media by the bot or a business account managed by the bot; for bots only
+//@description The transaction is a sale of paid media by the bot or a business account managed by the bot; relevant for bots only
 //@user_id Identifier of the user that bought the media
 //@media The bought media
 //@payload Bot-provided payload
 //@affiliate Information about the affiliate which received commission from the transaction; may be null if none
 starTransactionTypeBotPaidMediaSale user_id:int53 media:vector<PaidMedia> payload:string affiliate:affiliateInfo = StarTransactionType;
 
-//@description The transaction is a purchase of paid media from a channel by the current user; for regular users only
+//@description The transaction is a purchase of paid media from a channel by the current user; relevant for regular users only
 //@chat_id Identifier of the channel chat that sent the paid media
 //@message_id Identifier of the corresponding message with paid media; can be 0 or an identifier of a deleted message
 //@media The bought media if the transaction wasn't refunded
 starTransactionTypeChannelPaidMediaPurchase chat_id:int53 message_id:int53 media:vector<PaidMedia> = StarTransactionType;
 
-//@description The transaction is a sale of paid media by the channel chat; for channel chats only
+//@description The transaction is a sale of paid media by the channel chat; relevant for channel chats only
 //@user_id Identifier of the user that bought the media
 //@message_id Identifier of the corresponding message with paid media; can be 0 or an identifier of a deleted message
 //@media The bought media
 starTransactionTypeChannelPaidMediaSale user_id:int53 message_id:int53 media:vector<PaidMedia> = StarTransactionType;
 
-//@description The transaction is a purchase of a product from a bot or a business account by the current user; for regular users only
+//@description The transaction is a purchase of a product from a bot or a business account by the current user; relevant for regular users only
 //@user_id Identifier of the bot or the business account user that created the invoice
 //@product_info Information about the bought product
 starTransactionTypeBotInvoicePurchase user_id:int53 product_info:productInfo = StarTransactionType;
 
-//@description The transaction is a sale of a product by the bot; for bots only
+//@description The transaction is a sale of a product by the bot; relevant for bots only
 //@user_id Identifier of the user that bought the product
 //@product_info Information about the bought product
 //@invoice_payload Invoice payload
 //@affiliate Information about the affiliate which received commission from the transaction; may be null if none
 starTransactionTypeBotInvoiceSale user_id:int53 product_info:productInfo invoice_payload:bytes affiliate:affiliateInfo = StarTransactionType;
 
-//@description The transaction is a purchase of a subscription from a bot or a business account by the current user; for regular users only
+//@description The transaction is a purchase of a subscription from a bot or a business account by the current user; relevant for regular users only
 //@user_id Identifier of the bot or the business account user that created the subscription link
 //@subscription_period The number of seconds between consecutive Telegram Star debitings
 //@product_info Information about the bought subscription
 starTransactionTypeBotSubscriptionPurchase user_id:int53 subscription_period:int32 product_info:productInfo = StarTransactionType;
 
-//@description The transaction is a sale of a subscription by the bot; for bots only
+//@description The transaction is a sale of a subscription by the bot; relevant for bots only
 //@user_id Identifier of the user that bought the subscription
 //@subscription_period The number of seconds between consecutive Telegram Star debitings
 //@product_info Information about the bought subscription
@@ -1623,108 +1659,111 @@ starTransactionTypeBotSubscriptionPurchase user_id:int53 subscription_period:int
 //@affiliate Information about the affiliate which received commission from the transaction; may be null if none
 starTransactionTypeBotSubscriptionSale user_id:int53 subscription_period:int32 product_info:productInfo invoice_payload:bytes affiliate:affiliateInfo = StarTransactionType;
 
-//@description The transaction is a purchase of a subscription to a channel chat by the current user; for regular users only
+//@description The transaction is a purchase of a subscription to a channel chat by the current user; relevant for regular users only
 //@chat_id Identifier of the channel chat that created the subscription
 //@subscription_period The number of seconds between consecutive Telegram Star debitings
 starTransactionTypeChannelSubscriptionPurchase chat_id:int53 subscription_period:int32 = StarTransactionType;
 
-//@description The transaction is a sale of a subscription by the channel chat; for channel chats only
+//@description The transaction is a sale of a subscription by the channel chat; relevant for channel chats only
 //@user_id Identifier of the user that bought the subscription
 //@subscription_period The number of seconds between consecutive Telegram Star debitings
 starTransactionTypeChannelSubscriptionSale user_id:int53 subscription_period:int32 = StarTransactionType;
 
-//@description The transaction is a purchase of a regular gift; for regular users and bots only @owner_id Identifier of the user or the channel that received the gift @gift The gift
+//@description The transaction is a bid on a gift auction; relevant for regular users only @owner_id Identifier of the user that will receive the gift @gift The gift
+starTransactionTypeGiftAuctionBid owner_id:MessageSender gift:gift = StarTransactionType;
+
+//@description The transaction is a purchase of a regular gift; relevant for regular users and bots only @owner_id Identifier of the user or the channel that received the gift @gift The gift
 starTransactionTypeGiftPurchase owner_id:MessageSender gift:gift = StarTransactionType;
 
-//@description The transaction is a transfer of an upgraded gift; for regular users only @owner_id Identifier of the user or the channel that received the gift @gift The gift
+//@description The transaction is a transfer of an upgraded gift; relevant for regular users only @owner_id Identifier of the user or the channel that received the gift @gift The gift
 starTransactionTypeGiftTransfer owner_id:MessageSender gift:upgradedGift = StarTransactionType;
 
-//@description The transaction is a drop of original details of an upgraded gift; for regular users only @owner_id Identifier of the user or the channel that owns the gift @gift The gift
+//@description The transaction is a drop of original details of an upgraded gift; relevant for regular users only @owner_id Identifier of the user or the channel that owns the gift @gift The gift
 starTransactionTypeGiftOriginalDetailsDrop owner_id:MessageSender gift:upgradedGift = StarTransactionType;
 
-//@description The transaction is a sale of a received gift; for regular users and channel chats only @user_id Identifier of the user that sent the gift @gift The gift
+//@description The transaction is a sale of a received gift; relevant for regular users and channel chats only @user_id Identifier of the user that sent the gift @gift The gift
 starTransactionTypeGiftSale user_id:int53 gift:gift = StarTransactionType;
 
-//@description The transaction is an upgrade of a gift; for regular users only @user_id Identifier of the user that initially sent the gift @gift The upgraded gift
+//@description The transaction is an upgrade of a gift; relevant for regular users only @user_id Identifier of the user that initially sent the gift @gift The upgraded gift
 starTransactionTypeGiftUpgrade user_id:int53 gift:upgradedGift = StarTransactionType;
 
-//@description The transaction is a purchase of an upgrade of a gift owned by another user or channel; for regular users only @owner_id Owner of the upgraded gift @gift The gift
+//@description The transaction is a purchase of an upgrade of a gift owned by another user or channel; relevant for regular users only @owner_id Owner of the upgraded gift @gift The gift
 starTransactionTypeGiftUpgradePurchase owner_id:MessageSender gift:gift = StarTransactionType;
 
-//@description The transaction is a purchase of an upgraded gift for some user or channel; for regular users only @user_id Identifier of the user that sold the gift @gift The gift
+//@description The transaction is a purchase of an upgraded gift for some user or channel; relevant for regular users only @user_id Identifier of the user that sold the gift @gift The gift
 starTransactionTypeUpgradedGiftPurchase user_id:int53 gift:upgradedGift = StarTransactionType;
 
-//@description The transaction is a sale of an upgraded gift; for regular users only
+//@description The transaction is a sale of an upgraded gift; relevant for regular users only
 //@user_id Identifier of the user that bought the gift
 //@gift The gift
 //@commission_per_mille The number of Telegram Stars received by the Telegram for each 1000 Telegram Stars received by the seller of the gift
 //@commission_star_amount The amount of Telegram Stars that were received by Telegram; can be negative for refunds
 starTransactionTypeUpgradedGiftSale user_id:int53 gift:upgradedGift commission_per_mille:int32 commission_star_amount:starAmount = StarTransactionType;
 
-//@description The transaction is a sending of a paid reaction to a message in a channel chat by the current user; for regular users only
+//@description The transaction is a sending of a paid reaction to a message in a channel chat by the current user; relevant for regular users only
 //@chat_id Identifier of the channel chat
 //@message_id Identifier of the reacted message; can be 0 or an identifier of a deleted message
 starTransactionTypeChannelPaidReactionSend chat_id:int53 message_id:int53 = StarTransactionType;
 
-//@description The transaction is a receiving of a paid reaction to a message by the channel chat; for channel chats only
+//@description The transaction is a receiving of a paid reaction to a message by the channel chat; relevant for channel chats only
 //@user_id Identifier of the user that added the paid reaction
 //@message_id Identifier of the reacted message; can be 0 or an identifier of a deleted message
 starTransactionTypeChannelPaidReactionReceive user_id:int53 message_id:int53 = StarTransactionType;
 
-//@description The transaction is a receiving of a commission from an affiliate program; for regular users, bots and channel chats only
+//@description The transaction is a receiving of a commission from an affiliate program; relevant for regular users, bots and channel chats only
 //@chat_id Identifier of the chat that created the affiliate program
 //@commission_per_mille The number of Telegram Stars received by the affiliate for each 1000 Telegram Stars received by the program owner
 starTransactionTypeAffiliateProgramCommission chat_id:int53 commission_per_mille:int32 = StarTransactionType;
 
-//@description The transaction is a sending of a paid message; for regular users only @chat_id Identifier of the chat that received the payment @message_count Number of sent paid messages
+//@description The transaction is a sending of a paid message; relevant for regular users only @chat_id Identifier of the chat that received the payment @message_count Number of sent paid messages
 starTransactionTypePaidMessageSend chat_id:int53 message_count:int32 = StarTransactionType;
 
-//@description The transaction is a receiving of a paid message; for regular users, supergroup and channel chats only
+//@description The transaction is a receiving of a paid message; relevant for regular users, supergroup and channel chats only
 //@sender_id Identifier of the sender of the message
 //@message_count Number of received paid messages
 //@commission_per_mille The number of Telegram Stars received by the Telegram for each 1000 Telegram Stars paid for message sending
 //@commission_star_amount The amount of Telegram Stars that were received by Telegram; can be negative for refunds
 starTransactionTypePaidMessageReceive sender_id:MessageSender message_count:int32 commission_per_mille:int32 commission_star_amount:starAmount = StarTransactionType;
 
-//@description The transaction is a sending of a paid group call message; for regular users only @chat_id Identifier of the chat that received the payment
+//@description The transaction is a sending of a paid group call message; relevant for regular users only @chat_id Identifier of the chat that received the payment
 starTransactionTypePaidGroupCallMessageSend chat_id:int53 = StarTransactionType;
 
-//@description The transaction is a receiving of a paid group call message; for regular users and channel chats only
+//@description The transaction is a receiving of a paid group call message; relevant for regular users and channel chats only
 //@sender_id Identifier of the sender of the message
 //@commission_per_mille The number of Telegram Stars received by the Telegram for each 1000 Telegram Stars paid for message sending
 //@commission_star_amount The amount of Telegram Stars that were received by Telegram; can be negative for refunds
 starTransactionTypePaidGroupCallMessageReceive sender_id:MessageSender commission_per_mille:int32 commission_star_amount:starAmount = StarTransactionType;
 
-//@description The transaction is a sending of a paid group reaction; for regular users only @chat_id Identifier of the chat that received the payment
+//@description The transaction is a sending of a paid group reaction; relevant for regular users only @chat_id Identifier of the chat that received the payment
 starTransactionTypePaidGroupCallReactionSend chat_id:int53 = StarTransactionType;
 
-//@description The transaction is a receiving of a paid group call reaction; for regular users and channel chats only
+//@description The transaction is a receiving of a paid group call reaction; relevant for regular users and channel chats only
 //@sender_id Identifier of the sender of the reaction
 //@commission_per_mille The number of Telegram Stars received by the Telegram for each 1000 Telegram Stars paid for reaction sending
 //@commission_star_amount The amount of Telegram Stars that were received by Telegram; can be negative for refunds
 starTransactionTypePaidGroupCallReactionReceive sender_id:MessageSender commission_per_mille:int32 commission_star_amount:starAmount = StarTransactionType;
 
-//@description The transaction is a payment for a suggested post; for regular users only
+//@description The transaction is a payment for a suggested post; relevant for regular users only
 //@chat_id Identifier of the channel chat that posted the post
 starTransactionTypeSuggestedPostPaymentSend chat_id:int53 = StarTransactionType;
 
-//@description The transaction is a receiving of a payment for a suggested post by the channel chat; for channel chats only
+//@description The transaction is a receiving of a payment for a suggested post by the channel chat; relevant for channel chats only
 //@user_id Identifier of the user that paid for the suggested post
 starTransactionTypeSuggestedPostPaymentReceive user_id:int53 = StarTransactionType;
 
-//@description The transaction is a purchase of Telegram Premium subscription; for regular users and bots only
+//@description The transaction is a purchase of Telegram Premium subscription; relevant for regular users and bots only
 //@user_id Identifier of the user that received the Telegram Premium subscription
 //@month_count Number of months the Telegram Premium subscription will be active
 //@sticker A sticker to be shown in the transaction information; may be null if unknown
 starTransactionTypePremiumPurchase user_id:int53 month_count:int32 sticker:sticker = StarTransactionType;
 
-//@description The transaction is a transfer of Telegram Stars to a business bot; for regular users only @user_id Identifier of the bot that received Telegram Stars
+//@description The transaction is a transfer of Telegram Stars to a business bot; relevant for regular users only @user_id Identifier of the bot that received Telegram Stars
 starTransactionTypeBusinessBotTransferSend user_id:int53 = StarTransactionType;
 
-//@description The transaction is a transfer of Telegram Stars from a business account; for bots only @user_id Identifier of the user that sent Telegram Stars
+//@description The transaction is a transfer of Telegram Stars from a business account; relevant for bots only @user_id Identifier of the user that sent Telegram Stars
 starTransactionTypeBusinessBotTransferReceive user_id:int53 = StarTransactionType;
 
-//@description The transaction is a payment for search of posts in public Telegram channels; for regular users only
+//@description The transaction is a payment for search of posts in public Telegram channels; relevant for regular users only
 starTransactionTypePublicPostSearch = StarTransactionType;
 
 //@description The transaction is a transaction of an unsupported type
@@ -1756,10 +1795,10 @@ tonTransactionTypeFragmentDeposit is_gift:Bool sticker:sticker = TonTransactionT
 //@description The transaction is a payment for a suggested post @chat_id Identifier of the channel chat that posted the post
 tonTransactionTypeSuggestedPostPayment chat_id:int53 = TonTransactionType;
 
-//@description The transaction is a purchase of an upgraded gift for some user or channel; for regular users only @user_id Identifier of the user that sold the gift @gift The gift
+//@description The transaction is a purchase of an upgraded gift for some user or channel @user_id Identifier of the user that sold the gift @gift The gift
 tonTransactionTypeUpgradedGiftPurchase user_id:int53 gift:upgradedGift = TonTransactionType;
 
-//@description The transaction is a sale of an upgraded gift; for regular users only
+//@description The transaction is a sale of an upgraded gift
 //@user_id Identifier of the user that bought the gift
 //@gift The gift
 //@commission_per_mille The number of Toncoins received by the Telegram for each 1000 Toncoins received by the seller of the gift
@@ -3800,6 +3839,12 @@ linkPreviewTypeExternalAudio url:string mime_type:string duration:int32 = LinkPr
 //@duration Duration of the video, in seconds; 0 if unknown
 linkPreviewTypeExternalVideo url:string mime_type:string width:int32 height:int32 duration:int32 = LinkPreviewType;
 
+//@description The link is a link to a gift auction
+//@gift The gift
+//@gift_background Background of the gift
+//@auction_end_date Point in time (Unix timestamp) when the auction will be ended
+linkPreviewTypeGiftAuction gift:gift gift_background:giftBackground auction_end_date:int32 = LinkPreviewType;
+
 //@description The link is a link to a gift collection @icons Icons for some gifts from the collection; may be empty
 linkPreviewTypeGiftCollection icons:vector<sticker> = LinkPreviewType;
 
@@ -4779,6 +4824,7 @@ messageGiveawayPrizeStars star_count:int53 transaction_id:string boosted_chat_id
 //@sell_star_count Number of Telegram Stars that can be claimed by the receiver instead of the regular gift; 0 if the gift can't be sold by the receiver
 //@prepaid_upgrade_star_count Number of Telegram Stars that were paid by the sender for the ability to upgrade the gift
 //@is_upgrade_separate True, if the upgrade was bought after the gift was sent. In this case, prepaid upgrade cost must not be added to the gift cost
+//@is_from_auction True, if the message is a notification about a gift won on an auction
 //@is_private True, if the sender and gift text are shown only to the gift receiver; otherwise, everyone will be able to see them
 //@is_saved True, if the gift is displayed on the user's or the channel's profile page; only for the receiver of the gift
 //@is_prepaid_upgrade True, if the message is about prepaid upgrade of the gift by another user
@@ -4788,7 +4834,7 @@ messageGiveawayPrizeStars star_count:int53 transaction_id:string boosted_chat_id
 //@was_refunded True, if the gift was refunded and isn't available anymore
 //@upgraded_received_gift_id Identifier of the corresponding upgraded gift; may be empty if unknown. Use getReceivedGift to get information about the gift
 //@prepaid_upgrade_hash If non-empty, then the user can pay for an upgrade of the gift using buyGiftUpgrade
-messageGift gift:gift sender_id:MessageSender receiver_id:MessageSender received_gift_id:string text:formattedText sell_star_count:int53 prepaid_upgrade_star_count:int53 is_upgrade_separate:Bool is_private:Bool is_saved:Bool is_prepaid_upgrade:Bool can_be_upgraded:Bool was_converted:Bool was_upgraded:Bool was_refunded:Bool upgraded_received_gift_id:string prepaid_upgrade_hash:string = MessageContent;
+messageGift gift:gift sender_id:MessageSender receiver_id:MessageSender received_gift_id:string text:formattedText sell_star_count:int53 prepaid_upgrade_star_count:int53 is_upgrade_separate:Bool is_from_auction:Bool is_private:Bool is_saved:Bool is_prepaid_upgrade:Bool can_be_upgraded:Bool was_converted:Bool was_upgraded:Bool was_refunded:Bool upgraded_received_gift_id:string prepaid_upgrade_hash:string = MessageContent;
 
 //@description An upgraded gift was received or sent by the current user, or the current user was notified about a channel gift
 //@gift The gift
@@ -8205,6 +8251,10 @@ internalLinkTypeEditProfileSettings = InternalLinkType;
 //@game_short_name Short name of the game
 internalLinkTypeGame bot_username:string game_short_name:string = InternalLinkType;
 
+//@description The link is a link to a gift auction. Call getGiftAuctionState with the given auction identifier to process the link
+//@auction_id Unique identifier of the auction
+internalLinkTypeGiftAuction auction_id:string = InternalLinkType;
+
 //@description The link is a link to a gift collection. Call searchPublicChat with the given username, then call getReceivedGifts with the received gift owner identifier
 //-and the given collection identifier, then show the collection if received
 //@gift_owner_username Username of the owner of the gift collection
@@ -9507,6 +9557,12 @@ updateLiveStoryTopDonors group_call_id:int32 donors:liveStoryDonors = Update;
 
 //@description New call signaling data arrived @call_id The call identifier @data The data
 updateNewCallSignalingData call_id:int32 data:bytes = Update;
+
+//@description State of a gift auction was updated @state New state of the auction
+updateGiftAuctionState state:giftAuctionState = Update;
+
+//@description The list of auctions in which participate the current user has changed @states New states of the auctions
+updateActiveGiftAuctions states:vector<giftAuctionState> = Update;
 
 //@description Some privacy setting rules have been changed @setting The privacy setting @rules New privacy rules
 updateUserPrivacySettingRules setting:UserPrivacySetting rules:userPrivacySettingRules = Update;
@@ -13496,6 +13552,32 @@ canSendGift gift_id:int64 = CanSendGiftResult;
 //@is_private Pass true to show gift text and sender only to the gift receiver; otherwise, everyone will be able to see them
 //@pay_for_upgrade Pass true to additionally pay for the gift upgrade and allow the receiver to upgrade it for free
 sendGift gift_id:int64 owner_id:MessageSender text:formattedText is_private:Bool pay_for_upgrade:Bool = Ok;
+
+//@description Returns auction state for a gift @auction_id Unique identifier of the auction
+getGiftAuctionState auction_id:string = GiftAuctionState;
+
+//@description Returns the gifts that were acquired by the current user on a gift auction @gift_id Identifier of the auctioned gift
+getGiftAuctionAcquiredGifts gift_id:int64 = GiftAuctionAcquiredGifts;
+
+//@description Informs TDLib that a gift auction was opened by the user @gift_id Identifier of the gift, which auction was opened
+openGiftAuction gift_id:int64 = Ok;
+
+//@description Informs TDLib that a gift auction was closed by the user @gift_id Identifier of the gift, which auction was closed
+closeGiftAuction gift_id:int64 = Ok;
+
+//@description Places a bid on an auction gift
+//@gift_id Identifier of the gift to place the bid on
+//@star_count The number of Telegram Stars to place in the bid
+//@user_id Identifier of the user that will receive the gift
+//@text Text to show along with the gift; 0-getOption("gift_text_length_max") characters. Only Bold, Italic, Underline, Strikethrough, Spoiler, and CustomEmoji entities are allowed.
+//-Must be empty if the receiver enabled paid messages
+//@is_private Pass true to show gift text and sender only to the gift receiver; otherwise, everyone will be able to see them
+placeGiftAuctionBid gift_id:int64 star_count:int53 user_id:int53 text:formattedText is_private:Bool = Ok;
+
+//@description Increases a bid for an auction gift without changing gift text and receiver
+//@gift_id Identifier of the gift to put the bid on
+//@star_count The number of Telegram Stars to put in the bid
+increaseGiftAuctionBid gift_id:int64 star_count:int53 = Ok;
 
 //@description Sells a gift for Telegram Stars; requires owner privileges for gifts owned by a chat
 //@business_connection_id Unique identifier of business connection on behalf of which to send the request; for bots only
