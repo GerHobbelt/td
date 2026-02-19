@@ -137,7 +137,8 @@ passkeys passkeys:vector<passkey> = Passkeys;
 //@description Initialization parameters are needed. Call setTdlibParameters to provide them
 authorizationStateWaitTdlibParameters = AuthorizationState;
 
-//@description TDLib needs the user's phone number to authorize. Call setAuthenticationPhoneNumber to provide the phone number, or use requestQrCodeAuthentication or checkAuthenticationBotToken for other authentication options
+//@description TDLib needs the user's phone number to authorize. Call setAuthenticationPhoneNumber to provide the phone number,
+//-or use requestQrCodeAuthentication, getAuthenticationPasskeyParameters, or checkAuthenticationBotToken for other authentication options
 authorizationStateWaitPhoneNumber = AuthorizationState;
 
 //@description The user must buy Telegram Premium as an in-store purchase to log in. Call checkAuthenticationPremiumPurchase and then setAuthenticationPremiumPurchaseTransaction
@@ -475,7 +476,7 @@ photo has_stickers:Bool minithumbnail:minithumbnail sizes:vector<photoSize> = Ph
 //@set_id Identifier of the sticker set to which the sticker belongs; 0 if none
 //@width Sticker width; as defined by the sender
 //@height Sticker height; as defined by the sender
-//@emoji Emoji corresponding to the sticker
+//@emoji Emoji corresponding to the sticker; may be empty if unknown
 //@format Sticker format
 //@full_type Sticker's full type
 //@thumbnail Sticker thumbnail in WEBP or JPEG format; may be null
@@ -554,6 +555,14 @@ venue location:location title:string address:string provider:string id:string ty
 //@animation Game animation; may be null
 game id:int64 short_name:string title:string text:formattedText description:string photo:photo animation:animation = Game;
 
+//@description Describes state of the stake dice
+//@state_hash Hash of the state to use for sending the next dice; may be empty if the stake dice can't be sent by the current user
+//@stake_toncoin_amount The amount of Toncoins that was staked in the previous roll; in the smallest units of the currency
+//@current_streak The number of rolled sixes towards the streak; 0-2
+//@prize_per_mille The number of Toncoins received by the user for each 1000 Toncoins staked if the dice outcome is 1-6 correspondingly; may be empty if the stake dice can't be sent by the current user
+//@streak_prize_per_mille The number of Toncoins received by the user for each 1000 Toncoins staked if the dice outcome is 6 three times in a row with the same stake
+stakeDiceState state_hash:string stake_toncoin_amount:int53 current_streak:int32 prize_per_mille:vector<int32> streak_prize_per_mille:int32 = StakeDiceState;
+
 //@description Describes a Web App. Use getInternalLink with internalLinkTypeWebApp to share the Web App
 //@short_name Web App short name
 //@title Web App title
@@ -580,7 +589,7 @@ poll id:int64 question:formattedText options:vector<pollOption> total_voter_coun
 //@id Unique identifier of the alternative video, which is used in the HLS file
 //@width Video width
 //@height Video height
-//@codec Codec used for video file encoding, for example, "h264", "h265", or "av1"
+//@codec Codec used for video file encoding, for example, "h264", "h265", "av1", or "av01"
 //@hls_file HLS file describing the video
 //@video File containing the video
 alternativeVideo id:int64 width:int32 height:int32 codec:string hls_file:file video:file = AlternativeVideo;
@@ -1563,7 +1572,7 @@ userAuctionBid star_count:int53 bid_date:int32 next_bid_star_count:int53 owner_i
 //@description Describes a round of an auction
 //@number 1-based number of the round
 //@duration Duration of the round, in seconds
-//@extend_time The number of seconds for which the round will be extended if there will be changes in the top winners
+//@extend_time The number of seconds for which the round will be extended if there are changes in the top winners
 //@top_winner_count The number of top winners who trigger round extension if changed
 auctionRound number:int32 duration:int32 extend_time:int32 top_winner_count:int32 = AuctionRound;
 
@@ -2672,7 +2681,7 @@ inputTextQuote text:formattedText position:int32 = InputTextQuote;
 //@origin_send_date Point in time (Unix timestamp) when the message was sent if the message was from another chat or topic; 0 for messages from the same chat
 //@content Media content of the message if the message was from another chat or topic; may be null for messages from the same chat and messages without media.
 //-Can be only one of the following types: messageAnimation, messageAudio, messageChecklist, messageContact, messageDice, messageDocument, messageGame,
-//-messageGiveaway, messageGiveawayWinners, messageInvoice, messageLocation, messagePaidMedia, messagePhoto, messagePoll, messageSticker, messageStory,
+//-messageGiveaway, messageGiveawayWinners, messageInvoice, messageLocation, messagePaidMedia, messagePhoto, messagePoll, messageStakeDice, messageSticker, messageStory,
 //-messageText (for link preview), messageVenue, messageVideo, messageVideoNote, or messageVoiceNote
 messageReplyToMessage chat_id:int53 message_id:int53 quote:textQuote checklist_task_id:int32 origin:MessageOrigin origin_send_date:int32 content:MessageContent = MessageReplyTo;
 
@@ -4614,7 +4623,7 @@ messageAnimatedEmoji animated_emoji:animatedEmoji emoji:string = MessageContent;
 //@initial_state The animated stickers with the initial dice animation; may be null if unknown. The update updateMessageContent will be sent when the sticker became known
 //@final_state The animated stickers with the final dice animation; may be null if unknown. The update updateMessageContent will be sent when the sticker became known
 //@emoji Emoji on which the dice throw animation is based
-//@value The dice value. If the value is 0, the dice don't have final state yet
+//@value The dice value. If the value is 0, then the dice don't have final state yet
 //@success_animation_frame_number Number of frame after which a success animation like a shower of confetti needs to be shown on updateMessageSendSucceeded
 messageDice initial_state:DiceStickers final_state:DiceStickers emoji:string value:int32 success_animation_frame_number:int32 = MessageContent;
 
@@ -4623,6 +4632,14 @@ messageGame game:game = MessageContent;
 
 //@description A message with a poll @poll The poll description
 messagePoll poll:poll = MessageContent;
+
+//@description A stake dice message. The dice value is randomly generated by the server
+//@initial_state The animated stickers with the initial dice animation; may be null if unknown. The update updateMessageContent will be sent when the sticker became known
+//@final_state The animated stickers with the final dice animation; may be null if unknown. The update updateMessageContent will be sent when the sticker became known
+//@value The dice value. If the value is 0, then the dice don't have final state yet
+//@stake_toncoin_amount The amount of Toncoins that were staked; in the smallest units of the currency
+//@prize_toncoin_amount The amount of Toncoins that were gained from the roll; in the smallest units of the currency
+messageStakeDice initial_state:DiceStickers final_state:DiceStickers value:int32 stake_toncoin_amount:int53 prize_toncoin_amount:int53 = MessageContent;
 
 //@description A message with a forwarded story
 //@story_poster_chat_id Identifier of the chat that posted the story
@@ -4928,12 +4945,12 @@ messageRefundedUpgradedGift gift:gift sender_id:MessageSender receiver_id:Messag
 //@expiration_date Point in time (Unix timestamp) when the offer will expire or has expired
 messageUpgradedGiftPurchaseOffer gift:upgradedGift state:GiftPurchaseOfferState price:GiftResalePrice expiration_date:int32 = MessageContent;
 
-//@description An offer to purchase a gift was declined or expired
+//@description An offer to purchase a gift was rejected or expired
 //@gift The gift
 //@price The proposed price
-//@offer_message_id Identifier of the message with purchase offer which was declined or expired; may be 0 or an identifier of a deleted message
-//@was_expired True, if the offer has expired; otherwise, the offer was explicitly declined
-messageUpgradedGiftPurchaseOfferDeclined gift:upgradedGift price:GiftResalePrice offer_message_id:int53 was_expired:Bool = MessageContent;
+//@offer_message_id Identifier of the message with purchase offer which was rejected or expired; may be 0 or an identifier of a deleted message
+//@was_expired True, if the offer has expired; otherwise, the offer was explicitly rejected
+messageUpgradedGiftPurchaseOfferRejected gift:upgradedGift price:GiftResalePrice offer_message_id:int53 was_expired:Bool = MessageContent;
 
 //@description Paid messages were refunded @message_count The number of refunded messages @star_count The number of refunded Telegram Stars
 messagePaidMessagesRefunded message_count:int32 star_count:int53 = MessageContent;
@@ -7175,6 +7192,9 @@ premiumFeatureMessageEffects = PremiumFeature;
 //@description The ability to create and use checklist messages
 premiumFeatureChecklists = PremiumFeature;
 
+//@description The ability to require a payment for incoming messages in new chats
+premiumFeaturePaidMessages = PremiumFeature;
+
 
 //@class BusinessFeature @description Describes a feature available to Business user accounts
 
@@ -8879,7 +8899,7 @@ suggestedActionCustom name:string title:formattedText description:formattedText 
 //@can_be_hidden True, if the suggested action can be hidden using hideSuggestedAction. Otherwise, the user must not be able to use the app without setting up the email address
 suggestedActionSetLoginEmailAddress can_be_hidden:Bool = SuggestedAction;
 
-//@description Suggests the user to add a passkey for login using addPasskey
+//@description Suggests the user to add a passkey for login using addLoginPasskey
 suggestedActionAddLoginPasskey = SuggestedAction;
 
 
@@ -9818,6 +9838,9 @@ updateGroupCallMessageLevels levels:vector<groupCallMessageLevel> = Update;
 //@description The list of supported dice emojis has changed @emojis The new list of supported dice emojis
 updateDiceEmojis emojis:vector<string> = Update;
 
+//@description The stake dice state has changed @state The new state. The state can be used only if it was received recently enough. Otherwise, a new state must be requested using getStakeDiceState
+updateStakeDiceState state:stakeDiceState = Update;
+
 //@description Some animated emoji message was clicked and a big animated sticker must be played if the message is visible on the screen. chatActionWatchingAnimations with the text of the message needs to be sent if the sticker is played
 //@chat_id Chat identifier
 //@message_id Message identifier
@@ -10083,6 +10106,19 @@ checkAuthenticationCode code:string = Ok;
 //@other_user_ids List of user identifiers of other users currently using the application
 requestQrCodeAuthentication other_user_ids:vector<int53> = Ok;
 
+//@description Returns parameters for authentication using a passkey as JSON-serialized string
+getAuthenticationPasskeyParameters = Text;
+
+//@description Checks a passkey to log in to the corresponding account. Call getAuthenticationPasskeyParameters to get parameters for the passkey. Works only when the current authorization state is
+//-authorizationStateWaitPhoneNumber or authorizationStateWaitOtherDeviceConfirmation, or if there is no pending authentication query and the current authorization state is
+//-authorizationStateWaitPremiumPurchase, authorizationStateWaitEmailAddress, authorizationStateWaitEmailCode, authorizationStateWaitCode, authorizationStateWaitRegistration, or authorizationStateWaitPassword
+//@credential_id Base64url-encoded identifier of the credential
+//@client_data JSON-encoded client data
+//@authenticator_data Authenticator data of the application that created the credential
+//@signature Cryptographic signature of the credential
+//@user_handle User handle of the passkey
+checkAuthenticationPasskey credential_id:string client_data:string authenticator_data:bytes signature:bytes user_handle:bytes = Ok;
+
 //@description Finishes user registration. Works only when the current authorization state is authorizationStateWaitRegistration
 //@first_name The first name of the user; 1-64 characters
 //@last_name The last name of the user; 0-64 characters
@@ -10252,7 +10288,7 @@ getMessageLocally chat_id:int53 message_id:int53 = Message;
 //-the giveaway message for messageGiveawayCompleted, the checklist message for messageChecklistTasksDone, messageChecklistTasksAdded, the message with suggested post information
 //-for messageSuggestedPostApprovalFailed, messageSuggestedPostApproved, messageSuggestedPostDeclined, messageSuggestedPostPaid, messageSuggestedPostRefunded,
 //-the message with the regular gift that was upgraded for messageUpgradedGift with origin of the type upgradedGiftOriginUpgrade,
-//-the message with gift purchase offer for messageUpgradedGiftPurchaseOfferDeclined,
+//-the message with gift purchase offer for messageUpgradedGiftPurchaseOfferRejected,
 //-and the topic creation message for topic messages without non-bundled replied message. Returns a 404 error if the message doesn't exist
 //@chat_id Identifier of the chat the message belongs to
 //@message_id Identifier of the reply message
@@ -11111,7 +11147,7 @@ setBusinessAccountGiftSettings business_connection_id:string settings:giftSettin
 //@description Returns the amount of Telegram Stars owned by a business account; for bots only @business_connection_id Unique identifier of business connection
 getBusinessAccountStarAmount business_connection_id:string = StarAmount;
 
-//@description Transfer Telegram Stars from the business account to the business bot; for bots only
+//@description Transfers Telegram Stars from the business account to the business bot; for bots only
 //@business_connection_id Unique identifier of business connection
 //@star_count Number of Telegram Stars to transfer
 transferBusinessAccountStars business_connection_id:string star_count:int53 = Ok;
@@ -11276,19 +11312,19 @@ readAllForumTopicReactions chat_id:int53 forum_topic_id:int32 = Ok;
 unpinAllForumTopicMessages chat_id:int53 forum_topic_id:int32 = Ok;
 
 
-//@description Returns parameters for creation of a new passkey as JSON-serialized string
+//@description Returns parameters for creating of a new passkey as JSON-serialized string
 getPasskeyParameters = Text;
 
-//@description Adds a passkey allowed to be used for the login by the current user and returns the added passkey. Call getPasskeyParameters to get parameters for creation of the passkey
+//@description Adds a passkey allowed to be used for the login by the current user and returns the added passkey. Call getPasskeyParameters to get parameters for creating of the passkey
 //@client_data JSON-encoded client data
 //@attestation_object Passkey attestation object
-addPasskey client_data:string attestation_object:bytes = Passkey;
+addLoginPasskey client_data:string attestation_object:bytes = Passkey;
 
 //@description Returns the list of passkeys allowed to be used for the login by the current user
-getAddedPasskeys = Passkeys;
+getLoginPasskeys = Passkeys;
 
 //@description Removes a passkey from the list of passkeys allowed to be used for the login by the current user @passkey_id Unique identifier of the passkey to remove
-removeAddedPasskey passkey_id:string = Ok;
+removeLoginPasskey passkey_id:string = Ok;
 
 
 //@description Returns information about an emoji reaction. Returns a 404 error if the reaction is not found @emoji Text representation of the reaction
@@ -12019,6 +12055,10 @@ getChatAdministrators chat_id:int53 = ChatAdministrators;
 clearAllDraftMessages exclude_secret_chats:Bool = Ok;
 
 
+//@description Returns the current state of stake dice
+getStakeDiceState = StakeDiceState;
+
+
 //@description Returns saved notification sound by its identifier. Returns a 404 error if there is no saved notification sound with the specified identifier @notification_sound_id Identifier of the notification sound
 getSavedNotificationSound notification_sound_id:int64 = NotificationSounds;
 
@@ -12059,7 +12099,7 @@ toggleChatIsPinned chat_list:ChatList chat_id:int53 is_pinned:Bool = Ok;
 //@description Changes the order of pinned chats @chat_list Chat list in which to change the order of pinned chats @chat_ids The new list of pinned chats
 setPinnedChats chat_list:ChatList chat_ids:vector<int53> = Ok;
 
-//@description Traverse all chats in a chat list and marks all messages in the chats as read @chat_list Chat list in which to mark all chats as read
+//@description Traverses all chats in a chat list and marks all messages in the chats as read @chat_list Chat list in which to mark all chats as read
 readChatList chat_list:ChatList = Ok;
 
 
@@ -12372,7 +12412,7 @@ cancelDownloadFile file_id:int32 only_if_pending:Bool = Ok;
 //@description Returns suggested name for saving a file in a given directory @file_id Identifier of the file @directory Directory in which the file is expected to be saved
 getSuggestedFileName file_id:int32 directory:string = Text;
 
-//@description Preliminary uploads a file to the cloud before sending it in a message, which can be useful for uploading of being recorded voice and video notes.
+//@description Preliminarily uploads a file to the cloud before sending it in a message, which can be useful for uploading of being recorded voice and video notes.
 //-In all other cases there is no need to preliminary upload a file. Updates updateFile will be used to notify about upload progress.
 //-The upload will not be completed until the file is sent in a message
 //@file File to upload
@@ -12443,7 +12483,7 @@ removeAllFilesFromDownloads only_active:Bool only_completed:Bool delete_from_cac
 searchFileDownloads query:string only_active:Bool only_completed:Bool offset:string limit:int32 = FoundFileDownloads;
 
 
-//@description Application or reCAPTCHA verification has been completed. Can be called before authorization
+//@description Informs TDLib that application or reCAPTCHA verification has been completed. Can be called before authorization
 //@verification_id Unique identifier for the verification process as received from updateApplicationVerificationRequired or updateApplicationRecaptchaVerificationRequired
 //@token Play Integrity API token for the Android application, or secret from push notification for the iOS application for application verification, or reCAPTCHA token for reCAPTCHA verifications;
 //-pass an empty string to abort verification and receive the error "VERIFICATION_FAILED" for the request
@@ -13106,7 +13146,7 @@ getStickerEmojis sticker:InputFile = Emojis;
 //@input_language_codes List of possible IETF language tags of the user's input language; may be empty if unknown
 searchEmojis text:string input_language_codes:vector<string> = EmojiKeywords;
 
-//@description Return emojis matching the keyword. Supported only if the file database is enabled. Order of results is unspecified
+//@description Returns emojis matching the keyword. Supported only if the file database is enabled. Order of results is unspecified
 //@text Text to search for
 //@input_language_codes List of possible IETF language tags of the user's input language; may be empty if unknown
 getKeywordEmojis text:string input_language_codes:vector<string> = Emojis;
@@ -13262,7 +13302,7 @@ reportPhoneNumberCodeMissing mobile_network_code:string = Ok;
 //@reason Reason of code resending; pass null if unknown
 resendPhoneNumberCode reason:ResendCodeReason = AuthenticationCodeInfo;
 
-//@description Check the authentication code and completes the request for which the code was sent if appropriate @code Authentication code to check
+//@description Checks the authentication code and completes the request for which the code was sent if appropriate @code Authentication code to check
 checkPhoneNumberCode code:string = Ok;
 
 
@@ -13380,7 +13420,7 @@ editBotMediaPreview bot_user_id:int53 language_code:string file_id:int32 content
 //@file_ids File identifiers of the media in the new order
 reorderBotMediaPreviews bot_user_id:int53 language_code:string file_ids:vector<int32> = Ok;
 
-//@description Delete media previews from the list of media previews of a bot
+//@description Deletes media previews from the list of media previews of a bot
 //@bot_user_id Identifier of the target bot. The bot must be owned and must have the main Web App
 //@language_code Language code of the media previews to delete
 //@file_ids File identifiers of the media to delete
@@ -13742,14 +13782,14 @@ sendResoldGift gift_name:string owner_id:MessageSender price:GiftResalePrice = G
 //@owner_id Identifier of the user or the channel chat that currently owns the gift and will receive the offer
 //@gift_name Name of the upgraded gift
 //@price The price that the user agreed to pay for the gift
-//@duration Duration of the offer in seconds; must be one of 21600, 43200, 86400, 129600, 172800, or 259200. Can also be 120 if Telegram test environment is used 
-//@paid_message_star_count The number of Telegram Stars the user agreed to pay additionally for sending of the offer message to the current gift owner; pass userFull.outgoing_paid_message_star_count for users and 0 otherwise
+//@duration Duration of the offer, in seconds; must be one of 21600, 43200, 86400, 129600, 172800, or 259200. Can also be 120 if Telegram test environment is used
+//@paid_message_star_count The number of Telegram Stars the user agreed to pay additionally for sending of the offer message to the current gift owner; pass userFullInfo.outgoing_paid_message_star_count for users and 0 otherwise
 sendGiftPurchaseOffer owner_id:MessageSender gift_name:string price:GiftResalePrice duration:int32 paid_message_star_count:int53 = Ok;
 
 //@description Handles a pending gift purchase offer
 //@message_id Identifier of the message with the gift purchase offer
-//@approve Pass true to approve the request; pass false to decline it
-processGiftPurchaseOffer message_id:int53 approve:Bool = Ok;
+//@accept Pass true to accept the request; pass false to reject it
+processGiftPurchaseOffer message_id:int53 accept:Bool = Ok;
 
 //@description Returns gifts received by the given user or chat
 //@business_connection_id Unique identifier of business connection on behalf of which to send the request; for bots only
@@ -13781,6 +13821,9 @@ getUpgradedGiftValueInfo name:string = UpgradedGiftValueInfo;
 //@received_gift_id Identifier of the gift
 //@password The 2-step verification password of the current user
 getUpgradedGiftWithdrawalUrl received_gift_id:string password:string = HttpUrl;
+
+//@description Returns promotional anumation for upgraded gifts
+getUpgradedGiftsPromotionalAnimation = Animation;
 
 //@description Changes resale price of a unique gift owned by the current user
 //@received_gift_id Identifier of the unique gift
@@ -13970,7 +14013,7 @@ allowUnpaidMessagesFromUser user_id:int53 refund_payments:Bool = Ok;
 setChatPaidMessageStarCount chat_id:int53 paid_message_star_count:int53 = Ok;
 
 
-//@description Check whether the current user can message another user or try to create a chat with them
+//@description Checks whether the current user can message another user or try to create a chat with them
 //@user_id Identifier of the other user
 //@only_local Pass true to get only locally available information without sending network requests
 canSendMessageToUser user_id:int53 only_local:Bool = CanSendMessageToUserResult;
@@ -14333,7 +14376,7 @@ getPremiumGiftPaymentOptions = PremiumGiftPaymentOptions;
 //@boosted_chat_id Identifier of the supergroup or channel chat, which will be automatically boosted by receivers of the gift codes and which is administered by the user
 getPremiumGiveawayPaymentOptions boosted_chat_id:int53 = PremiumGiveawayPaymentOptions;
 
-//@description Return information about a Telegram Premium gift code @code The code to check
+//@description Returns information about a Telegram Premium gift code @code The code to check
 checkPremiumGiftCode code:string = PremiumGiftCodeInfo;
 
 //@description Applies a Telegram Premium gift code @code The code to apply

@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2025
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2026
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -9,6 +9,7 @@
 #include "td/telegram/BusinessConnectionId.h"
 #include "td/telegram/DialogId.h"
 #include "td/telegram/MessageFullId.h"
+#include "td/telegram/MessageId.h"
 #include "td/telegram/StarGift.h"
 #include "td/telegram/StarGiftAuctionState.h"
 #include "td/telegram/StarGiftAuctionUserState.h"
@@ -154,6 +155,8 @@ class StarGiftManager final : public Actor {
   void reorder_gift_collection_gifts(DialogId dialog_id, StarGiftCollectionId collection_id,
                                      const vector<StarGiftId> &star_gift_ids,
                                      Promise<td_api::object_ptr<td_api::giftCollection>> &&promise);
+
+  void get_star_gift_promo_animation(Promise<td_api::object_ptr<td_api::animation>> &&promise);
 
   void register_gift(MessageFullId message_full_id, const char *source);
 

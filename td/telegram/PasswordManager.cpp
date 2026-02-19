@@ -1,11 +1,12 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2025
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2026
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
 #include "td/telegram/PasswordManager.h"
 
+#include "td/telegram/AuthManager.h"
 #include "td/telegram/DhCache.h"
 #include "td/telegram/DialogId.h"
 #include "td/telegram/Global.h"
@@ -832,6 +833,19 @@ void PasswordManager::cache_secret(secure_storage::Secret secret) {
 void PasswordManager::drop_cached_secret() {
   LOG(INFO) << "Drop passport secret";
   secret_ = optional<secure_storage::Secret>();
+}
+
+void PasswordManager::get_passkey_login_options(Promise<string> &&promise) {
+  auto query = G()->net_query_creator().create_unauth(telegram_api::auth_initPasskeyLogin(api_id_, api_hash_));
+  send_with_promise(
+      std::move(query), PromiseCreator::lambda([promise = std::move(promise)](Result<NetQueryPtr> r_query) mutable {
+        if (r_query.is_ok()) {
+          send_closure(G()->auth_manager(), &AuthManager::on_init_passkey_login, r_query.ok()->get_real_dc_id(),
+                       r_query.ok()->get_main_auth_key_id());
+        }
+        TRY_RESULT_PROMISE(promise, result, fetch_result<telegram_api::auth_initPasskeyLogin>(std::move(r_query)));
+        promise.set_value(std::move(result->options_->data_));
+      }));
 }
 
 void PasswordManager::init_passkey_registration(Promise<string> &&promise) {

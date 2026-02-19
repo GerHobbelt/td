@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2025
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2026
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -607,7 +607,7 @@ class CliClient final : public Actor {
   }
 
   static vector<int32> as_story_ids(Slice story_ids) {
-    return transform(autosplit(story_ids), [](Slice str) { return as_story_id(str); });
+    return transform(autosplit(story_ids), as_story_id);
   }
 
   static int32 as_story_album_id(Slice str) {
@@ -615,7 +615,7 @@ class CliClient final : public Actor {
   }
 
   static vector<int32> as_story_album_ids(Slice story_album_ids) {
-    return transform(autosplit(story_album_ids), [](Slice str) { return as_story_album_id(str); });
+    return transform(autosplit(story_album_ids), as_story_album_id);
   }
 
   static int32 as_gift_collection_id(Slice str) {
@@ -623,7 +623,7 @@ class CliClient final : public Actor {
   }
 
   static vector<int32> as_gift_collection_ids(Slice gift_collection_ids) {
-    return transform(autosplit(gift_collection_ids), [](Slice str) { return as_gift_collection_id(str); });
+    return transform(autosplit(gift_collection_ids), as_gift_collection_id);
   }
 
   td_api::object_ptr<td_api::businessRecipients> as_business_recipients(string chat_ids) const {
@@ -2851,6 +2851,18 @@ class CliClient final : public Actor {
       send_request(td_api::make_object<td_api::checkAuthenticationBotToken>(args));
     } else if (op == "qr") {
       send_request(td_api::make_object<td_api::requestQrCodeAuthentication>(as_user_ids(args)));
+    } else if (op == "gapo") {
+      send_request(td_api::make_object<td_api::getAuthenticationPasskeyParameters>());
+    } else if (op == "capk") {
+      string credential_id;
+      string client_data;
+      string authenticator_data;
+      string signature;
+      string user_handle;
+      get_args(args, credential_id, client_data, authenticator_data, signature, user_handle);
+      send_request(td_api::make_object<td_api::checkAuthenticationPasskey>(
+          credential_id, client_data, base64url_decode(authenticator_data).move_as_ok(),
+          base64url_decode(signature).move_as_ok(), user_handle));
     } else if (op == "cqr") {
       send_request(td_api::make_object<td_api::confirmQrCodeAuthentication>(args));
     } else if (op == "gcs") {
@@ -3279,6 +3291,8 @@ class CliClient final : public Actor {
       string password;
       get_args(args, received_gift_id, password);
       send_request(td_api::make_object<td_api::getUpgradedGiftWithdrawalUrl>(received_gift_id, password));
+    } else if (op == "gugpa") {
+      send_request(td_api::make_object<td_api::getUpgradedGiftsPromotionalAnimation>());
     } else if (op == "sgfr" || op == "sgfrd" || op == "sgfrn") {
       int64 gift_id;
       string limit;
@@ -3574,18 +3588,18 @@ class CliClient final : public Actor {
       send_request(td_api::make_object<td_api::getChatScheduledMessages>(chat_id));
     } else if (op == "gpkp") {
       send_request(td_api::make_object<td_api::getPasskeyParameters>());
-    } else if (op == "apk") {
+    } else if (op == "alpk") {
       string client_data;
       string attestation_object;
       get_args(args, client_data, attestation_object);
       send_request(
-          td_api::make_object<td_api::addPasskey>(client_data, base64url_decode(attestation_object).move_as_ok()));
-    } else if (op == "gapk") {
-      send_request(td_api::make_object<td_api::getAddedPasskeys>());
-    } else if (op == "rapk") {
+          td_api::make_object<td_api::addLoginPasskey>(client_data, base64url_decode(attestation_object).move_as_ok()));
+    } else if (op == "glpk") {
+      send_request(td_api::make_object<td_api::getLoginPasskeys>());
+    } else if (op == "rlpk") {
       string passkey_id;
       get_args(args, passkey_id);
-      send_request(td_api::make_object<td_api::removeAddedPasskey>(passkey_id));
+      send_request(td_api::make_object<td_api::removeLoginPasskey>(passkey_id));
     } else if (op == "sdrt") {
       string reaction;
       get_args(args, reaction);
@@ -5627,6 +5641,8 @@ class CliClient final : public Actor {
                                                                       get_message_self_destruct_type()));
     } else if (op == "cadm") {
       send_request(td_api::make_object<td_api::clearAllDraftMessages>());
+    } else if (op == "gsds") {
+      send_request(td_api::make_object<td_api::getStakeDiceState>());
     } else if (op == "tchpc") {
       ChatId chat_id;
       bool has_protected_content;

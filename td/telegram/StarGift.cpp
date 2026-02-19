@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2025
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2026
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -130,6 +130,7 @@ StarGift::StarGift(Td *td, telegram_api::object_ptr<telegram_api::StarGift> star
     value_usd_amount_ = star_gift->value_usd_amount_;
     if (star_gift->theme_peer_ != nullptr) {
       theme_dialog_id_ = DialogId(star_gift->theme_peer_);
+      td->dialog_manager_->force_create_dialog(theme_dialog_id_, "StarGift", true);
     }
     if (star_gift->peer_color_ != nullptr) {
       if (star_gift->peer_color_->get_id() == telegram_api::peerColorCollectible::ID) {
@@ -302,8 +303,8 @@ bool operator==(const StarGift &lhs, const StarGift &rhs) {
 
 StringBuilder &operator<<(StringBuilder &string_builder, const StarGift &star_gift) {
   if (star_gift.is_unique_) {
-    return string_builder << "UniqueGift[" << star_gift.id_ << " of " << star_gift.owner_dialog_id_ << '/'
-                          << star_gift.owner_dialog_id_ << ']';
+    return string_builder << "UniqueGift[" << star_gift.slug_ << " of " << star_gift.owner_dialog_id_ << '/'
+                          << star_gift.host_dialog_id_ << ']';
   }
   return string_builder << "Gift[" << star_gift.id_ << " for " << star_gift.star_count_ << ']';
 }

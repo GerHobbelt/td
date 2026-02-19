@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2025
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2026
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -131,6 +131,10 @@ class Requests {
   void on_request(uint64 id, td_api::registerUser &request);
 
   void on_request(uint64 id, const td_api::requestQrCodeAuthentication &request);
+
+  void on_request(uint64 id, const td_api::getAuthenticationPasskeyParameters &request);
+
+  void on_request(uint64 id, td_api::checkAuthenticationPasskey &request);
 
   void on_request(uint64 id, const td_api::resetAuthenticationEmailAddress &request);
 
@@ -514,11 +518,11 @@ class Requests {
 
   void on_request(uint64 id, const td_api::getPasskeyParameters &request);
 
-  void on_request(uint64 id, td_api::addPasskey &request);
+  void on_request(uint64 id, td_api::addLoginPasskey &request);
 
-  void on_request(uint64 id, const td_api::getAddedPasskeys &request);
+  void on_request(uint64 id, const td_api::getLoginPasskeys &request);
 
-  void on_request(uint64 id, td_api::removeAddedPasskey &request);
+  void on_request(uint64 id, td_api::removeLoginPasskey &request);
 
   void on_request(uint64 id, const td_api::getEmojiReaction &request);
 
@@ -1148,6 +1152,8 @@ class Requests {
 
   void on_request(uint64 id, const td_api::clearAllDraftMessages &request);
 
+  void on_request(uint64 id, const td_api::getStakeDiceState &request);
+
   void on_request(uint64 id, const td_api::downloadFile &request);
 
   void on_request(uint64 id, const td_api::getFileDownloadedPrefixSize &request);
@@ -1743,6 +1749,8 @@ class Requests {
   void on_request(uint64 id, td_api::getUpgradedGiftValueInfo &request);
 
   void on_request(uint64 id, const td_api::getUpgradedGiftWithdrawalUrl &request);
+
+  void on_request(uint64 id, const td_api::getUpgradedGiftsPromotionalAnimation &request);
 
   void on_request(uint64 id, td_api::setGiftResalePrice &request);
 
