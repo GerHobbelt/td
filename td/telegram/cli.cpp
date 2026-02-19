@@ -5159,7 +5159,13 @@ class CliClient final : public Actor {
       GroupCallId group_call_id;
       string text;
       get_args(args, group_call_id, text);
-      send_request(td_api::make_object<td_api::sendGroupCallMessage>(group_call_id, as_formatted_text(text)));
+      send_request(td_api::make_object<td_api::sendGroupCallMessage>(group_call_id, as_formatted_text(text),
+                                                                     paid_message_star_count_));
+    } else if (op == "splsr") {
+      GroupCallId group_call_id;
+      int64 star_count;
+      get_args(args, group_call_id);
+      send_request(td_api::make_object<td_api::sendPaidLiveStoryReaction>(group_call_id, star_count));
     } else if (op == "dgcm" || op == "dgcms") {
       GroupCallId group_call_id;
       string message_ids;
@@ -5172,6 +5178,10 @@ class CliClient final : public Actor {
       get_args(args, group_call_id, sender_id);
       send_request(td_api::make_object<td_api::deleteGroupCallMessagesBySender>(
           group_call_id, as_message_sender(sender_id), op == "dgcmbss"));
+    } else if (op == "glstd") {
+      GroupCallId group_call_id;
+      get_args(args, group_call_id);
+      send_request(td_api::make_object<td_api::getLiveStoryTopDonors>(group_call_id));
     } else if (op == "rgcil") {
       GroupCallId group_call_id;
       get_args(args, group_call_id);
@@ -5623,14 +5633,13 @@ class CliClient final : public Actor {
                                                               duration, 0.5, true),
           areas, get_caption(), rules, to_integers<int32>(album_ids), active_period ? active_period : 86400,
           get_reposted_story_full_id(), op == "psvp", protect_content));
-    } else if (op == "sls" || op == "slsp" || op == "slsr") {
+    } else if (op == "sls" || op == "slsr") {
       ChatId chat_id;
       StoryPrivacySettings rules;
       bool protect_content;
       string album_ids;
       get_args(args, chat_id, rules, protect_content, album_ids);
-      send_request(td_api::make_object<td_api::startLiveStory>(chat_id, rules, op == "slsp", protect_content,
-                                                               op == "slsr", true, 1));
+      send_request(td_api::make_object<td_api::startLiveStory>(chat_id, rules, protect_content, op == "slsr", true, 1));
     } else if (op == "esc") {
       ChatId story_poster_chat_id;
       StoryId story_id;

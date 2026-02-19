@@ -1091,7 +1091,7 @@ foundAffiliatePrograms total_count:int32 programs:vector<foundAffiliateProgram> 
 //@is_disconnected True, if the program was canceled by the bot, or disconnected by the chat owner and isn't available anymore
 //@user_count The number of users that used the affiliate program
 //@revenue_star_count The number of Telegram Stars that were earned by the affiliate program
-connectedAffiliateProgram url:string bot_user_id:int53 parameters:affiliateProgramParameters connection_date:int32 is_disconnected:Bool user_count:int64 revenue_star_count:int64 = ConnectedAffiliateProgram;
+connectedAffiliateProgram url:string bot_user_id:int53 parameters:affiliateProgramParameters connection_date:int32 is_disconnected:Bool user_count:int64 revenue_star_count:int53 = ConnectedAffiliateProgram;
 
 //@description Represents a list of affiliate programs that were connected to an affiliate
 //@total_count The total number of affiliate programs that were connected to the affiliate
@@ -2300,7 +2300,7 @@ secretChat id:int32 user_id:int53 state:SecretChatState is_outbound:Bool key_has
 //@next_free_query_in Amount of time till the next free query can be sent; 0 if it can be sent now
 //@star_count Number of Telegram Stars that must be paid for each non-free query
 //@is_current_query_free True, if the search for the specified query isn't charged
-publicPostSearchLimits daily_free_query_count:int32 remaining_free_query_count:int32 next_free_query_in:int32 star_count:int64 is_current_query_free:Bool = PublicPostSearchLimits;
+publicPostSearchLimits daily_free_query_count:int32 remaining_free_query_count:int32 next_free_query_in:int32 star_count:int53 is_current_query_free:Bool = PublicPostSearchLimits;
 
 
 //@class MessageSender @description Contains information about the sender of a message
@@ -2408,7 +2408,12 @@ paidReactionTypeChat chat_id:int53 = PaidReactionType;
 //@is_top True, if the reactor is one of the most active reactors; may be false if the reactor is the current user
 //@is_me True, if the paid reaction was added by the current user
 //@is_anonymous True, if the reactor is anonymous
-paidReactor sender_id:MessageSender star_count:int32 is_top:Bool is_me:Bool is_anonymous:Bool = PaidReactor;
+paidReactor sender_id:MessageSender star_count:int53 is_top:Bool is_me:Bool is_anonymous:Bool = PaidReactor;
+
+//@description Contains a list of users and chats that spend most money on paid messages and reactions in a live stream
+//@total_star_count Total amount of spend Telegram Stars
+//@top_donors List of top donors in the live stream
+liveStoryDonors total_star_count:int53 top_donors:vector<paidReactor> = LiveStoryDonors;
 
 //@description Contains information about a forwarded message
 //@origin Origin of the forwarded message
@@ -5618,7 +5623,7 @@ storyInteractionInfo view_count:int32 forward_count:int32 reaction_count:int32 r
 //@is_edited True, if the story was edited
 //@is_posted_to_chat_page True, if the story is saved in the profile of the chat that posted it and will be available there after expiration
 //@is_visible_only_for_self True, if the story is visible only for the current user
-//@can_be_added_to_album True, if the story can be added to an album
+//@can_be_added_to_album True, if the story can be added to an album using createStoryAlbum and addStoryAlbumStories
 //@can_be_deleted True, if the story can be deleted
 //@can_be_edited True, if the story can be edited
 //@can_be_forwarded True, if the story can be forwarded as a message or reposted as a story. Otherwise, screenshotting and saving of the story content must be also forbidden
@@ -6046,7 +6051,6 @@ groupCallParticipantVideoInfo source_groups:vector<groupCallVideoSourceGroup> en
 //@video_info Information about user's video channel; may be null if there is no active video
 //@screen_sharing_video_info Information about user's screen sharing video channel; may be null if there is no active screen sharing video
 //@bio The participant user's bio or the participant chat's description
-//@total_paid_star_count The total amount of Telegram Stars spent by the participant for messages in the call
 //@is_current_user True, if the participant is the current user
 //@is_speaking True, if the participant is speaking as set by setGroupCallParticipantIsSpeaking
 //@is_hand_raised True, if the participant hand is raised
@@ -6059,7 +6063,7 @@ groupCallParticipantVideoInfo source_groups:vector<groupCallVideoSourceGroup> en
 //@can_unmute_self True, if the participant is muted for all users, but can unmute themselves
 //@volume_level Participant's volume level; 1-20000 in hundreds of percents
 //@order User's order in the group call participant list. Orders must be compared lexicographically. The bigger is order, the higher is user in the list. If order is empty, the user must be removed from the participant list
-groupCallParticipant participant_id:MessageSender audio_source_id:int32 screen_sharing_audio_source_id:int32 video_info:groupCallParticipantVideoInfo screen_sharing_video_info:groupCallParticipantVideoInfo bio:string total_paid_star_count:int53 is_current_user:Bool is_speaking:Bool is_hand_raised:Bool can_be_muted_for_all_users:Bool can_be_unmuted_for_all_users:Bool can_be_muted_for_current_user:Bool can_be_unmuted_for_current_user:Bool is_muted_for_all_users:Bool is_muted_for_current_user:Bool can_unmute_self:Bool volume_level:int32 order:string = GroupCallParticipant;
+groupCallParticipant participant_id:MessageSender audio_source_id:int32 screen_sharing_audio_source_id:int32 video_info:groupCallParticipantVideoInfo screen_sharing_video_info:groupCallParticipantVideoInfo bio:string is_current_user:Bool is_speaking:Bool is_hand_raised:Bool can_be_muted_for_all_users:Bool can_be_unmuted_for_all_users:Bool can_be_muted_for_current_user:Bool can_be_unmuted_for_current_user:Bool is_muted_for_all_users:Bool is_muted_for_current_user:Bool can_unmute_self:Bool volume_level:int32 order:string = GroupCallParticipant;
 
 //@description Contains identifiers of group call participants @total_count Total number of group call participants @participant_ids Identifiers of the participants
 groupCallParticipants total_count:int32 participant_ids:vector<MessageSender> = GroupCallParticipants;
@@ -6071,7 +6075,7 @@ groupCallInfo group_call_id:int32 join_payload:string = GroupCallInfo;
 //@message_id Unique message identifier within the group call
 //@sender_id Identifier of the sender of the message
 //@date Point in time (Unix timestamp) when the message was sent
-//@text Text of the message
+//@text Text of the message. If empty, then the message is a paid reaction in a live story
 //@paid_message_star_count The number of Telegram Stars that were paid to send the message; for live stories only
 //@is_from_owner True, if the message is sent by the owner of the call and must be treated as a message of the maximum level; for live stories only
 groupCallMessage message_id:int32 sender_id:MessageSender date:int32 text:formattedText paid_message_star_count:int53 is_from_owner:Bool = GroupCallMessage;
@@ -9417,10 +9421,20 @@ updateGroupCallParticipants group_call_id:int32 participant_user_ids:vector<int6
 //@emojis Group call state fingerprint represented as 4 emoji; may be empty if the state isn't verified yet
 updateGroupCallVerificationState group_call_id:int32 generation:int32 emojis:vector<string> = Update;
 
-//@description A new message was received in a group call. It must be shown for at most getOption("group_call_message_show_time_max") seconds after receiving
-//@group_call_id Identifier of the group call
-//@message The message
+//@description A new message was received in a group call @group_call_id Identifier of the group call @message The message
 updateNewGroupCallMessage group_call_id:int32 message:groupCallMessage = Update;
+
+//@description A new paid reaction was received in a live story group call
+//@group_call_id Identifier of the group call
+//@sender_id Identifier of the sender of the reaction
+//@star_count The number of Telegram Stars that were paid to send the reaction
+updateNewGroupCallPaidReaction group_call_id:int32 sender_id:MessageSender star_count:int53 = Update;
+
+//@description A group call message failed to send
+//@group_call_id Identifier of the group call
+//@message_id Message identifier
+//@error The cause of the message sending failure
+updateGroupCallMessageSendFailed group_call_id:int32 message_id:int32 error:error = Update;
 
 //@description Some group call messages were deleted
 //@group_call_id Identifier of the group call
@@ -11863,12 +11877,11 @@ postStory chat_id:int53 content:InputStoryContent areas:inputStoryAreas caption:
 //@description Starts a new live story on behalf of a chat; requires can_post_stories administrator right for channel chats
 //@chat_id Identifier of the chat that will start the live story. Pass Saved Messages chat identifier when starting a live story on behalf of the current user, or a channel chat identifier
 //@privacy_settings The privacy settings for the story; ignored for stories posted on behalf of channel chats
-//@is_posted_to_chat_page Pass true to keep the story accessible after expiration
-//@protect_content Pass true if the content of the story must be protected from forwarding and screenshotting
+//@protect_content Pass true if the content of the story must be protected from screenshotting
 //@is_rtmp_stream Pass true to create an RTMP stream instead of an ordinary group call
 //@enable_messages Pass true to allow viewers of the story to send messages
 //@paid_message_star_count The minimum number of Telegram Stars that must be paid by viewers for each sent message to the call; 0-10000
-startLiveStory chat_id:int53 privacy_settings:StoryPrivacySettings is_posted_to_chat_page:Bool protect_content:Bool is_rtmp_stream:Bool enable_messages:Bool paid_message_star_count:int53 = Story;
+startLiveStory chat_id:int53 privacy_settings:StoryPrivacySettings protect_content:Bool is_rtmp_stream:Bool enable_messages:Bool paid_message_star_count:int53 = Story;
 
 //@description Changes content and caption of a story. Can be called only if story.can_be_edited == true
 //@story_poster_chat_id Identifier of the chat that posted the story
@@ -11948,7 +11961,7 @@ closeStory story_poster_chat_id:int53 story_id:int32 = Ok;
 //@description Returns reactions, which can be chosen for a story @row_size Number of reaction per row, 5-25
 getStoryAvailableReactions row_size:int32 = AvailableReactions;
 
-//@description Changes chosen reaction on a story that has already been sent
+//@description Changes chosen reaction on a story that has already been sent; not supported for live stories
 //@story_poster_chat_id The identifier of the poster of the story
 //@story_id The identifier of the story
 //@reaction_type Type of the reaction to set; pass null to remove the reaction. Custom emoji reactions can be used only by Telegram Premium users. Paid reactions can't be set
@@ -12441,16 +12454,16 @@ joinVideoChat group_call_id:int32 participant_id:MessageSender join_parameters:g
 //@join_parameters Parameters to join the call
 joinLiveStory group_call_id:int32 join_parameters:groupCallJoinParameters = Text;
 
-//@description Starts screen sharing in a joined group call. Returns join response payload for tgcalls
+//@description Starts screen sharing in a joined group call; not supported in live stories. Returns join response payload for tgcalls
 //@group_call_id Group call identifier
 //@audio_source_id Screen sharing audio channel synchronization source identifier; received from tgcalls
 //@payload Group call join payload; received from tgcalls
 startGroupCallScreenSharing group_call_id:int32 audio_source_id:int32 payload:string = Text;
 
-//@description Pauses or unpauses screen sharing in a joined group call @group_call_id Group call identifier @is_paused Pass true to pause screen sharing; pass false to unpause it
+//@description Pauses or unpauses screen sharing in a joined group call; not supported in live stories @group_call_id Group call identifier @is_paused Pass true to pause screen sharing; pass false to unpause it
 toggleGroupCallScreenSharingIsPaused group_call_id:int32 is_paused:Bool = Ok;
 
-//@description Ends screen sharing in a joined group call @group_call_id Group call identifier
+//@description Ends screen sharing in a joined group call; not supported in live stories @group_call_id Group call identifier
 endGroupCallScreenSharing group_call_id:int32 = Ok;
 
 //@description Sets title of a video chat; requires groupCall.can_be_managed right @group_call_id Group call identifier @title New group call title; 1-64 characters
@@ -12476,8 +12489,16 @@ setGroupCallMessageSender group_call_id:int32 message_sender_id:MessageSender = 
 
 //@description Sends a message to other participants of a group call. Requires groupCall.can_send_messages right
 //@group_call_id Group call identifier
-//@text Text of the message to send; 0-getOption("group_call_message_text_length_max") characters
-sendGroupCallMessage group_call_id:int32 text:formattedText = Ok;
+//@text Text of the message to send; 1-getOption("group_call_message_text_length_max") characters for non-live-stories; see updateGroupCallMessageLevels for live story restrictions,
+//-which depends on paid_message_star_count. Can't contain line feeds for live stories
+//@paid_message_star_count The number of Telegram Stars the user agreed to pay to send the message; for live stories only; 0-getOption("paid_group_call_message_star_count_max").
+//-Must be 0 for messages sent to live stories posted on behalf of the current user
+sendGroupCallMessage group_call_id:int32 text:formattedText paid_message_star_count:int53 = Ok;
+
+//@description Sends a paid reaction in a live story group call. Can't be used for live stories posted on behalf of the current user
+//@group_call_id Group call identifier
+//@star_count The number of Telegram Stars to pay; 1-getOption("paid_group_call_message_star_count_max")
+sendPaidLiveStoryReaction group_call_id:int32 star_count:int53 = Ok;
 
 //@description Deletes messages in a group call; for live story calls only. Requires groupCall.can_delete_messages right
 //@group_call_id Group call identifier
@@ -12490,6 +12511,9 @@ deleteGroupCallMessages group_call_id:int32 message_ids:vector<int32> report_spa
 //@sender_id Identifier of the sender of messages to delete
 //@report_spam Pass true to report the messages as spam
 deleteGroupCallMessagesBySender group_call_id:int32 sender_id:MessageSender report_spam:Bool = Ok;
+
+//@description Returns the list of top live story donors @group_call_id Group call identifier of the live story
+getLiveStoryTopDonors group_call_id:int32 = LiveStoryDonors;
 
 //@description Invites a user to an active group call; for group calls not bound to a chat only. Sends a service message of the type messageGroupCall.
 //-The group call can have at most getOption("group_call_participant_count_max") participants

@@ -133,13 +133,15 @@ class GroupCallManager final : public Actor {
                                               Promise<Unit> &&promise);
 
   void send_group_call_message(GroupCallId group_call_id, td_api::object_ptr<td_api::formattedText> &&text,
-                               Promise<Unit> &&promise);
+                               int64 paid_message_star_count, bool is_reaction, Promise<Unit> &&promise);
 
   void delete_group_call_messages(GroupCallId group_call_id, const vector<int32> &message_ids, bool report_spam,
                                   Promise<Unit> &&promise);
 
   void delete_group_call_messages_by_sender(GroupCallId group_call_id, DialogId sender_dialog_id, bool report_spam,
                                             Promise<Unit> &&promise);
+
+  void get_group_call_stars(GroupCallId group_call_id, Promise<td_api::object_ptr<td_api::liveStoryDonors>> &&promise);
 
   void revoke_group_call_invite_link(GroupCallId group_call_id, Promise<Unit> &&promise);
 
@@ -206,13 +208,20 @@ class GroupCallManager final : public Actor {
                                          vector<tl_object_ptr<telegram_api::groupCallParticipant>> &&participants,
                                          int32 version, bool is_recursive = false);
 
+  void on_group_call_message_sent(InputGroupCallId input_group_call_id, int32 message_id,
+                                  telegram_api::object_ptr<telegram_api::groupCallMessage> &&message);
+
+  void on_group_call_message_sending_failed(InputGroupCallId input_group_call_id, int32 message_id,
+                                            DialogId sender_dialog_id, int64 paid_message_star_count,
+                                            const Status &status);
+
   void on_new_group_call_message(InputGroupCallId input_group_call_id,
                                  telegram_api::object_ptr<telegram_api::groupCallMessage> &&message);
 
   void on_new_encrypted_group_call_message(InputGroupCallId input_group_call_id, DialogId sender_dialog_id,
                                            string &&encrypted_message);
 
-  void on_group_call_messages_deleted(InputGroupCallId input_group_call_id, vector<int32> &&server_ids);
+  void on_update_group_call_messages_deleted(InputGroupCallId input_group_call_id, vector<int32> &&server_ids);
 
   void process_join_video_chat_response(InputGroupCallId input_group_call_id, uint64 generation,
                                         tl_object_ptr<telegram_api::Updates> &&updates, Promise<Unit> &&promise);
@@ -268,11 +277,15 @@ class GroupCallManager final : public Actor {
 
   void on_update_group_call_timeout(int64 call_id);
 
+  void on_update_group_call_message(int64 call_id);
+
   static void on_poll_group_call_blocks_timeout_callback(void *group_call_manager_ptr, int64 call_id);
 
   void on_poll_group_call_blocks_timeout(int64 call_id);
 
-  void on_update_group_call_message(int64 call_id);
+  static void on_delete_group_call_messages_timeout_callback(void *group_call_manager_ptr, int64 group_call_id_int);
+
+  void on_delete_group_call_messages_timeout(GroupCallId group_call_id);
 
   GroupCallId get_next_group_call_id(InputGroupCallId input_group_call_id);
 
@@ -516,12 +529,26 @@ class GroupCallManager final : public Actor {
 
   bool try_clear_group_call_participants(InputGroupCallId input_group_call_id);
 
+  td_api::object_ptr<td_api::liveStoryDonors> get_live_story_donors_object(
+      const GroupCallParticipants *group_call_participants) const;
+
+  void on_get_group_call_stars(InputGroupCallId input_group_call_id,
+                               Result<telegram_api::object_ptr<telegram_api::phone_groupCallStars>> r_stars);
+
   bool set_group_call_participant_count(GroupCall *group_call, int32 count, const char *source,
                                         bool force_update = false);
 
   bool set_group_call_unmuted_video_count(GroupCall *group_call, int32 count, const char *source);
 
-  void add_group_call_message(GroupCall *group_call, GroupCallMessage &&group_call_message);
+  void schedule_group_call_message_deletion(const GroupCall *group_call);
+
+  int32 get_group_call_message_delete_in(const GroupCall *group_call, const GroupCallMessage &group_call_message,
+                                         bool is_old) const;
+
+  int32 add_group_call_message(InputGroupCallId input_group_call_id, GroupCall *group_call,
+                               const GroupCallMessage &group_call_message, bool is_old = false);
+
+  void on_group_call_messages_deleted(const GroupCall *group_call, vector<int32> &&message_ids);
 
   void update_group_call_dialog(const GroupCall *group_call, const char *source, bool force);
 
@@ -601,6 +628,9 @@ class GroupCallManager final : public Actor {
       pending_join_presentation_requests_;
   uint64 join_group_request_generation_ = 0;
 
+  FlatHashMap<InputGroupCallId, vector<Promise<td_api::object_ptr<td_api::liveStoryDonors>>>, InputGroupCallIdHash>
+      get_stars_queries_;
+
   FlatHashMap<MessageFullId, int64, MessageFullIdHash> group_call_messages_;
   FlatHashMap<int64, MessageFullId> group_call_message_full_ids_;
   int64 current_call_id_ = 0;
@@ -624,6 +654,7 @@ class GroupCallManager final : public Actor {
   MultiTimeout sync_participants_timeout_{"SyncParticipantsTimeout"};
   MultiTimeout update_group_call_timeout_{"UpdateGroupCallTimeout"};
   MultiTimeout poll_group_call_blocks_timeout_{"PollGroupCallBlocksTimeout"};
+  MultiTimeout delete_group_call_messages_timeout_{"DeleteGroupCallMessagesTimeout"};
 };
 
 }  // namespace td

@@ -26,6 +26,7 @@ class GroupCallMessage {
   FormattedText text_;
   int64 paid_message_star_count_ = 0;
   bool from_admin_ = false;
+  bool is_local_ = false;
 
   friend StringBuilder &operator<<(StringBuilder &string_builder, const GroupCallMessage &group_call_message);
 
@@ -34,10 +35,22 @@ class GroupCallMessage {
 
   GroupCallMessage(Td *td, telegram_api::object_ptr<telegram_api::groupCallMessage> &&message);
 
-  GroupCallMessage(DialogId sender_dialog_id, FormattedText text);
+  GroupCallMessage(DialogId sender_dialog_id, FormattedText text, int64 paid_message_star_count, bool from_admin);
 
   bool is_valid() const {
     return sender_dialog_id_.is_valid();
+  }
+
+  bool is_local() const {
+    return is_local_;
+  }
+
+  bool is_reaction() const {
+    return text_.text.empty();
+  }
+
+  bool is_from_admin() const {
+    return from_admin_;
   }
 
   int32 get_server_id() const {
@@ -50,6 +63,14 @@ class GroupCallMessage {
 
   DialogId get_sender_dialog_id() const {
     return sender_dialog_id_;
+  }
+
+  int32 get_date() const {
+    return date_;
+  }
+
+  int64 get_paid_message_star_count() const {
+    return paid_message_star_count_;
   }
 
   string encode_to_json() const;

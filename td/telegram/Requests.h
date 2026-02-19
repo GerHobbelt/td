@@ -829,9 +829,13 @@ class Requests {
 
   void on_request(uint64 id, td_api::sendGroupCallMessage &request);
 
+  void on_request(uint64 id, const td_api::sendPaidLiveStoryReaction &request);
+
   void on_request(uint64 id, const td_api::deleteGroupCallMessages &request);
 
   void on_request(uint64 id, const td_api::deleteGroupCallMessagesBySender &request);
+
+  void on_request(uint64 id, const td_api::getLiveStoryTopDonors &request);
 
   void on_request(uint64 id, const td_api::revokeGroupCallInviteLink &request);
 
