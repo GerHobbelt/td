@@ -86,6 +86,8 @@ class StarGiftManager final : public Actor {
 
   void get_gift_upgrade_preview(int64 gift_id, Promise<td_api::object_ptr<td_api::giftUpgradePreview>> &&promise);
 
+  void get_gift_upgrade_variants(int64 gift_id, Promise<td_api::object_ptr<td_api::giftUpgradeVariants>> &&promise);
+
   void upgrade_gift(BusinessConnectionId business_connection_id, StarGiftId star_gift_id, bool keep_original_details,
                     int64 star_count, Promise<td_api::object_ptr<td_api::upgradeGiftResult>> &&promise);
 
@@ -99,6 +101,11 @@ class StarGiftManager final : public Actor {
 
   void send_resold_gift(const string &gift_name, DialogId receiver_dialog_id, StarGiftResalePrice price,
                         Promise<td_api::object_ptr<td_api::GiftResaleResult>> &&promise);
+
+  void send_gift_offer(DialogId owner_dialog_id, const string &gift_name, StarGiftResalePrice price, int32 duration,
+                       int64 paid_message_star_count, Promise<Unit> &&promise);
+
+  void process_gift_offer(MessageId message_id, bool decline, Promise<Unit> &&promise);
 
   void get_saved_star_gifts(BusinessConnectionId business_connection_id, DialogId dialog_id,
                             StarGiftCollectionId collection_id, bool exclude_unsaved, bool exclude_saved,

@@ -512,6 +512,14 @@ class Requests {
 
   void on_request(uint64 id, const td_api::getChatScheduledMessages &request);
 
+  void on_request(uint64 id, const td_api::getPasskeyParameters &request);
+
+  void on_request(uint64 id, td_api::addPasskey &request);
+
+  void on_request(uint64 id, const td_api::getAddedPasskeys &request);
+
+  void on_request(uint64 id, td_api::removeAddedPasskey &request);
+
   void on_request(uint64 id, const td_api::getEmojiReaction &request);
 
   void on_request(uint64 id, const td_api::getCustomEmojiReactionAnimations &request);
@@ -1412,6 +1420,8 @@ class Requests {
 
   void on_request(uint64 id, const td_api::getStickerOutline &request);
 
+  void on_request(uint64 id, const td_api::getStickerOutlineSvgPath &request);
+
   void on_request(uint64 id, td_api::getStickers &request);
 
   void on_request(uint64 id, td_api::getAllStickerEmojis &request);
@@ -1708,6 +1718,8 @@ class Requests {
 
   void on_request(uint64 id, const td_api::getGiftUpgradePreview &request);
 
+  void on_request(uint64 id, const td_api::getGiftUpgradeVariants &request);
+
   void on_request(uint64 id, td_api::upgradeGift &request);
 
   void on_request(uint64 id, td_api::buyGiftUpgrade &request);
@@ -1717,6 +1729,10 @@ class Requests {
   void on_request(uint64 id, const td_api::dropGiftOriginalDetails &request);
 
   void on_request(uint64 id, td_api::sendResoldGift &request);
+
+  void on_request(uint64 id, td_api::sendGiftPurchaseOffer &request);
+
+  void on_request(uint64 id, const td_api::processGiftPurchaseOffer &request);
 
   void on_request(uint64 id, td_api::getReceivedGifts &request);
 

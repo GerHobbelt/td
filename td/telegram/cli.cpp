@@ -3191,6 +3191,10 @@ class CliClient final : public Actor {
       int64 gift_id;
       get_args(args, gift_id);
       send_request(td_api::make_object<td_api::getGiftUpgradePreview>(gift_id));
+    } else if (op == "gguv") {
+      int64 gift_id;
+      get_args(args, gift_id);
+      send_request(td_api::make_object<td_api::getGiftUpgradeVariants>(gift_id));
     } else if (op == "ug") {
       string received_gift_id;
       bool keep_original_details;
@@ -3223,6 +3227,18 @@ class CliClient final : public Actor {
       GiftResalePrice price;
       get_args(args, gift_name, owner_id, price);
       send_request(td_api::make_object<td_api::sendResoldGift>(gift_name, as_message_sender(owner_id), price));
+    } else if (op == "sgpo") {
+      string owner_id;
+      string gift_name;
+      GiftResalePrice price;
+      int32 duration;
+      get_args(args, owner_id, gift_name, price, duration);
+      send_request(td_api::make_object<td_api::sendGiftPurchaseOffer>(as_message_sender(owner_id), gift_name, price,
+                                                                      duration, paid_message_star_count_));
+    } else if (op == "pgpoa" || op == "pgpod") {
+      MessageId message_id;
+      get_args(args, message_id);
+      send_request(td_api::make_object<td_api::processGiftPurchaseOffer>(message_id, op == "pgpoa"));
     } else if (op == "grgs" || op == "grgsp") {
       string owner_id;
       int32 limit;
@@ -3556,6 +3572,20 @@ class CliClient final : public Actor {
       ChatId chat_id;
       get_args(args, chat_id);
       send_request(td_api::make_object<td_api::getChatScheduledMessages>(chat_id));
+    } else if (op == "gpkp") {
+      send_request(td_api::make_object<td_api::getPasskeyParameters>());
+    } else if (op == "apk") {
+      string client_data;
+      string attestation_object;
+      get_args(args, client_data, attestation_object);
+      send_request(
+          td_api::make_object<td_api::addPasskey>(client_data, base64url_decode(attestation_object).move_as_ok()));
+    } else if (op == "gapk") {
+      send_request(td_api::make_object<td_api::getAddedPasskeys>());
+    } else if (op == "rapk") {
+      string passkey_id;
+      get_args(args, passkey_id);
+      send_request(td_api::make_object<td_api::removeAddedPasskey>(passkey_id));
     } else if (op == "sdrt") {
       string reaction;
       get_args(args, reaction);
@@ -4388,6 +4418,11 @@ class CliClient final : public Actor {
       int32 sticker_file_id;
       get_args(args, sticker_file_id);
       send_request(td_api::make_object<td_api::getStickerOutline>(sticker_file_id, op == "gsoa", op == "gsoc"));
+    } else if (op == "gsosp" || op == "gsospa" || op == "gsospc") {
+      int32 sticker_file_id;
+      get_args(args, sticker_file_id);
+      send_request(
+          td_api::make_object<td_api::getStickerOutlineSvgPath>(sticker_file_id, op == "gsospa", op == "gsospc"));
     } else if (op == "gs" || op == "gsmm" || op == "gsee" || op == "gseeme") {
       SearchQuery query;
       get_args(args, query);
