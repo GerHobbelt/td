@@ -19,11 +19,13 @@ namespace td {
 class Td;
 
 class GroupCallMessage {
-  int64 id_ = 0;
+  int64 random_id_ = 0;
+  int32 server_id_ = 0;
   int32 date_ = 0;
-  DialogId dialog_id_;
+  DialogId sender_dialog_id_;
   FormattedText text_;
   int64 paid_message_star_count_ = 0;
+  bool from_admin_ = false;
 
   friend StringBuilder &operator<<(StringBuilder &string_builder, const GroupCallMessage &group_call_message);
 
@@ -32,19 +34,27 @@ class GroupCallMessage {
 
   GroupCallMessage(Td *td, telegram_api::object_ptr<telegram_api::groupCallMessage> &&message);
 
-  GroupCallMessage(DialogId dialog_id, FormattedText text);
+  GroupCallMessage(DialogId sender_dialog_id, FormattedText text);
 
   bool is_valid() const {
-    return dialog_id_.is_valid() && !text_.text.empty() && id_ != 0;
+    return sender_dialog_id_.is_valid();
   }
 
-  int64 get_message_id() const {
-    return id_;
+  int32 get_server_id() const {
+    return server_id_;
+  }
+
+  int64 get_random_id() const {
+    return random_id_;
+  }
+
+  DialogId get_sender_dialog_id() const {
+    return sender_dialog_id_;
   }
 
   string encode_to_json() const;
 
-  td_api::object_ptr<td_api::groupCallMessage> get_group_call_message_object(Td *td) const;
+  td_api::object_ptr<td_api::groupCallMessage> get_group_call_message_object(Td *td, int32 message_id) const;
 };
 
 StringBuilder &operator<<(StringBuilder &string_builder, const GroupCallMessage &group_call_message);

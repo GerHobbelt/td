@@ -1153,10 +1153,10 @@ premiumGiveawayPaymentOptions options:vector<premiumGiveawayPaymentOption> = Pre
 //@creation_date Point in time (Unix timestamp) when the code was created
 //@is_from_giveaway True, if the gift code was created for a giveaway
 //@giveaway_message_id Identifier of the corresponding giveaway message in the creator_id chat; can be 0 or an identifier of a deleted message
-//@month_count Number of months the Telegram Premium subscription will be active after code activation
+//@day_count Number of days the Telegram Premium subscription will be active after code activation
 //@user_id Identifier of a user for which the code was created; 0 if none
 //@use_date Point in time (Unix timestamp) when the code was activated; 0 if none
-premiumGiftCodeInfo creator_id:MessageSender creation_date:int32 is_from_giveaway:Bool giveaway_message_id:int53 month_count:int32 user_id:int53 use_date:int32 = PremiumGiftCodeInfo;
+premiumGiftCodeInfo creator_id:MessageSender creation_date:int32 is_from_giveaway:Bool giveaway_message_id:int53 day_count:int32 user_id:int53 use_date:int32 = PremiumGiftCodeInfo;
 
 //@description Describes an option for buying Telegram Stars. Use telegramPaymentPurposeStars for out-of-store payments
 //@currency ISO 4217 currency code for the payment
@@ -1651,6 +1651,24 @@ starTransactionTypePaidMessageSend chat_id:int53 message_count:int32 = StarTrans
 //@commission_star_amount The amount of Telegram Stars that were received by Telegram; can be negative for refunds
 starTransactionTypePaidMessageReceive sender_id:MessageSender message_count:int32 commission_per_mille:int32 commission_star_amount:starAmount = StarTransactionType;
 
+//@description The transaction is a sending of a paid group call message; for regular users only @chat_id Identifier of the chat that received the payment
+starTransactionTypePaidGroupCallMessageSend chat_id:int53 = StarTransactionType;
+
+//@description The transaction is a receiving of a paid group call message; for regular users and channel chats only
+//@sender_id Identifier of the sender of the message
+//@commission_per_mille The number of Telegram Stars received by the Telegram for each 1000 Telegram Stars paid for message sending
+//@commission_star_amount The amount of Telegram Stars that were received by Telegram; can be negative for refunds
+starTransactionTypePaidGroupCallMessageReceive sender_id:MessageSender commission_per_mille:int32 commission_star_amount:starAmount = StarTransactionType;
+
+//@description The transaction is a sending of a paid group reaction; for regular users only @chat_id Identifier of the chat that received the payment
+starTransactionTypePaidGroupCallReactionSend chat_id:int53 = StarTransactionType;
+
+//@description The transaction is a receiving of a paid group call reaction; for regular users and channel chats only
+//@sender_id Identifier of the sender of the reaction
+//@commission_per_mille The number of Telegram Stars received by the Telegram for each 1000 Telegram Stars paid for reaction sending
+//@commission_star_amount The amount of Telegram Stars that were received by Telegram; can be negative for refunds
+starTransactionTypePaidGroupCallReactionReceive sender_id:MessageSender commission_per_mille:int32 commission_star_amount:starAmount = StarTransactionType;
+
 //@description The transaction is a payment for a suggested post; for regular users only
 //@chat_id Identifier of the channel chat that posted the post
 starTransactionTypeSuggestedPostPaymentSend chat_id:int53 = StarTransactionType;
@@ -1734,8 +1752,8 @@ tonTransactions ton_amount:int53 transactions:vector<tonTransaction> next_offset
 
 //@class ActiveStoryState @description Describes state of active stories posted by a chat
 
-//@description The chat has an active live stream story @story_id Identifier of the active live stream story
-activeStoryStateLiveStream story_id:int32 = ActiveStoryState;
+//@description The chat has an active live story @story_id Identifier of the active live story
+activeStoryStateLive story_id:int32 = ActiveStoryState;
 
 //@description The chat has some unread active stories
 activeStoryStateUnread = ActiveStoryState;
@@ -2183,7 +2201,7 @@ basicGroupFullInfo photo:chatPhoto description:string creator_user_id:int53 memb
 //@status Status of the current user in the supergroup or channel; custom title will always be empty
 //@member_count Number of members in the supergroup or channel; 0 if unknown. Currently, it is guaranteed to be known only if the supergroup or channel was received through
 //-getChatSimilarChats, getChatsToPostStories, getCreatedPublicChats, getGroupsInCommon, getInactiveSupergroupChats, getRecommendedChats, getSuitableDiscussionChats,
-//-getUserPrivacySettingRules, getGroupCallAvailableParticipants, searchPublicChats, or in chatFolderInviteLinkInfo.missing_chat_ids, or in userFullInfo.personal_chat_id,
+//-getUserPrivacySettingRules, getVideoChatAvailableParticipants, searchPublicChats, or in chatFolderInviteLinkInfo.missing_chat_ids, or in userFullInfo.personal_chat_id,
 //-or for chats with messages or stories from publicForwards and foundStories
 //@boost_level Approximate boost level for the chat
 //@has_automatic_translation True, if automatic translation of messages is enabled in the channel
@@ -2969,7 +2987,7 @@ businessBotManageBar bot_user_id:int53 manage_url:string is_bot_paused:Bool can_
 //@description Describes a video chat, i.e. a group call bound to a chat
 //@group_call_id Group call identifier of an active video chat; 0 if none. Full information about the video chat can be received through the method getGroupCall
 //@has_participants True, if the video chat has participants
-//@default_participant_id Default group call participant identifier to join the video chat or story live streams created by the chat; may be null
+//@default_participant_id Default group call participant identifier to join the video chat; may be null
 videoChat group_call_id:int32 has_participants:Bool default_participant_id:MessageSender = VideoChat;
 
 
@@ -3750,6 +3768,9 @@ linkPreviewTypeGroupCall = LinkPreviewType;
 
 //@description The link is a link to an invoice
 linkPreviewTypeInvoice = LinkPreviewType;
+
+//@description The link is a link to a live story group call @photo Photo of the chat which posted the live story; may be null if none
+linkPreviewTypeLiveStory photo:chatPhoto = LinkPreviewType;
 
 //@description The link is a link to a text or a poll Telegram message
 linkPreviewTypeMessage = LinkPreviewType;
@@ -4626,9 +4647,9 @@ messagePaymentRefunded owner_id:MessageSender currency:string total_amount:int53
 //@amount The paid amount, in the smallest units of the currency
 //@cryptocurrency Cryptocurrency used to pay for the gift; may be empty if none
 //@cryptocurrency_amount The paid amount, in the smallest units of the cryptocurrency; 0 if none
-//@month_count Number of months the Telegram Premium subscription will be active
+//@day_count Number of days the Telegram Premium subscription will be active
 //@sticker A sticker to be shown in the message; may be null if unknown
-messageGiftedPremium gifter_user_id:int53 receiver_user_id:int53 text:formattedText currency:string amount:int53 cryptocurrency:string cryptocurrency_amount:int64 month_count:int32 sticker:sticker = MessageContent;
+messageGiftedPremium gifter_user_id:int53 receiver_user_id:int53 text:formattedText currency:string amount:int53 cryptocurrency:string cryptocurrency_amount:int64 day_count:int32 sticker:sticker = MessageContent;
 
 //@description A Telegram Premium gift code was created for the user
 //@creator_id Identifier of a chat or a user that created the gift code; may be null if unknown
@@ -4639,10 +4660,10 @@ messageGiftedPremium gifter_user_id:int53 receiver_user_id:int53 text:formattedT
 //@amount The paid amount, in the smallest units of the currency; 0 if unknown
 //@cryptocurrency Cryptocurrency used to pay for the gift; may be empty if none or unknown
 //@cryptocurrency_amount The paid amount, in the smallest units of the cryptocurrency; 0 if unknown
-//@month_count Number of months the Telegram Premium subscription will be active after code activation
+//@day_count Number of days the Telegram Premium subscription will be active after code activation
 //@sticker A sticker to be shown in the message; may be null if unknown
 //@code The gift code
-messagePremiumGiftCode creator_id:MessageSender text:formattedText is_from_giveaway:Bool is_unclaimed:Bool currency:string amount:int53 cryptocurrency:string cryptocurrency_amount:int64 month_count:int32 sticker:sticker code:string = MessageContent;
+messagePremiumGiftCode creator_id:MessageSender text:formattedText is_from_giveaway:Bool is_unclaimed:Bool currency:string amount:int53 cryptocurrency:string cryptocurrency_amount:int64 day_count:int32 sticker:sticker code:string = MessageContent;
 
 //@description A giveaway was created for the chat. Use telegramPaymentPurposePremiumGiveaway, storePaymentPurposePremiumGiveaway, telegramPaymentPurposeStarGiveaway, or storePaymentPurposeStarGiveaway to create a giveaway
 //@star_count Number of Telegram Stars that will be shared by winners of the giveaway; 0 for Telegram Premium giveaways
@@ -4932,8 +4953,8 @@ inputPaidMedia type:InputPaidMediaType media:InputFile thumbnail:inputThumbnail 
 
 //@description The message will be sent at the specified date
 //@send_date Point in time (Unix timestamp) when the message will be sent. The date must be within 367 days in the future
-//@repeat_period Period after which the message will be sent again; 0 if never; for Saved Messages only; for Telegram Premium users only; must be one of
-//-0, 86400, 7 * 86400, 14 * 86400, 30 * 86400, 91 * 86400, 182 * 86400, 365 * 86400, or additionally 60, or 300 in the Test DC
+//@repeat_period Period after which the message will be sent again; in seconds; 0 if never; for Telegram Premium users only; may be non-zero only in sendMessage and forwardMessages with one message requests;
+//-must be one of 0, 86400, 7 * 86400, 14 * 86400, 30 * 86400, 91 * 86400, 182 * 86400, 365 * 86400, or additionally 60, or 300 in the Test DC
 messageSchedulingStateSendAtDate send_date:int32 repeat_period:int32 = MessageSchedulingState;
 
 //@description The message will be sent when the other user is online. Applicable to private chats only and when the exact online status of the other user is known
@@ -5532,10 +5553,10 @@ storyContentPhoto photo:photo = StoryContent;
 //@description A video story @video The video in MPEG4 format @alternative_video Alternative version of the video in MPEG4 format, encoded with H.264 codec; may be null
 storyContentVideo video:storyVideo alternative_video:storyVideo = StoryContent;
 
-//@description A live stream story
+//@description A live story
 //@group_call_id Identifier of the corresponding group call. The group call can be received through the method getGroupCall
 //@is_rtmp_stream True, if the call is an RTMP stream instead of an ordinary group call
-storyContentLiveStream group_call_id:int32 is_rtmp_stream:Bool = StoryContent;
+storyContentLive group_call_id:int32 is_rtmp_stream:Bool = StoryContent;
 
 //@description A story content that is not supported in the current TDLib version
 storyContentUnsupported = StoryContent;
@@ -5645,7 +5666,8 @@ storyFullId poster_chat_id:int53 story_id:int32 = StoryFullId;
 //@story_id Unique story identifier among stories of the chat
 //@date Point in time (Unix timestamp) when the story was published
 //@is_for_close_friends True, if the story is available only to close friends
-storyInfo story_id:int32 date:int32 is_for_close_friends:Bool = StoryInfo;
+//@is_live True, if the story is a live story
+storyInfo story_id:int32 date:int32 is_for_close_friends:Bool is_live:Bool = StoryInfo;
 
 //@description Describes active stories posted by a chat
 //@chat_id Identifier of the chat that posted the stories
@@ -5979,20 +6001,21 @@ groupCallRecentSpeaker participant_id:MessageSender is_speaking:Bool = GroupCall
 //@id Group call identifier
 //@title Group call title; for video chats only
 //@invite_link Invite link for the group call; for group calls that aren't bound to a chat. For video chats call getVideoChatInviteLink to get the link. Live stream stories doesn't have invite links
-//@paid_message_star_count The minimum number of Telegram Stars that must be paid by general participant for each sent message to the call; for live stream stories only
+//@paid_message_star_count The minimum number of Telegram Stars that must be paid by general participant for each sent message to the call; for live stories only
 //@scheduled_start_date Point in time (Unix timestamp) when the group call is expected to be started by an administrator; 0 if it is already active or was ended; for video chats only
 //@enabled_start_notification True, if the group call is scheduled and the current user will receive a notification when the group call starts; for video chats only
 //@is_active True, if the call is active
 //@is_video_chat True, if the call is bound to a chat
-//@is_live_stream_story True, if the call is a live stream story of a chat
-//@is_rtmp_stream True, if the call is an RTMP stream instead of an ordinary video chat; for video chats and live stream stories only
+//@is_live_story True, if the call is a live story of a chat
+//@is_rtmp_stream True, if the call is an RTMP stream instead of an ordinary video chat; for video chats and live stories only
 //@is_joined True, if the call is joined
 //@need_rejoin True, if user was kicked from the call because of network loss and the call needs to be rejoined
 //@is_owned True, if the user is the owner of the call and can end the call, change volume level of other users, or ban users there; for group calls that aren't bound to a chat
-//@can_be_managed True, if the current user can manage the group call; for video chats and live stream stories only
+//@can_be_managed True, if the current user can manage the group call; for video chats and live stories only
 //@participant_count Number of participants in the group call
-//@has_hidden_listeners True, if group call participants, which are muted, aren't returned in participant list; for video chats and live stream stories only
+//@has_hidden_listeners True, if group call participants, which are muted, aren't returned in participant list; for video chats and live stories only
 //@loaded_all_participants True, if all group call participants are loaded
+//@message_sender_id Message sender chosen to send messages to the group call; for live stories only; may be null if the call isn't a live story
 //@recent_speakers At most 3 recently speaking users in the group call
 //@is_my_video_enabled True, if the current user's video is enabled
 //@is_my_video_paused True, if the current user's video is paused
@@ -6001,10 +6024,11 @@ groupCallRecentSpeaker participant_id:MessageSender is_speaking:Bool = GroupCall
 //@can_toggle_mute_new_participants True, if the current user can enable or disable mute_new_participants setting; for video chats only
 //@can_send_messages True, if users can send messages to the group call
 //@can_toggle_can_send_messages True, if the current user can enable or disable sending messages in the group call
+//@can_delete_messages True, if the user can delete messages in the group call
 //@record_duration Duration of the ongoing group call recording, in seconds; 0 if none. An updateGroupCall update is not triggered when value of this field changes, but the same recording goes on
 //@is_video_recorded True, if a video file is being recorded for the call
 //@duration Call duration, in seconds; for ended calls only
-groupCall id:int32 title:string invite_link:string paid_message_star_count:int53 scheduled_start_date:int32 enabled_start_notification:Bool is_active:Bool is_video_chat:Bool is_live_stream_story:Bool is_rtmp_stream:Bool is_joined:Bool need_rejoin:Bool is_owned:Bool can_be_managed:Bool participant_count:int32 has_hidden_listeners:Bool loaded_all_participants:Bool recent_speakers:vector<groupCallRecentSpeaker> is_my_video_enabled:Bool is_my_video_paused:Bool can_enable_video:Bool mute_new_participants:Bool can_toggle_mute_new_participants:Bool can_send_messages:Bool can_toggle_can_send_messages:Bool record_duration:int32 is_video_recorded:Bool duration:int32 = GroupCall;
+groupCall id:int32 title:string invite_link:string paid_message_star_count:int53 scheduled_start_date:int32 enabled_start_notification:Bool is_active:Bool is_video_chat:Bool is_live_story:Bool is_rtmp_stream:Bool is_joined:Bool need_rejoin:Bool is_owned:Bool can_be_managed:Bool participant_count:int32 has_hidden_listeners:Bool loaded_all_participants:Bool message_sender_id:MessageSender recent_speakers:vector<groupCallRecentSpeaker> is_my_video_enabled:Bool is_my_video_paused:Bool can_enable_video:Bool mute_new_participants:Bool can_toggle_mute_new_participants:Bool can_send_messages:Bool can_toggle_can_send_messages:Bool can_delete_messages:Bool record_duration:int32 is_video_recorded:Bool duration:int32 = GroupCall;
 
 //@description Describes a group of video synchronization source identifiers @semantics The semantics of sources, one of "SIM" or "FID" @source_ids The list of synchronization source identifiers
 groupCallVideoSourceGroup semantics:string source_ids:vector<int32> = GroupCallVideoSourceGroup;
@@ -6044,9 +6068,23 @@ groupCallParticipants total_count:int32 participant_ids:vector<MessageSender> = 
 groupCallInfo group_call_id:int32 join_payload:string = GroupCallInfo;
 
 //@description Represents a message sent in a group call
+//@message_id Unique message identifier within the group call
 //@sender_id Identifier of the sender of the message
+//@date Point in time (Unix timestamp) when the message was sent
 //@text Text of the message
-groupCallMessage sender_id:MessageSender text:formattedText = GroupCallMessage;
+//@paid_message_star_count The number of Telegram Stars that were paid to send the message; for live stories only
+//@is_from_owner True, if the message is sent by the owner of the call and must be treated as a message of the maximum level; for live stories only
+groupCallMessage message_id:int32 sender_id:MessageSender date:int32 text:formattedText paid_message_star_count:int53 is_from_owner:Bool = GroupCallMessage;
+
+//@description Represents a level of features for a message sent in a live story group call
+//@min_star_count The minimum number of Telegram Stars required to get features of the level
+//@pin_duration The amount of time the message of this level will be pinned, in seconds
+//@max_text_length The maximum allowed length of the message text
+//@max_custom_emoji_count The maximum allowed number of custom emoji in the message text
+//@first_color The first color used to show the message text in the RGB format
+//@second_color The second color used to show the message text in the RGB format
+//@background_color Background color for the message the RGB format
+groupCallMessageLevel min_star_count:int53 pin_duration:int32 max_text_length:int32 max_custom_emoji_count:int32 first_color:int32 second_color:int32 background_color:int32 = GroupCallMessageLevel;
 
 
 //@class InviteGroupCallParticipantResult @description Describes result of group call participant invitation
@@ -8137,6 +8175,14 @@ internalLinkTypeLanguagePack language_pack_id:string = InternalLinkType;
 //@description The link is a link to the language section of the application settings
 internalLinkTypeLanguageSettings = InternalLinkType;
 
+//@description The link is a link to a live story. Call searchPublicChat with the given chat username, then getChatActiveStories to get active stories in the chat,
+//-then find a live story among active stories of the chat, and then joinLiveStory to join the live story
+//@story_poster_username Username of the poster of the story
+internalLinkTypeLiveStory story_poster_username:string = InternalLinkType;
+
+//@description The link is a link to the login email set up section of the application settings, forcing set up of the login email
+internalLinkTypeLoginEmailSettings = InternalLinkType;
+
 //@description The link is a link to the main Web App of a bot. Call searchPublicChat with the given bot username, check that the user is a bot and has the main Web App.
 //-If the bot can be added to attachment menu, then use getAttachmentMenuBot to receive information about the bot, then if the bot isn't added to side menu,
 //-show a disclaimer about Mini Apps being third-party applications, ask the user to accept their Terms of service and confirm adding the bot to side and attachment menu,
@@ -8171,6 +8217,9 @@ internalLinkTypeMyToncoins = InternalLinkType;
 //@callback_url An HTTP URL to open once the request is finished, canceled, or failed with the parameters tg_passport=success, tg_passport=cancel, or tg_passport=error&error=... respectively.
 //-If empty, then onActivityResult method must be used to return response on Android, or the link tgbot{bot_user_id}://passport/success or tgbot{bot_user_id}://passport/cancel must be opened otherwise
 internalLinkTypePassportDataRequest bot_user_id:int53 scope:string public_key:string nonce:string callback_url:string = InternalLinkType;
+
+//@description The link is a link to the password section of the application settings
+internalLinkTypePasswordSettings = InternalLinkType;
 
 //@description The link can be used to confirm ownership of a phone number to prevent account deletion. Call sendPhoneNumberCode with the given phone number and with phoneNumberCodeTypeConfirmOwnership with the given hash to process the link.
 //-If succeeded, call checkPhoneNumberCode to check entered by the user code, or resendPhoneNumberCode to resend it
@@ -9373,6 +9422,11 @@ updateGroupCallVerificationState group_call_id:int32 generation:int32 emojis:vec
 //@message The message
 updateNewGroupCallMessage group_call_id:int32 message:groupCallMessage = Update;
 
+//@description Some group call messages were deleted
+//@group_call_id Identifier of the group call
+//@message_ids Identifiers of the deleted messages
+updateGroupCallMessagesDeleted group_call_id:int32 message_ids:vector<int32> = Update;
+
 //@description New call signaling data arrived @call_id The call identifier @data The data
 updateNewCallSignalingData call_id:int32 data:bytes = Update;
 
@@ -9544,6 +9598,9 @@ updateTonRevenueStatus status:tonRevenueStatus = Update;
 //@left_count Number of left speech recognition attempts this week
 //@next_reset_date Point in time (Unix timestamp) when the weekly number of tries will reset; 0 if unknown
 updateSpeechRecognitionTrial max_media_duration:int32 weekly_count:int32 left_count:int32 next_reset_date:int32 = Update;
+
+//@description The levels of live story group call messages has changed @levels New description of the levels in decreasing order of groupCallMessageLevel.min_star_count 
+updateGroupCallMessageLevels levels:vector<groupCallMessageLevel> = Update;
 
 //@description The list of supported dice emojis has changed @emojis The new list of supported dice emojis
 updateDiceEmojis emojis:vector<string> = Update;
@@ -11803,16 +11860,15 @@ canPostStory chat_id:int53 = CanPostStoryResult;
 //@protect_content Pass true if the content of the story must be protected from forwarding and screenshotting
 postStory chat_id:int53 content:InputStoryContent areas:inputStoryAreas caption:formattedText privacy_settings:StoryPrivacySettings album_ids:vector<int32> active_period:int32 from_story_full_id:storyFullId is_posted_to_chat_page:Bool protect_content:Bool = Story;
 
-//@description Starts a new live stream on behalf of a chat; requires can_post_stories administrator right for supergroup and channel chats
-//@chat_id Identifier of the chat that will start the live stream. Pass Saved Messages chat identifier when starting a live stream on behalf of the current user
-//@privacy_settings The privacy settings for the story; ignored for stories posted on behalf of supergroup and channel chats
-//@album_ids Identifiers of story albums to which the story will be added upon posting. An album can have up to getOption("story_album_size_max") stories
+//@description Starts a new live story on behalf of a chat; requires can_post_stories administrator right for channel chats
+//@chat_id Identifier of the chat that will start the live story. Pass Saved Messages chat identifier when starting a live story on behalf of the current user, or a channel chat identifier
+//@privacy_settings The privacy settings for the story; ignored for stories posted on behalf of channel chats
 //@is_posted_to_chat_page Pass true to keep the story accessible after expiration
 //@protect_content Pass true if the content of the story must be protected from forwarding and screenshotting
 //@is_rtmp_stream Pass true to create an RTMP stream instead of an ordinary group call
-//@enable_messages Pass true to allow viewers of the stream to send messages
+//@enable_messages Pass true to allow viewers of the story to send messages
 //@paid_message_star_count The minimum number of Telegram Stars that must be paid by viewers for each sent message to the call; 0-10000
-startLiveStreamStory chat_id:int53 privacy_settings:StoryPrivacySettings album_ids:vector<int32> is_posted_to_chat_page:Bool protect_content:Bool is_rtmp_stream:Bool enable_messages:Bool paid_message_star_count:int53 = Story;
+startLiveStory chat_id:int53 privacy_settings:StoryPrivacySettings is_posted_to_chat_page:Bool protect_content:Bool is_rtmp_stream:Bool enable_messages:Bool paid_message_star_count:int53 = Story;
 
 //@description Changes content and caption of a story. Can be called only if story.can_be_edited == true
 //@story_poster_chat_id Identifier of the chat that posted the story
@@ -12331,13 +12387,13 @@ sendCallDebugInformation call_id:int32 debug_information:string = Ok;
 sendCallLog call_id:int32 log_file:InputFile = Ok;
 
 
-//@description Returns the list of participant identifiers, on whose behalf a video chat or a story live stream in the chat can be joined @chat_id Chat identifier
-getGroupCallAvailableParticipants chat_id:int53 = MessageSenders;
+//@description Returns the list of participant identifiers, on whose behalf a video chat in the chat can be joined @chat_id Chat identifier
+getVideoChatAvailableParticipants chat_id:int53 = MessageSenders;
 
-//@description Changes default participant identifier, on whose behalf a video chat or a story live stream in the chat will be joined
+//@description Changes default participant identifier, on whose behalf a video chat in the chat will be joined
 //@chat_id Chat identifier
-//@default_participant_id Default group call participant identifier to join the group calls in the chat
-setGroupCallDefaultParticipant chat_id:int53 default_participant_id:MessageSender = Ok;
+//@default_participant_id Default group call participant identifier to join the video chats in the chat
+setVideoChatDefaultParticipant chat_id:int53 default_participant_id:MessageSender = Ok;
 
 //@description Creates a video chat (a group call bound to a chat). Available only for basic groups, supergroups and channels; requires can_manage_video_chats administrator right
 //@chat_id Identifier of a chat in which the video chat will be created
@@ -12349,12 +12405,12 @@ createVideoChat chat_id:int53 title:string start_date:int32 is_rtmp_stream:Bool 
 //@description Creates a new group call that isn't bound to a chat @join_parameters Parameters to join the call; pass null to only create call link without joining the call
 createGroupCall join_parameters:groupCallJoinParameters = GroupCallInfo;
 
-//@description Returns RTMP URL for streaming to the video chat of a chat or a story live stream; requires can_manage_video_chats administrator right for basic group, supergroup and channel chats
+//@description Returns RTMP URL for streaming to the video chat of a chat or a live story; requires can_manage_video_chats administrator right for basic group, supergroup and channel chats
 //@chat_id Chat identifier
 //@for_live_story Pass true to get URL for streaming of a live story
 getGroupCallRtmpUrl chat_id:int53 for_live_story:Bool = RtmpUrl;
 
-//@description Replaces the current RTMP URL for streaming to the video chat of a chat or a story live stream; requires owner privileges for basic group, supergroup and channel chats
+//@description Replaces the current RTMP URL for streaming to the video chat of a chat or a live story; requires owner privileges for basic group, supergroup and channel chats
 //@chat_id Chat identifier
 //@for_live_story Pass true to replace the URL for streaming of a live story
 replaceGroupCallRtmpUrl chat_id:int53 for_live_story:Bool = RtmpUrl;
@@ -12370,15 +12426,20 @@ startScheduledVideoChat group_call_id:int32 = Ok;
 //@enabled_start_notification New value of the enabled_start_notification setting
 toggleVideoChatEnabledStartNotification group_call_id:int32 enabled_start_notification:Bool = Ok;
 
-//@description Joins a group call that is not bound to a chat @input_group_call The group call to join @join_parameters Parameters to join the call
+//@description Joins a regular group call that is not bound to a chat @input_group_call The group call to join @join_parameters Parameters to join the call
 joinGroupCall input_group_call:InputGroupCall join_parameters:groupCallJoinParameters = GroupCallInfo;
 
-//@description Joins an active video chat or a story live stream. Returns join response payload for tgcalls
+//@description Joins an active video chat. Returns join response payload for tgcalls
 //@group_call_id Group call identifier
 //@participant_id Identifier of a group call participant, which will be used to join the call; pass null to join as self
 //@join_parameters Parameters to join the call
-//@invite_hash Invite hash as received from internalLinkTypeVideoChat; video chats only
+//@invite_hash Invite hash as received from internalLinkTypeVideoChat
 joinVideoChat group_call_id:int32 participant_id:MessageSender join_parameters:groupCallJoinParameters invite_hash:string = Text;
+
+//@description Joins a group call of an active live story. Returns join response payload for tgcalls
+//@group_call_id Group call identifier
+//@join_parameters Parameters to join the call
+joinLiveStory group_call_id:int32 join_parameters:groupCallJoinParameters = Text;
 
 //@description Starts screen sharing in a joined group call. Returns join response payload for tgcalls
 //@group_call_id Group call identifier
@@ -12405,10 +12466,30 @@ toggleVideoChatMuteNewParticipants group_call_id:int32 mute_new_participants:Boo
 //@can_send_messages New value of the can_send_messages setting
 toggleGroupCallCanSendMessages group_call_id:int32 can_send_messages:Bool = Ok;
 
+//@description Returns the list of message sender identifiers, on whose behalf messages can be sent to a live story @chat_id Chat identifier
+getLiveStoryAvailableMessageSenders chat_id:int53 = ChatMessageSenders;
+
+//@description Selects a message sender to send messages in a live story group call
+//@group_call_id Group call identifier
+//@message_sender_id New message sender for the group call
+setGroupCallMessageSender group_call_id:int32 message_sender_id:MessageSender = Ok;
+
 //@description Sends a message to other participants of a group call. Requires groupCall.can_send_messages right
 //@group_call_id Group call identifier
 //@text Text of the message to send; 0-getOption("group_call_message_text_length_max") characters
 sendGroupCallMessage group_call_id:int32 text:formattedText = Ok;
+
+//@description Deletes messages in a group call; for live story calls only. Requires groupCall.can_delete_messages right
+//@group_call_id Group call identifier
+//@message_ids Identifiers of the messages to be deleted
+//@report_spam Pass true to report the messages as spam
+deleteGroupCallMessages group_call_id:int32 message_ids:vector<int32> report_spam:Bool = Ok;
+
+//@description Deletes all messages sent by the specified message sender in a group call; for live story calls only. Requires groupCall.can_delete_messages right
+//@group_call_id Group call identifier
+//@sender_id Identifier of the sender of messages to delete
+//@report_spam Pass true to report the messages as spam
+deleteGroupCallMessagesBySender group_call_id:int32 sender_id:MessageSender report_spam:Bool = Ok;
 
 //@description Invites a user to an active group call; for group calls not bound to a chat only. Sends a service message of the type messageGroupCall.
 //-The group call can have at most getOption("group_call_participant_count_max") participants
@@ -12456,13 +12537,18 @@ toggleGroupCallIsMyVideoPaused group_call_id:int32 is_my_video_paused:Bool = Ok;
 //@description Toggles whether current user's video is enabled @group_call_id Group call identifier @is_my_video_enabled Pass true if the current user's video is enabled
 toggleGroupCallIsMyVideoEnabled group_call_id:int32 is_my_video_enabled:Bool = Ok;
 
+//@description Changes the minimum number of Telegram Stars that must be paid by general participant for each sent message to a live story call
+//@group_call_id Group call identifier; must be an identifier of a live story call
+//@paid_message_star_count The new minimum number of Telegram Stars; 0-getOption("paid_group_call_message_star_count_max")
+setGroupCallPaidMessageStarCount group_call_id:int32 paid_message_star_count:int53 = Ok;
+
 //@description Informs TDLib that speaking state of a participant of an active group call has changed. Returns identifier of the participant if it is found
 //@group_call_id Group call identifier
 //@audio_source Group call participant's synchronization audio source identifier, or 0 for the current user
 //@is_speaking Pass true if the user is speaking
 setGroupCallParticipantIsSpeaking group_call_id:int32 audio_source:int32 is_speaking:Bool = MessageSender;
 
-//@description Toggles whether a participant of an active group call is muted, unmuted, or allowed to unmute themselves; not supported for story live streams
+//@description Toggles whether a participant of an active group call is muted, unmuted, or allowed to unmute themselves; not supported for live stories
 //@group_call_id Group call identifier
 //@participant_id Participant identifier
 //@is_muted Pass true to mute the user; pass false to unmute them
@@ -12495,13 +12581,13 @@ loadGroupCallParticipants group_call_id:int32 limit:int32 = Ok;
 //@description Leaves a group call @group_call_id Group call identifier
 leaveGroupCall group_call_id:int32 = Ok;
 
-//@description Ends a group call. Requires groupCall.can_be_managed right for video chats and live stream stories or groupCall.is_owned otherwise @group_call_id Group call identifier
+//@description Ends a group call. Requires groupCall.can_be_managed right for video chats and live stories or groupCall.is_owned otherwise @group_call_id Group call identifier
 endGroupCall group_call_id:int32 = Ok;
 
-//@description Returns information about available streams in a video chat or a story live stream @group_call_id Group call identifier
+//@description Returns information about available streams in a video chat or a live story @group_call_id Group call identifier
 getGroupCallStreams group_call_id:int32 = GroupCallStreams;
 
-//@description Returns a file with a segment of a video chat or story live stream in a modified OGG format for audio or MPEG-4 format for video
+//@description Returns a file with a segment of a video chat or live story in a modified OGG format for audio or MPEG-4 format for video
 //@group_call_id Group call identifier
 //@time_offset Point in time when the stream segment begins; Unix timestamp in milliseconds
 //@scale Segment duration scale; 0-1. Segment's duration is 1000/(2**scale) milliseconds

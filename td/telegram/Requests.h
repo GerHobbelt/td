@@ -695,7 +695,7 @@ class Requests {
 
   void on_request(uint64 id, td_api::postStory &request);
 
-  void on_request(uint64 id, td_api::startLiveStreamStory &request);
+  void on_request(uint64 id, td_api::startLiveStory &request);
 
   void on_request(uint64 id, td_api::editStory &request);
 
@@ -787,9 +787,9 @@ class Requests {
 
   void on_request(uint64 id, td_api::sendCallLog &request);
 
-  void on_request(uint64 id, const td_api::getGroupCallAvailableParticipants &request);
+  void on_request(uint64 id, const td_api::getVideoChatAvailableParticipants &request);
 
-  void on_request(uint64 id, const td_api::setGroupCallDefaultParticipant &request);
+  void on_request(uint64 id, const td_api::setVideoChatDefaultParticipant &request);
 
   void on_request(uint64 id, td_api::createVideoChat &request);
 
@@ -809,6 +809,8 @@ class Requests {
 
   void on_request(uint64 id, td_api::joinVideoChat &request);
 
+  void on_request(uint64 id, td_api::joinLiveStory &request);
+
   void on_request(uint64 id, td_api::startGroupCallScreenSharing &request);
 
   void on_request(uint64 id, const td_api::endGroupCallScreenSharing &request);
@@ -819,7 +821,17 @@ class Requests {
 
   void on_request(uint64 id, const td_api::toggleGroupCallCanSendMessages &request);
 
+  void on_request(uint64 id, const td_api::setGroupCallPaidMessageStarCount &request);
+
+  void on_request(uint64 id, const td_api::getLiveStoryAvailableMessageSenders &request);
+
+  void on_request(uint64 id, const td_api::setGroupCallMessageSender &request);
+
   void on_request(uint64 id, td_api::sendGroupCallMessage &request);
+
+  void on_request(uint64 id, const td_api::deleteGroupCallMessages &request);
+
+  void on_request(uint64 id, const td_api::deleteGroupCallMessagesBySender &request);
 
   void on_request(uint64 id, const td_api::revokeGroupCallInviteLink &request);
 

@@ -172,23 +172,28 @@ GroupCallMessage::GroupCallMessage(Td *td, DialogId sender_dialog_id, string jso
     remove_premium_custom_emoji_entities(td, text.entities, true);
   }
 
-  id_ = r_random_id.ok();
+  random_id_ = r_random_id.ok();
   date_ = G()->unix_time();
-  dialog_id_ = sender_dialog_id;
+  sender_dialog_id_ = sender_dialog_id;
   text_ = std::move(text);
   paid_message_star_count_ = 0;
 }
 
 GroupCallMessage::GroupCallMessage(Td *td, telegram_api::object_ptr<telegram_api::groupCallMessage> &&message)
-    : id_(message->id_)
+    : server_id_(message->id_)
     , date_(max(1000000000, message->date_))
-    , dialog_id_(message->from_id_)
+    , sender_dialog_id_(message->from_id_)
     , text_(get_formatted_text(td->user_manager_.get(), std::move(message->message_), true, false, "GroupCallMessage"))
-    , paid_message_star_count_(StarManager::get_star_count(message->paid_message_stars_)) {
+    , paid_message_star_count_(StarManager::get_star_count(message->paid_message_stars_))
+    , from_admin_(message->from_admin_) {
+  if (server_id_ <= 0) {
+    LOG(ERROR) << "Receive group call message " << server_id_;
+    sender_dialog_id_ = {};
+  }
 }
 
-GroupCallMessage::GroupCallMessage(DialogId dialog_id, FormattedText text)
-    : id_(0), date_(G()->unix_time()), dialog_id_(dialog_id), text_(std::move(text)), paid_message_star_count_() {
+GroupCallMessage::GroupCallMessage(DialogId sender_dialog_id, FormattedText text)
+    : date_(G()->unix_time()), sender_dialog_id_(sender_dialog_id), text_(std::move(text)), paid_message_star_count_() {
 }
 
 string GroupCallMessage::encode_to_json() const {
@@ -283,15 +288,16 @@ string GroupCallMessage::encode_to_json() const {
   }));
 }
 
-td_api::object_ptr<td_api::groupCallMessage> GroupCallMessage::get_group_call_message_object(Td *td) const {
+td_api::object_ptr<td_api::groupCallMessage> GroupCallMessage::get_group_call_message_object(Td *td,
+                                                                                             int32 message_id) const {
   return td_api::make_object<td_api::groupCallMessage>(
-      get_message_sender_object(td, dialog_id_, "get_group_call_message_object"),
-      get_formatted_text_object(td->user_manager_.get(), text_, true, -1));
+      message_id, get_message_sender_object(td, sender_dialog_id_, "get_group_call_message_object"), date_,
+      get_formatted_text_object(td->user_manager_.get(), text_, true, -1), paid_message_star_count_, from_admin_);
 }
 
 StringBuilder &operator<<(StringBuilder &string_builder, const GroupCallMessage &group_call_message) {
-  return string_builder << "GroupCallMessage[" << group_call_message.id_ << " by " << group_call_message.dialog_id_
-                        << ": " << group_call_message.text_ << ']';
+  return string_builder << "GroupCallMessage[" << group_call_message.server_id_ << '/' << group_call_message.random_id_
+                        << " by " << group_call_message.sender_dialog_id_ << ": " << group_call_message.text_ << ']';
 }
 
 }  // namespace td

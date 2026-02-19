@@ -5016,16 +5016,16 @@ class CliClient final : public Actor {
       string log_file;
       get_args(args, call_id, log_file);
       send_request(td_api::make_object<td_api::sendCallLog>(call_id, as_input_file(log_file)));
-    } else if (op == "ggcap") {
+    } else if (op == "gvcap") {
       ChatId chat_id;
       get_args(args, chat_id);
-      send_request(td_api::make_object<td_api::getGroupCallAvailableParticipants>(chat_id));
-    } else if (op == "sgcdp") {
+      send_request(td_api::make_object<td_api::getVideoChatAvailableParticipants>(chat_id));
+    } else if (op == "svcdp") {
       ChatId chat_id;
       string participant_id;
       get_args(args, chat_id, participant_id);
       send_request(
-          td_api::make_object<td_api::setGroupCallDefaultParticipant>(chat_id, as_message_sender(participant_id)));
+          td_api::make_object<td_api::setVideoChatDefaultParticipant>(chat_id, as_message_sender(participant_id)));
     } else if (op == "cvc") {
       ChatId chat_id;
       string title;
@@ -5100,16 +5100,20 @@ class CliClient final : public Actor {
       string participant_id;
       string invite_hash;
       get_args(args, group_call_id, participant_id, invite_hash);
-
       send_request(td_api::make_object<td_api::joinVideoChat>(
           group_call_id, as_message_sender(participant_id),
           td_api::make_object<td_api::groupCallJoinParameters>(
               group_call_source_, get_group_call_join_payload(op == "jvcv", false), true, true),
           invite_hash));
+    } else if (op == "jls" || op == "jlsv") {
+      GroupCallId group_call_id;
+      get_args(args, group_call_id);
+      send_request(td_api::make_object<td_api::joinLiveStory>(
+          group_call_id, td_api::make_object<td_api::groupCallJoinParameters>(
+                             group_call_source_, get_group_call_join_payload(op == "jslsv", false), true, true)));
     } else if (op == "sgcss") {
       GroupCallId group_call_id;
       get_args(args, group_call_id);
-
       send_request(td_api::make_object<td_api::startGroupCallScreenSharing>(group_call_id, group_call_source_ + 1,
                                                                             get_group_call_join_payload(true, true)));
     } else if (op == "tgcssip") {
@@ -5135,11 +5139,39 @@ class CliClient final : public Actor {
       bool can_send_messages;
       get_args(args, group_call_id, can_send_messages);
       send_request(td_api::make_object<td_api::toggleGroupCallCanSendMessages>(group_call_id, can_send_messages));
+    } else if (op == "sgcpmsc") {
+      GroupCallId group_call_id;
+      int64 paid_message_star_count;
+      get_args(args, group_call_id, paid_message_star_count);
+      send_request(
+          td_api::make_object<td_api::setGroupCallPaidMessageStarCount>(group_call_id, paid_message_star_count));
+    } else if (op == "glsams") {
+      ChatId chat_id;
+      get_args(args, chat_id);
+      send_request(td_api::make_object<td_api::getLiveStoryAvailableMessageSenders>(chat_id));
+    } else if (op == "sgcms") {
+      GroupCallId group_call_id;
+      string message_sender_id;
+      get_args(args, group_call_id, message_sender_id);
+      send_request(
+          td_api::make_object<td_api::setGroupCallMessageSender>(group_call_id, as_message_sender(message_sender_id)));
     } else if (op == "sgcm") {
       GroupCallId group_call_id;
       string text;
       get_args(args, group_call_id, text);
       send_request(td_api::make_object<td_api::sendGroupCallMessage>(group_call_id, as_formatted_text(text)));
+    } else if (op == "dgcm" || op == "dgcms") {
+      GroupCallId group_call_id;
+      string message_ids;
+      get_args(args, group_call_id, message_ids);
+      send_request(td_api::make_object<td_api::deleteGroupCallMessages>(group_call_id, to_integers<int32>(message_ids),
+                                                                        op == "dgcms"));
+    } else if (op == "dgcmbs" || op == "dgcmbss") {
+      GroupCallId group_call_id;
+      string sender_id;
+      get_args(args, group_call_id, sender_id);
+      send_request(td_api::make_object<td_api::deleteGroupCallMessagesBySender>(
+          group_call_id, as_message_sender(sender_id), op == "dgcmbss"));
     } else if (op == "rgcil") {
       GroupCallId group_call_id;
       get_args(args, group_call_id);
@@ -5591,14 +5623,14 @@ class CliClient final : public Actor {
                                                               duration, 0.5, true),
           areas, get_caption(), rules, to_integers<int32>(album_ids), active_period ? active_period : 86400,
           get_reposted_story_full_id(), op == "psvp", protect_content));
-    } else if (op == "slss" || op == "slssp" || op == "slssr") {
+    } else if (op == "sls" || op == "slsp" || op == "slsr") {
       ChatId chat_id;
       StoryPrivacySettings rules;
       bool protect_content;
       string album_ids;
       get_args(args, chat_id, rules, protect_content, album_ids);
-      send_request(td_api::make_object<td_api::startLiveStreamStory>(
-          chat_id, rules, to_integers<int32>(album_ids), op == "slssp", protect_content, op == "slssr", true, 1));
+      send_request(td_api::make_object<td_api::startLiveStory>(chat_id, rules, op == "slsp", protect_content,
+                                                               op == "slsr", true, 1));
     } else if (op == "esc") {
       ChatId story_poster_chat_id;
       StoryId story_id;
@@ -6936,7 +6968,7 @@ class CliClient final : public Actor {
       } else {
         send_request(td_api::make_object<td_api::stopPoll>(chat_id, message_id, nullptr));
       }
-    } else if (op == "atdlt") {
+    } else if (op == "achlt") {
       ChatId chat_id;
       MessageId message_id;
       int32 task_id;
@@ -6945,7 +6977,7 @@ class CliClient final : public Actor {
         return td_api::make_object<td_api::inputChecklistTask>(task_id++, as_formatted_text(task));
       });
       send_request(td_api::make_object<td_api::addChecklistTasks>(chat_id, message_id, std::move(tasks)));
-    } else if (op == "mtdltad") {
+    } else if (op == "mchltad") {
       ChatId chat_id;
       MessageId message_id;
       string done_task_ids;

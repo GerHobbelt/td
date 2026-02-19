@@ -11,6 +11,7 @@
 #include "td/telegram/AuthManager.h"
 #include "td/telegram/ConnectionState.h"
 #include "td/telegram/Global.h"
+#include "td/telegram/GroupCallManager.h"
 #include "td/telegram/JsonValue.h"
 #include "td/telegram/LinkManager.h"
 #include "td/telegram/logevent/LogEvent.h"
@@ -1425,6 +1426,7 @@ void ConfigManager::process_app_config(tl_object_ptr<telegram_api::JSONValue> &c
       {"stargifts_pinned_to_top_limit", "pinned_gift_count_max"},
       {"starref_max_commission_permille", "affiliate_program_commission_per_mille_max"},
       {"starref_min_commission_permille", "affiliate_program_commission_per_mille_min"},
+      {"stars_groupcall_message_amount_max", "paid_group_call_message_star_count_max"},
       {"stars_paid_message_amount_max", "paid_message_star_count_max"},
       {"stars_paid_message_commission_permille", "paid_message_earnings_per_mille"},
       {"stars_paid_messages_channel_amount_default", "direct_channel_message_star_count_default"},
@@ -1959,6 +1961,11 @@ void ConfigManager::process_app_config(tl_object_ptr<telegram_api::JSONValue> &c
         } else {
           LOG(ERROR) << "Receive unexpected whitelisted_bots " << to_string(*value);
         }
+        continue;
+      }
+      if (key == "stars_groupcall_message_limits") {
+        send_closure(G()->group_call_manager(), &GroupCallManager::on_update_group_call_message_limits,
+                     std::move(key_value->value_));
         continue;
       }
 

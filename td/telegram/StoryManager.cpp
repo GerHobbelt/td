@@ -1443,9 +1443,8 @@ class StartLiveStoryQuery final : public Td::ResultHandler {
   explicit StartLiveStoryQuery(Promise<td_api::object_ptr<td_api::story>> &&promise) : promise_(std::move(promise)) {
   }
 
-  void send(DialogId dialog_id, const UserPrivacySettingRules &privacy_rules,
-            const vector<StoryAlbumId> &story_album_ids, bool is_pinned, bool noforwards, bool is_rtmp_stream,
-            bool enable_messages, int64 paid_message_star_count) {
+  void send(DialogId dialog_id, const UserPrivacySettingRules &privacy_rules, bool is_pinned, bool noforwards,
+            bool is_rtmp_stream, bool enable_messages, int64 paid_message_star_count) {
     dialog_id_ = dialog_id;
 
     auto input_peer = td_->dialog_manager_->get_input_peer(dialog_id_, AccessRights::Write);
@@ -1453,7 +1452,6 @@ class StartLiveStoryQuery final : public Td::ResultHandler {
       return on_error(Status::Error(400, "Can't access the chat"));
     }
 
-    // StoryAlbumId::get_input_story_album_ids(story->album_ids_)
     int32 flags = telegram_api::stories_startLive::MESSAGES_ENABLED_MASK;
     if (paid_message_star_count != 0) {
       flags |= telegram_api::stories_startLive::SEND_PAID_MESSAGES_STARS_MASK;
@@ -1704,6 +1702,7 @@ void StoryManager::Story::store(StorerT &storer) const {
   STORE_FLAG(has_forward_info);
   STORE_FLAG(has_sender_dialog_id);
   STORE_FLAG(has_album_ids);
+  STORE_FLAG(is_live_);
   END_STORE_FLAGS();
   store(date_, storer);
   store(expire_date_, storer);
@@ -1771,6 +1770,7 @@ void StoryManager::Story::parse(ParserT &parser) {
   PARSE_FLAG(has_forward_info);
   PARSE_FLAG(has_sender_dialog_id);
   PARSE_FLAG(has_album_ids);
+  PARSE_FLAG(is_live_);
   END_PARSE_FLAGS();
   parse(date_, parser);
   parse(expire_date_, parser);
@@ -1811,6 +1811,7 @@ void StoryManager::StoryInfo::store(StorerT &storer) const {
   using td::store;
   BEGIN_STORE_FLAGS();
   STORE_FLAG(is_for_close_friends_);
+  STORE_FLAG(is_live_);
   END_STORE_FLAGS();
   store(story_id_, storer);
   store(date_, storer);
@@ -1822,6 +1823,7 @@ void StoryManager::StoryInfo::parse(ParserT &parser) {
   using td::parse;
   BEGIN_PARSE_FLAGS();
   PARSE_FLAG(is_for_close_friends_);
+  PARSE_FLAG(is_live_);
   END_PARSE_FLAGS();
   parse(story_id_, parser);
   parse(date_, parser);
@@ -4030,7 +4032,13 @@ StoryManager::StoryInfo StoryManager::get_story_info(StoryFullId story_full_id) 
   story_info.date_ = story->date_;
   story_info.expire_date_ = story->expire_date_;
   story_info.is_for_close_friends_ = story->is_for_close_friends_;
+  story_info.is_live_ = story->is_live_;
   return story_info;
+}
+
+bool StoryManager::is_story_live(StoryFullId story_full_id) const {
+  const auto *story = get_story(story_full_id);
+  return story != nullptr && story->is_live_;
 }
 
 td_api::object_ptr<td_api::storyInfo> StoryManager::get_story_info_object(StoryFullId story_full_id) const {
@@ -4039,7 +4047,7 @@ td_api::object_ptr<td_api::storyInfo> StoryManager::get_story_info_object(StoryF
     return nullptr;
   }
   return td_api::make_object<td_api::storyInfo>(story_info.story_id_.get(), story_info.date_,
-                                                story_info.is_for_close_friends_);
+                                                story_info.is_for_close_friends_, story_info.is_live_);
 }
 
 td_api::object_ptr<td_api::story> StoryManager::get_story_object(StoryFullId story_full_id) const {
@@ -4375,12 +4383,13 @@ StoryId StoryManager::on_get_new_story(DialogId owner_dialog_id,
     story_item->expire_date_ = story_item->date_ + 1;
   }
 
+  bool is_live = content_type == StoryContentType::LiveStream;
   if (story->is_edited_ != story_item->edited_ || story->is_pinned_ != story_item->pinned_ ||
       story->is_public_ != story_item->public_ || story->is_for_close_friends_ != story_item->close_friends_ ||
       story->is_for_contacts_ != story_item->contacts_ ||
       story->is_for_selected_contacts_ != story_item->selected_contacts_ ||
       story->noforwards_ != story_item->noforwards_ || story->date_ != story_item->date_ ||
-      story->expire_date_ != story_item->expire_date_) {
+      story->expire_date_ != story_item->expire_date_ || story->is_live_ != is_live) {
     story->is_edited_ = story_item->edited_;
     story->is_pinned_ = story_item->pinned_;
     story->is_public_ = story_item->public_;
@@ -4390,6 +4399,7 @@ StoryId StoryManager::on_get_new_story(DialogId owner_dialog_id,
     story->noforwards_ = story_item->noforwards_;
     story->date_ = story_item->date_;
     story->expire_date_ = story_item->expire_date_;
+    story->is_live_ = is_live;
     is_changed = true;
   }
   if (owner_dialog_id.get_type() == DialogType::User && !is_my_story(owner_dialog_id)) {
@@ -4535,6 +4545,7 @@ StoryId StoryManager::on_get_skipped_story(DialogId owner_dialog_id,
   story_info.date_ = story_item->date_;
   story_info.expire_date_ = story_item->expire_date_;
   story_info.is_for_close_friends_ = story_item->close_friends_;
+  story_info.is_live_ = story_item->live_;
   return on_get_story_info(owner_dialog_id, std::move(story_info));
 }
 
@@ -4574,10 +4585,11 @@ StoryId StoryManager::on_get_story_info(DialogId owner_dialog_id, StoryInfo &&st
   }
 
   if (story->date_ != story_info.date_ || story->expire_date_ != story_info.expire_date_ ||
-      story->is_for_close_friends_ != story_info.is_for_close_friends_) {
+      story->is_for_close_friends_ != story_info.is_for_close_friends_ || story->is_live_ != story_info.is_live_) {
     story->date_ = story_info.date_;
     story->expire_date_ = story_info.expire_date_;
     story->is_for_close_friends_ = story_info.is_for_close_friends_;
+    story->is_live_ = story_info.is_live_;
     on_story_changed(story_full_id, story, true, true);
   }
   return story_id;
@@ -4989,7 +5001,18 @@ void StoryManager::on_update_active_stories(DialogId owner_dialog_id, StoryId ma
       }
     }
   }
-  // on_update_dialog_max_story_ids(owner_dialog_id, story_ids.back(), max_read_story_id);
+  telegram_api::object_ptr<telegram_api::recentStory> recent_story;
+  for (auto story_id : story_ids) {
+    if (is_story_live({owner_dialog_id, story_id})) {
+      recent_story = telegram_api::make_object<telegram_api::recentStory>(telegram_api::recentStory::MAX_ID_MASK, true,
+                                                                          story_id.get());
+    }
+  }
+  if (recent_story == nullptr) {
+    recent_story = telegram_api::make_object<telegram_api::recentStory>(telegram_api::recentStory::MAX_ID_MASK, false,
+                                                                        story_ids.back().get());
+  }
+  on_update_dialog_max_story_ids(owner_dialog_id, std::move(recent_story), max_read_story_id);
 
   bool need_save_to_database = false;
   if (active_stories->max_read_story_id_ != max_read_story_id || active_stories->story_ids_ != story_ids) {
@@ -5001,6 +5024,7 @@ void StoryManager::on_update_active_stories(DialogId owner_dialog_id, StoryId ma
   } else if (update_active_stories_order(owner_dialog_id, active_stories.get(), &need_save_to_database)) {
     send_update_chat_active_stories(owner_dialog_id, active_stories.get(), "on_update_active_stories 3");
   }
+
   if (need_save_to_database && !from_database) {
     save_active_stories(owner_dialog_id, active_stories.get(), std::move(promise), source);
   } else {
@@ -5935,6 +5959,7 @@ void StoryManager::do_send_story(unique_ptr<PendingStory> &&pending_story, vecto
     story->content_ = copy_story_content(pending_story->story_->content_.get());
     story->areas_ = pending_story->story_->areas_;
     story->caption_ = pending_story->story_->caption_;
+    // story->is_live_ = false;
     send_update_story(story_full_id, story.get());
     stories_.set(story_full_id, std::move(story));
 
@@ -6082,8 +6107,8 @@ void StoryManager::on_send_story_file_parts_missing(unique_ptr<PendingStory> &&p
 }
 
 void StoryManager::start_live_story(DialogId dialog_id, td_api::object_ptr<td_api::StoryPrivacySettings> &&settings,
-                                    vector<StoryAlbumId> story_album_ids, bool is_pinned, bool protect_content,
-                                    bool is_rtmp_stream, bool enable_messages, int64 paid_message_star_count,
+                                    bool is_pinned, bool protect_content, bool is_rtmp_stream, bool enable_messages,
+                                    int64 paid_message_star_count,
                                     Promise<td_api::object_ptr<td_api::story>> &&promise) {
   if (!td_->dialog_manager_->have_dialog_force(dialog_id, "start_live_story")) {
     return promise.set_error(400, "Chat not found");
@@ -6091,8 +6116,8 @@ void StoryManager::start_live_story(DialogId dialog_id, td_api::object_ptr<td_ap
   if (!can_post_stories(dialog_id)) {
     return promise.set_error(400, "Not enough rights to post stories in the chat");
   }
-  for (auto story_album_id : story_album_ids) {
-    TRY_STATUS_PROMISE(promise, check_story_album_id(story_album_id));
+  if (td_->dialog_manager_->is_group_dialog(dialog_id)) {
+    return promise.set_error(400, "Can't start live story in the chat");
   }
   if (dialog_id != td_->dialog_manager_->get_my_dialog_id()) {
     settings = td_api::make_object<td_api::storyPrivacySettingsEveryone>();
@@ -6101,7 +6126,7 @@ void StoryManager::start_live_story(DialogId dialog_id, td_api::object_ptr<td_ap
                      UserPrivacySettingRules::get_user_privacy_setting_rules(td_, std::move(settings)));
 
   td_->create_handler<StartLiveStoryQuery>(std::move(promise))
-      ->send(dialog_id, privacy_rules, story_album_ids, is_pinned, protect_content, is_rtmp_stream, enable_messages,
+      ->send(dialog_id, privacy_rules, is_pinned, protect_content, is_rtmp_stream, enable_messages,
              paid_message_star_count);
 }
 

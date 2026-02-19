@@ -69,6 +69,7 @@ class StoryManager final : public Actor {
     bool is_for_close_friends_ = false;
     bool is_for_contacts_ = false;
     bool is_for_selected_contacts_ = false;
+    bool is_live_ = false;
     bool is_outgoing_ = false;
     bool noforwards_ = false;
     mutable bool is_update_sent_ = false;  // whether the story is known to the app
@@ -94,6 +95,7 @@ class StoryManager final : public Actor {
     int32 date_ = 0;
     int32 expire_date_ = 0;
     bool is_for_close_friends_ = false;
+    bool is_live_ = false;
 
     template <class StorerT>
     void store(StorerT &storer) const;
@@ -236,9 +238,8 @@ class StoryManager final : public Actor {
 
   void on_send_story_file_parts_missing(unique_ptr<PendingStory> &&pending_story, vector<int> &&bad_parts);
 
-  void start_live_story(DialogId dialog_id, td_api::object_ptr<td_api::StoryPrivacySettings> &&settings,
-                        vector<StoryAlbumId> story_album_ids, bool is_pinned, bool protect_content, bool is_rtmp_stream,
-                        bool enable_messages, int64 paid_message_star_count,
+  void start_live_story(DialogId dialog_id, td_api::object_ptr<td_api::StoryPrivacySettings> &&settings, bool is_pinned,
+                        bool protect_content, bool is_rtmp_stream, bool enable_messages, int64 paid_message_star_count,
                         Promise<td_api::object_ptr<td_api::story>> &&promise);
 
   void edit_story(DialogId owner_dialog_id, StoryId story_id,
@@ -556,6 +557,8 @@ class StoryManager final : public Actor {
   StoryId on_get_story_info(DialogId owner_dialog_id, StoryInfo &&story_info);
 
   StoryInfo get_story_info(StoryFullId story_full_id) const;
+
+  bool is_story_live(StoryFullId story_full_id) const;
 
   td_api::object_ptr<td_api::storyInfo> get_story_info_object(StoryFullId story_full_id) const;
 
