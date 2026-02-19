@@ -479,8 +479,7 @@ class UserManager final : public Actor {
 
   void on_get_contacts_statuses(vector<telegram_api::object_ptr<telegram_api::contactStatus>> &&statuses);
 
-  void add_contact(Contact contact, td_api::object_ptr<td_api::formattedText> &&note, bool share_phone_number,
-                   Promise<Unit> &&promise);
+  void add_contact(UserId user_id, Contact contact, bool share_phone_number, Promise<Unit> &&promise);
 
   std::pair<vector<UserId>, vector<int32>> import_contacts(const vector<Contact> &contacts, int64 &random_id,
                                                            Promise<Unit> &&promise);
@@ -640,6 +639,7 @@ class UserManager final : public Actor {
     bool is_is_deleted_changed = true;
     bool is_is_premium_changed = true;
     bool is_stories_hidden_changed = true;
+    bool is_has_bot_forum_view_changed = true;
     bool is_full_info_changed = false;
     bool is_being_updated = false;
     bool is_changed = true;             // have new changes that need to be sent to the client and database

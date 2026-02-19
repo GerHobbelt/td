@@ -211,13 +211,13 @@ class AddContactQuery final : public Td::ResultHandler {
   }
 
   void send(UserId user_id, telegram_api::object_ptr<telegram_api::InputUser> &&input_user, const Contact &contact,
-            bool edit_note, FormattedText &&note, bool share_phone_number) {
+            bool share_phone_number) {
     user_id_ = user_id;
     int32 flags = 0;
     telegram_api::object_ptr<telegram_api::textWithEntities> input_note;
-    if (edit_note) {
+    if (contact.get_edit_note()) {
       flags |= telegram_api::contacts_addContact::NOTE_MASK;
-      input_note = get_input_text_with_entities(td_->user_manager_.get(), note, "AddContactQuery");
+      input_note = get_input_text_with_entities(td_->user_manager_.get(), contact.get_note(), "AddContactQuery");
     }
     send_query(G()->net_query_creator().create(
         telegram_api::contacts_addContact(flags, share_phone_number, std::move(input_user), contact.get_first_name(),
@@ -3156,8 +3156,7 @@ void UserManager::on_get_user(telegram_api::object_ptr<telegram_api::User> &&use
       is_scam != u->is_scam || is_fake != u->is_fake || is_inline_bot != u->is_inline_bot ||
       is_business_bot != u->is_business_bot || inline_query_placeholder != u->inline_query_placeholder ||
       need_location_bot != u->need_location_bot || can_be_added_to_attach_menu != u->can_be_added_to_attach_menu ||
-      bot_active_users != u->bot_active_users || has_main_app != u->has_main_app ||
-      has_bot_forum_view != u->has_bot_forum_view) {
+      bot_active_users != u->bot_active_users || has_main_app != u->has_main_app) {
     if (is_bot != u->is_bot) {
       LOG_IF(ERROR, !is_deleted && !u->is_deleted && u->is_received)
           << "User.is_bot has changed for " << user_id << "/" << u->usernames << " from " << source << " from "
@@ -3178,7 +3177,6 @@ void UserManager::on_get_user(telegram_api::object_ptr<telegram_api::User> &&use
     u->can_be_added_to_attach_menu = can_be_added_to_attach_menu;
     u->bot_active_users = bot_active_users;
     u->has_main_app = has_main_app;
-    u->has_bot_forum_view = has_bot_forum_view;
 
     LOG(DEBUG) << "Info has changed for " << user_id;
     u->is_changed = true;
@@ -3198,6 +3196,11 @@ void UserManager::on_get_user(telegram_api::object_ptr<telegram_api::User> &&use
     u->is_is_premium_changed = true;
     u->is_changed = true;
     u->is_full_info_changed = true;
+  }
+  if (has_bot_forum_view != u->has_bot_forum_view) {
+    u->has_bot_forum_view = has_bot_forum_view;
+    u->is_has_bot_forum_view_changed = true;
+    u->is_changed = true;
   }
   if (is_received && can_be_edited_bot != u->can_be_edited_bot) {
     u->can_be_edited_bot = can_be_edited_bot;
@@ -7637,43 +7640,34 @@ void UserManager::on_get_contacts_statuses(vector<telegram_api::object_ptr<teleg
   save_next_contacts_sync_date();
 }
 
-void UserManager::add_contact(Contact contact, td_api::object_ptr<td_api::formattedText> &&note,
-                              bool share_phone_number, Promise<Unit> &&promise) {
+void UserManager::add_contact(UserId user_id, Contact contact, bool share_phone_number, Promise<Unit> &&promise) {
   TRY_STATUS_PROMISE(promise, G()->close_status());
+  TRY_RESULT_PROMISE(promise, input_user, get_input_user(user_id));
 
   if (!are_contacts_loaded_) {
-    load_contacts(
-        PromiseCreator::lambda([actor_id = actor_id(this), contact = std::move(contact), note = std::move(note),
-                                share_phone_number, promise = std::move(promise)](Result<Unit> &&) mutable {
-          send_closure(actor_id, &UserManager::add_contact, std::move(contact), std::move(note), share_phone_number,
-                       std::move(promise));
-        }));
+    load_contacts(PromiseCreator::lambda([actor_id = actor_id(this), user_id, contact = std::move(contact),
+                                          share_phone_number, promise = std::move(promise)](Result<Unit> &&) mutable {
+      send_closure(actor_id, &UserManager::add_contact, user_id, std::move(contact), share_phone_number,
+                   std::move(promise));
+    }));
     return;
   }
 
-  LOG(INFO) << "Add " << contact << " with share_phone_number = " << share_phone_number;
+  LOG(INFO) << "Add " << contact << " for " << user_id << " with share_phone_number = " << share_phone_number;
 
-  bool edit_note = note != nullptr;
-  TRY_RESULT_PROMISE(promise, note_text,
-                     get_formatted_text(td_, DialogId(), std::move(note), false, true, true, false));
-  MessageQuote::remove_unallowed_quote_entities(note_text);
-
-  auto user_id = contact.get_user_id();
-  TRY_RESULT_PROMISE(promise, input_user, get_input_user(user_id));
-
-  if (edit_note) {
-    auto query_promise = PromiseCreator::lambda(
-        [actor_id = actor_id(this), user_id, note_text, promise = std::move(promise)](Result<Unit> result) mutable {
-          if (result.is_error()) {
-            return promise.set_error(result.move_as_error());
-          }
-          send_closure(actor_id, &UserManager::on_set_user_note, user_id, std::move(note_text), std::move(promise));
-        });
+  if (contact.get_edit_note()) {
+    auto query_promise = PromiseCreator::lambda([actor_id = actor_id(this), user_id, note = contact.get_note(),
+                                                 promise = std::move(promise)](Result<Unit> result) mutable {
+      if (result.is_error()) {
+        return promise.set_error(result.move_as_error());
+      }
+      send_closure(actor_id, &UserManager::on_set_user_note, user_id, std::move(note), std::move(promise));
+    });
     promise = std::move(query_promise);
   }
 
   td_->create_handler<AddContactQuery>(std::move(promise))
-      ->send(user_id, std::move(input_user), contact, edit_note, std::move(note_text), share_phone_number);
+      ->send(user_id, std::move(input_user), contact, share_phone_number);
 }
 
 std::pair<vector<UserId>, vector<int32>> UserManager::import_contacts(const vector<Contact> &contacts, int64 &random_id,
@@ -7714,7 +7708,8 @@ void UserManager::do_import_contacts(vector<Contact> contacts, int64 random_id, 
   vector<telegram_api::object_ptr<telegram_api::inputPhoneContact>> input_phone_contacts;
   input_phone_contacts.reserve(size);
   for (size_t i = 0; i < size; i++) {
-    input_phone_contacts.push_back(contacts[i].get_input_phone_contact(static_cast<int64>(i)));
+    input_phone_contacts.push_back(
+        contacts[i].get_input_phone_contact(td_->user_manager_.get(), static_cast<int64>(i)));
   }
 
   auto task = make_unique<ImportContactsTask>();
@@ -7778,7 +7773,8 @@ void UserManager::on_imported_contacts(
         continue;
       }
       auto i = static_cast<size_t>(client_id);
-      input_phone_contacts.push_back(task->input_contacts_[i].get_input_phone_contact(client_id));
+      input_phone_contacts.push_back(
+          task->input_contacts_[i].get_input_phone_contact(td_->user_manager_.get(), client_id));
     }
     td_->create_handler<ImportContactsQuery>()->send(std::move(input_phone_contacts), random_id);
     return;
@@ -9436,6 +9432,10 @@ void UserManager::update_user(User *u, UserId user_id, bool from_binlog, bool fr
       resolved_phone_numbers_[u->phone_number] = user_id;
     }
     u->is_phone_number_changed = false;
+  }
+  if (u->is_has_bot_forum_view_changed) {
+    td_->messages_manager_->on_update_dialog_is_forum(DialogId(user_id), u->has_bot_forum_view, u->has_bot_forum_view);
+    u->is_has_bot_forum_view_changed = false;
   }
   auto unix_time = G()->unix_time();
   if (u->is_status_changed && user_id != get_my_id()) {

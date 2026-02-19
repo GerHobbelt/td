@@ -9,6 +9,7 @@
 #include "td/telegram/DialogId.h"
 #include "td/telegram/ForumTopicEditedData.h"
 #include "td/telegram/ForumTopicIcon.h"
+#include "td/telegram/ForumTopicId.h"
 #include "td/telegram/MessageId.h"
 #include "td/telegram/td_api.h"
 #include "td/telegram/telegram_api.h"
@@ -22,7 +23,7 @@ class Td;
 
 class ForumTopicInfo {
   DialogId dialog_id_;
-  MessageId top_thread_message_id_;
+  MessageId top_thread_message_id_;  // TODO store ForumTopicId
   string title_;
   ForumTopicIcon icon_;
   int32 creation_date_ = 0;
@@ -63,6 +64,10 @@ class ForumTopicInfo {
 
   DialogId get_dialog_id() const {
     return dialog_id_;
+  }
+
+  ForumTopicId get_forum_topic_id() const {
+    return ForumTopicId::from_top_thread_message_id(top_thread_message_id_);
   }
 
   MessageId get_top_thread_message_id() const {

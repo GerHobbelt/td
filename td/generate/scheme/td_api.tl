@@ -510,10 +510,10 @@ voiceNote duration:int32 waveform:bytes mime_type:string speech_recognition_resu
 //@sound File containing the sound to be played when the sticker is clicked; may be null. The sound is encoded with the Opus codec, and stored inside an OGG container
 animatedEmoji sticker:sticker sticker_width:int32 sticker_height:int32 fitzpatrick_type:int32 sound:file = AnimatedEmoji;
 
-//@description Describes a user contact
+//@description Describes a contact of a user
 //@phone_number Phone number of the user
-//@first_name First name of the user; 1-255 characters in length
-//@last_name Last name of the user
+//@first_name First name of the user; 1-64 characters
+//@last_name Last name of the user; 0-64 characters
 //@vcard Additional data about the user in a form of vCard; 0-2048 bytes in length
 //@user_id Identifier of the user, if known; 0 otherwise
 contact phone_number:string first_name:string last_name:string vcard:string user_id:int53 = Contact;
@@ -2431,9 +2431,11 @@ unreadReaction type:ReactionType sender_id:MessageSender is_big:Bool = UnreadRea
 
 //@class MessageTopic @description Describes a topic of messages in a chat
 
-//@description A topic in a forum supergroup chat or a chat with a bot
-//@forum_topic_id Unique identifier of the forum topic; all messages in a non-forum supergroup chats belongs to the General topic
-messageTopicForum forum_topic_id:int53 = MessageTopic;
+//@description A topic in a non-forum supergroup chat @message_thread_id Unique identifier of the message thread
+messageTopicThread message_thread_id:int53 = MessageTopic;
+
+//@description A topic in a forum supergroup chat or a chat with a bot @forum_topic_id Unique identifier of the forum topic
+messageTopicForum forum_topic_id:int32 = MessageTopic;
 
 //@description A topic in a channel direct messages chat administered by the current user @direct_messages_chat_topic_id Unique identifier of the topic
 messageTopicDirectMessages direct_messages_chat_topic_id:int53 = MessageTopic;
@@ -2558,7 +2560,6 @@ factCheck text:formattedText country_code:string = FactCheck;
 //@fact_check Information about fact-check added to the message; may be null if none
 //@suggested_post_info Information about the suggested post; may be null if the message isn't a suggested post
 //@reply_to Information about the message or the story this message is replying to; may be null if none
-//@message_thread_id If non-zero, the identifier of the message thread the message belongs to; unique within the chat to which the message belongs
 //@topic_id Identifier of the topic within the chat to which the message belongs; may be null if none
 //@self_destruct_type The message's self-destruct type; may be null if none
 //@self_destruct_in Time left before the message self-destruct timer expires, in seconds; 0 if self-destruction isn't scheduled yet
@@ -2573,7 +2574,7 @@ factCheck text:formattedText country_code:string = FactCheck;
 //@restriction_info Information about the restrictions that must be applied to the message content; may be null if none
 //@content Content of the message
 //@reply_markup Reply markup for the message; may be null if none
-message id:int53 sender_id:MessageSender chat_id:int53 sending_state:MessageSendingState scheduling_state:MessageSchedulingState is_outgoing:Bool is_pinned:Bool is_from_offline:Bool can_be_saved:Bool has_timestamped_media:Bool is_channel_post:Bool is_paid_star_suggested_post:Bool is_paid_ton_suggested_post:Bool contains_unread_mention:Bool date:int32 edit_date:int32 forward_info:messageForwardInfo import_info:messageImportInfo interaction_info:messageInteractionInfo unread_reactions:vector<unreadReaction> fact_check:factCheck suggested_post_info:suggestedPostInfo reply_to:MessageReplyTo message_thread_id:int53 topic_id:MessageTopic self_destruct_type:MessageSelfDestructType self_destruct_in:double auto_delete_in:double via_bot_user_id:int53 sender_business_bot_user_id:int53 sender_boost_count:int32 paid_message_star_count:int53 author_signature:string media_album_id:int64 effect_id:int64 restriction_info:restrictionInfo content:MessageContent reply_markup:ReplyMarkup = Message;
+message id:int53 sender_id:MessageSender chat_id:int53 sending_state:MessageSendingState scheduling_state:MessageSchedulingState is_outgoing:Bool is_pinned:Bool is_from_offline:Bool can_be_saved:Bool has_timestamped_media:Bool is_channel_post:Bool is_paid_star_suggested_post:Bool is_paid_ton_suggested_post:Bool contains_unread_mention:Bool date:int32 edit_date:int32 forward_info:messageForwardInfo import_info:messageImportInfo interaction_info:messageInteractionInfo unread_reactions:vector<unreadReaction> fact_check:factCheck suggested_post_info:suggestedPostInfo reply_to:MessageReplyTo topic_id:MessageTopic self_destruct_type:MessageSelfDestructType self_destruct_in:double auto_delete_in:double via_bot_user_id:int53 sender_business_bot_user_id:int53 sender_boost_count:int32 paid_message_star_count:int53 author_signature:string media_album_id:int64 effect_id:int64 restriction_info:restrictionInfo content:MessageContent reply_markup:ReplyMarkup = Message;
 
 
 //@description Contains a list of messages @total_count Approximate total number of messages found @messages List of messages; messages may be null
@@ -3308,7 +3309,7 @@ forumTopicIcon color:int32 custom_emoji_id:int64 = ForumTopicIcon;
 //@is_closed True, if the topic is closed. If the topic is closed, then the user must have can_manage_topics administrator right in the supergroup or must be the creator of the topic to send messages there
 //@is_hidden True, if the topic is hidden above the topic list and closed; for General topic only
 //@is_name_implicit True, if the name of the topic wasn't added explicitly
-forumTopicInfo chat_id:int53 forum_topic_id:int53 message_thread_id:int53 name:string icon:forumTopicIcon creation_date:int32 creator_id:MessageSender is_general:Bool is_outgoing:Bool is_closed:Bool is_hidden:Bool is_name_implicit:Bool = ForumTopicInfo;
+forumTopicInfo chat_id:int53 forum_topic_id:int32 message_thread_id:int53 name:string icon:forumTopicIcon creation_date:int32 creator_id:MessageSender is_general:Bool is_outgoing:Bool is_closed:Bool is_hidden:Bool is_name_implicit:Bool = ForumTopicInfo;
 
 //@description Describes a forum topic
 //@info Basic information about the topic
@@ -3329,8 +3330,8 @@ forumTopic info:forumTopicInfo last_message:message order:int64 is_pinned:Bool u
 //@topics List of forum topics
 //@next_offset_date Offset date for the next getForumTopics request
 //@next_offset_message_id Offset message identifier for the next getForumTopics request
-//@next_offset_message_thread_id Offset message thread identifier for the next getForumTopics request
-forumTopics total_count:int32 topics:vector<forumTopic> next_offset_date:int32 next_offset_message_id:int53 next_offset_message_thread_id:int53 = ForumTopics;
+//@next_offset_forum_topic_id Offset forum topic identifier for the next getForumTopics request
+forumTopics total_count:int32 topics:vector<forumTopic> next_offset_date:int32 next_offset_message_id:int53 next_offset_forum_topic_id:int32 = ForumTopics;
 
 
 //@description Options to be used for generation of a link preview
@@ -4543,8 +4544,11 @@ messageChatSetMessageAutoDeleteTime message_auto_delete_time:int32 from_user_id:
 //@description The chat was boosted by the sender of the message @boost_count Number of times the chat was boosted
 messageChatBoost boost_count:int32 = MessageContent;
 
-//@description A forum topic has been created @name Name of the topic @icon Icon of the topic
-messageForumTopicCreated name:string icon:forumTopicIcon = MessageContent;
+//@description A forum topic has been created
+//@name Name of the topic
+//@is_name_implicit True, if the name of the topic wasn't added explicitly
+//@icon Icon of the topic
+messageForumTopicCreated name:string is_name_implicit:Bool icon:forumTopicIcon = MessageContent;
 
 //@description A forum topic has been edited
 //@name If non-empty, the new name of the topic
@@ -6174,6 +6178,14 @@ diceStickersRegular sticker:sticker = DiceStickers;
 //@right_reel The animated sticker with the right reel
 diceStickersSlotMachine background:sticker lever:sticker left_reel:sticker center_reel:sticker right_reel:sticker = DiceStickers;
 
+
+//@description Describes a contact to import
+//@phone_number Phone number of the user
+//@first_name First name of the user; 1-64 characters
+//@last_name Last name of the user; 0-64 characters
+//@note Note to add about the user; 0-getOption("user_note_text_length_max") characters. Only Bold, Italic, Underline, Strikethrough, Spoiler, and CustomEmoji entities are allowed;
+//-pass null to keep the current user's note
+importedContact phone_number:string first_name:string last_name:string note:formattedText = ImportedContact;
 
 //@description Represents the result of an importContacts request
 //@user_ids User identifiers of the imported contacts in the same order as they were specified in the request; 0 if the contact is not yet a registered user
@@ -9171,7 +9183,7 @@ updateForumTopicInfo info:forumTopicInfo = Update;
 //@unread_mention_count Number of unread messages with a mention/reply in the topic
 //@unread_reaction_count Number of messages with unread reactions in the topic
 //@notification_settings Notification settings for the topic
-updateForumTopic chat_id:int53 forum_topic_id:int53 message_thread_id:int53 is_pinned:Bool last_read_inbox_message_id:int53 last_read_outbox_message_id:int53 unread_mention_count:int32 unread_reaction_count:int32 notification_settings:chatNotificationSettings = Update;
+updateForumTopic chat_id:int53 forum_topic_id:int32 message_thread_id:int53 is_pinned:Bool last_read_inbox_message_id:int53 last_read_outbox_message_id:int53 unread_mention_count:int32 unread_reaction_count:int32 notification_settings:chatNotificationSettings = Update;
 
 //@description Notification settings for some type of chats were updated @scope Types of chats for which notification settings were updated @notification_settings The new notification settings
 updateScopeNotificationSettings scope:NotificationSettingsScope notification_settings:scopeNotificationSettings = Update;
@@ -10337,21 +10349,21 @@ getChatSparseMessagePositions chat_id:int53 filter:SearchMessagesFilter from_mes
 
 //@description Returns information about the next messages of the specified type in the chat split by days. Returns the results in reverse chronological order. Can return partial result for the last returned day. Behavior of this method depends on the value of the option "utc_time_offset"
 //@chat_id Identifier of the chat in which to return information about messages
-//@topic_id Pass topic identifier to get the result only in specific topic; pass null to get the result in all topics; forum topics aren't supported
+//@topic_id Pass topic identifier to get the result only in specific topic; pass null to get the result in all topics; forum topics and message threads aren't supported
 //@filter Filter for message content. Filters searchMessagesFilterEmpty, searchMessagesFilterMention, searchMessagesFilterUnreadMention, and searchMessagesFilterUnreadReaction are unsupported in this function
 //@from_message_id The message identifier from which to return information about messages; use 0 to get results from the last message
 getChatMessageCalendar chat_id:int53 topic_id:MessageTopic filter:SearchMessagesFilter from_message_id:int53 = MessageCalendar;
 
 //@description Returns approximate number of messages of the specified type in the chat or its topic
 //@chat_id Identifier of the chat in which to count messages
-//@topic_id Pass topic identifier to get number of messages only in specific topic; pass null to get number of messages in all topics
+//@topic_id Pass topic identifier to get number of messages only in specific topic; pass null to get number of messages in all topics; message threads aren't supported
 //@filter Filter for message content; searchMessagesFilterEmpty is unsupported in this function
 //@return_local Pass true to get the number of messages without sending network requests, or -1 if the number of messages is unknown locally
 getChatMessageCount chat_id:int53 topic_id:MessageTopic filter:SearchMessagesFilter return_local:Bool = Count;
 
 //@description Returns approximate 1-based position of a message among messages, which can be found by the specified filter in the chat and topic. Cannot be used in secret chats
 //@chat_id Identifier of the chat in which to find message position
-//@topic_id Pass topic identifier to get position among messages only in specific topic; pass null to get position among all chat messages
+//@topic_id Pass topic identifier to get position among messages only in specific topic; pass null to get position among all chat messages; message threads aren't supported
 //@filter Filter for message content; searchMessagesFilterEmpty, searchMessagesFilterUnreadMention, searchMessagesFilterUnreadReaction, and searchMessagesFilterFailedToSend are unsupported in this function
 //@message_id Message identifier
 getChatMessagePosition chat_id:int53 topic_id:MessageTopic filter:SearchMessagesFilter message_id:int53 = Count;
@@ -10860,65 +10872,88 @@ editQuickReplyMessage shortcut_id:int32 message_id:int53 input_message_content:I
 //@description Returns the list of custom emoji, which can be used as forum topic icon by all users
 getForumTopicDefaultIcons = Stickers;
 
-//@description Creates a topic in a forum supergroup chat; requires can_manage_topics administrator or can_create_topics member right in the supergroup
+//@description Creates a topic in a forum supergroup chat or a chat with a bot with topics; requires can_manage_topics administrator or can_create_topics member right in the supergroup
 //@chat_id Identifier of the chat
 //@name Name of the topic; 1-128 characters
+//@is_name_implicit Pass true if the name of the topic wasn't entered explicitly; for chats with bots only
 //@icon Icon of the topic. Icon color must be one of 0x6FB9F0, 0xFFD67E, 0xCB86DB, 0x8EEE98, 0xFF93B2, or 0xFB6F5F. Telegram Premium users can use any custom emoji as topic icon, other users can use only a custom emoji returned by getForumTopicDefaultIcons
-createForumTopic chat_id:int53 name:string icon:forumTopicIcon = ForumTopicInfo;
+createForumTopic chat_id:int53 name:string is_name_implicit:Bool icon:forumTopicIcon = ForumTopicInfo;
 
-//@description Edits title and icon of a topic in a forum supergroup chat; requires can_manage_topics administrator right in the supergroup unless the user is creator of the topic
+//@description Edits title and icon of a topic in a forum supergroup chat or a chat with a bot with topics; for supergroup chats requires can_manage_topics administrator right
+//-unless the user is creator of the topic
 //@chat_id Identifier of the chat
-//@message_thread_id Message thread identifier of the forum topic
+//@forum_topic_id Forum topic identifier
 //@name New name of the topic; 0-128 characters. If empty, the previous topic name is kept
 //@edit_icon_custom_emoji Pass true to edit the icon of the topic. Icon of the General topic can't be edited
 //@icon_custom_emoji_id Identifier of the new custom emoji for topic icon; pass 0 to remove the custom emoji. Ignored if edit_icon_custom_emoji is false. Telegram Premium users can use any custom emoji, other users can use only a custom emoji returned by getForumTopicDefaultIcons
-editForumTopic chat_id:int53 message_thread_id:int53 name:string edit_icon_custom_emoji:Bool icon_custom_emoji_id:int64 = Ok;
+editForumTopic chat_id:int53 forum_topic_id:int32 name:string edit_icon_custom_emoji:Bool icon_custom_emoji_id:int64 = Ok;
 
-//@description Returns information about a forum topic @chat_id Identifier of the chat @message_thread_id Message thread identifier of the forum topic
-getForumTopic chat_id:int53 message_thread_id:int53 = ForumTopic;
+//@description Returns information about a topic in a forum supergroup chat or a chat with a bot with topics
+//@chat_id Identifier of the chat
+//@forum_topic_id Forum topic identifier
+getForumTopic chat_id:int53 forum_topic_id:int32 = ForumTopic;
 
-//@description Returns an HTTPS link to a topic in a forum chat. This is an offline method @chat_id Identifier of the chat @message_thread_id Message thread identifier of the forum topic
-getForumTopicLink chat_id:int53 message_thread_id:int53 = MessageLink;
+//@description Returns an HTTPS link to a topic in a forum supergroup chat. This is an offline method @chat_id Identifier of the chat @forum_topic_id Forum topic identifier
+getForumTopicLink chat_id:int53 forum_topic_id:int32 = MessageLink;
 
-//@description Returns found forum topics in a forum chat. This is a temporary method for getting information about topic list from the server
-//@chat_id Identifier of the forum chat
+//@description Returns found forum topics in a forum supergroup chat or a chat with a bot with topics. This is a temporary method for getting information about topic list from the server
+//@chat_id Identifier of the chat
 //@query Query to search for in the forum topic's name
 //@offset_date The date starting from which the results need to be fetched. Use 0 or any date in the future to get results from the last topic
 //@offset_message_id The message identifier of the last message in the last found topic, or 0 for the first request
-//@offset_message_thread_id The message thread identifier of the last found topic, or 0 for the first request
+//@offset_forum_topic_id The forum topic identifier of the last found topic, or 0 for the first request
 //@limit The maximum number of forum topics to be returned; up to 100. For optimal performance, the number of returned forum topics is chosen by TDLib and can be smaller than the specified limit
-getForumTopics chat_id:int53 query:string offset_date:int32 offset_message_id:int53 offset_message_thread_id:int53 limit:int32 = ForumTopics;
+getForumTopics chat_id:int53 query:string offset_date:int32 offset_message_id:int53 offset_forum_topic_id:int32 limit:int32 = ForumTopics;
 
-//@description Changes the notification settings of a forum topic
+//@description Changes the notification settings of a forum topic in a forum supergroup chat or a chat with a bot with topics
 //@chat_id Chat identifier
-//@message_thread_id Message thread identifier of the forum topic
+//@forum_topic_id Forum topic identifier
 //@notification_settings New notification settings for the forum topic. If the topic is muted for more than 366 days, it is considered to be muted forever
-setForumTopicNotificationSettings chat_id:int53 message_thread_id:int53 notification_settings:chatNotificationSettings = Ok;
+setForumTopicNotificationSettings chat_id:int53 forum_topic_id:int32 notification_settings:chatNotificationSettings = Ok;
 
 //@description Toggles whether a topic is closed in a forum supergroup chat; requires can_manage_topics administrator right in the supergroup unless the user is creator of the topic
 //@chat_id Identifier of the chat
-//@message_thread_id Message thread identifier of the forum topic
+//@forum_topic_id Forum topic identifier
 //@is_closed Pass true to close the topic; pass false to reopen it
-toggleForumTopicIsClosed chat_id:int53 message_thread_id:int53 is_closed:Bool = Ok;
+toggleForumTopicIsClosed chat_id:int53 forum_topic_id:int32 is_closed:Bool = Ok;
 
 //@description Toggles whether a General topic is hidden in a forum supergroup chat; requires can_manage_topics administrator right in the supergroup
 //@chat_id Identifier of the chat
 //@is_hidden Pass true to hide and close the General topic; pass false to unhide it
 toggleGeneralForumTopicIsHidden chat_id:int53 is_hidden:Bool = Ok;
 
-//@description Changes the pinned state of a forum topic; requires can_manage_topics administrator right in the supergroup. There can be up to getOption("pinned_forum_topic_count_max") pinned forum topics
+//@description Changes the pinned state of a topic in a forum supergroup chat or a chat with a bot with topics; requires can_manage_topics administrator right in the supergroup.
+//-There can be up to getOption("pinned_forum_topic_count_max") pinned forum topics
 //@chat_id Chat identifier
-//@message_thread_id Message thread identifier of the forum topic
+//@forum_topic_id Forum topic identifier
 //@is_pinned Pass true to pin the topic; pass false to unpin it
-toggleForumTopicIsPinned chat_id:int53 message_thread_id:int53 is_pinned:Bool = Ok;
+toggleForumTopicIsPinned chat_id:int53 forum_topic_id:int32 is_pinned:Bool = Ok;
 
-//@description Changes the order of pinned forum topics; requires can_manage_topics administrator right in the supergroup @chat_id Chat identifier @message_thread_ids The new list of pinned forum topics
-setPinnedForumTopics chat_id:int53 message_thread_ids:vector<int53> = Ok;
+//@description Changes the order of pinned topics in a forum supergroup chat or a chat with a bot with topics; requires can_manage_topics administrator right in the supergroup
+//@chat_id Chat identifier
+//@forum_topic_ids The new list of identifiers of the pinned forum topics
+setPinnedForumTopics chat_id:int53 forum_topic_ids:vector<int32> = Ok;
 
-//@description Deletes all messages in a forum topic; requires can_delete_messages administrator right in the supergroup unless the user is creator of the topic, the topic has no messages from other users and has at most 11 messages
+//@description Deletes all messages from a topic in a forum supergroup chat or a chat with a bot with topics; requires can_delete_messages administrator right in the supergroup
+//-unless the user is creator of the topic, the topic has no messages from other users and has at most 11 messages
 //@chat_id Identifier of the chat
-//@message_thread_id Message thread identifier of the forum topic
-deleteForumTopic chat_id:int53 message_thread_id:int53 = Ok;
+//@forum_topic_id Forum topic identifier
+deleteForumTopic chat_id:int53 forum_topic_id:int32 = Ok;
+
+//@description Marks all mentions in a topic in a forum supergroup chat as read
+//@chat_id Chat identifier
+//@forum_topic_id Forum topic identifier in which mentions are marked as read
+readAllForumTopicMentions chat_id:int53 forum_topic_id:int32 = Ok;
+
+//@description Marks all reactions in a topic in a forum supergroup chat or a chat with a bot with topics as read
+//@chat_id Chat identifier
+//@forum_topic_id Forum topic identifier in which reactions are marked as read
+readAllForumTopicReactions chat_id:int53 forum_topic_id:int32 = Ok;
+
+//@description Removes all pinned messages from a topic in a forum supergroup chat or a chat with a bot with topics; requires can_pin_messages member right in the supergroup
+//@chat_id Identifier of the chat
+//@forum_topic_id Forum topic identifier in which messages will be unpinned
+unpinAllForumTopicMessages chat_id:int53 forum_topic_id:int32 = Ok;
 
 
 //@description Returns information about an emoji reaction. Returns a 404 error if the reaction is not found @emoji Text representation of the reaction
@@ -11336,14 +11371,8 @@ getExternalLink link:string allow_write_access:Bool = HttpUrl;
 //@description Marks all mentions in a chat as read @chat_id Chat identifier
 readAllChatMentions chat_id:int53 = Ok;
 
-//@description Marks all mentions in a forum topic as read @chat_id Chat identifier @message_thread_id Message thread identifier in which mentions are marked as read
-readAllMessageThreadMentions chat_id:int53 message_thread_id:int53 = Ok;
-
 //@description Marks all reactions in a chat as read @chat_id Chat identifier
 readAllChatReactions chat_id:int53 = Ok;
-
-//@description Marks all reactions in a forum topic as read @chat_id Chat identifier @message_thread_id Message thread identifier in which reactions are marked as read
-readAllMessageThreadReactions chat_id:int53 message_thread_id:int53 = Ok;
 
 
 //@description Returns an existing chat corresponding to a given user @user_id User identifier @force Pass true to create the chat without a network request. In this case all information about the chat except its type, title and photo can be incorrect
@@ -11594,11 +11623,6 @@ unpinChatMessage chat_id:int53 message_id:int53 = Ok;
 
 //@description Removes all pinned messages from a chat; requires can_pin_messages member right if the chat is a basic group or supergroup, or can_edit_messages administrator right if the chat is a channel @chat_id Identifier of the chat
 unpinAllChatMessages chat_id:int53 = Ok;
-
-//@description Removes all pinned messages from a forum topic; requires can_pin_messages member right in the supergroup
-//@chat_id Identifier of the chat
-//@message_thread_id Message thread identifier in which messages will be unpinned
-unpinAllMessageThreadMessages chat_id:int53 message_thread_id:int53 = Ok;
 
 
 //@description Adds the current user as a new member to a chat. Private and secret chats can't be joined using this method. May return an error with a message "INVITE_REQUEST_SENT" if only a join request was created @chat_id Chat identifier
@@ -12448,15 +12472,15 @@ getBlockedMessageSenders block_list:BlockList offset:int32 limit:int32 = Message
 
 
 //@description Adds a user to the contact list or edits an existing contact by their user identifier
-//@contact The contact to add or edit; phone number may be empty and needs to be specified only if known, vCard is ignored
-//@note Note to add about the user; 0-getOption("user_note_text_length_max") characters. Only Bold, Italic, Underline, Strikethrough, Spoiler, and CustomEmoji entities are allowed;
-//-pass null to keep the current user's note
+//@user_id Identifier of the user
+//@contact The contact to add or edit; phone number may be empty and needs to be specified only if known
 //@share_phone_number Pass true to share the current user's phone number with the new contact. A corresponding rule to userPrivacySettingShowPhoneNumber will be added if needed.
 //-Use the field userFullInfo.need_phone_number_privacy_exception to check whether the current user needs to be asked to share their phone number
-addContact contact:contact note:formattedText share_phone_number:Bool = Ok;
+addContact user_id:int53 contact:importedContact share_phone_number:Bool = Ok;
 
-//@description Adds new contacts or edits existing contacts by their phone numbers; contacts' user identifiers are ignored @contacts The list of contacts to import or edit; contacts' vCard are ignored and are not imported
-importContacts contacts:vector<contact> = ImportedContacts;
+//@description Adds new contacts or edits existing contacts by their phone numbers; contacts' user identifiers are ignored
+//@contacts The list of contacts to import or edit
+importContacts contacts:vector<importedContact> = ImportedContacts;
 
 //@description Returns all contacts of the user
 getContacts = Users;
@@ -12474,8 +12498,8 @@ getImportedContactCount = Count;
 
 //@description Changes imported contacts using the list of contacts saved on the device. Imports newly added contacts and, if at least the file database is enabled, deletes recently deleted contacts.
 //-Query result depends on the result of the previous query, so only one query is possible at the same time
-//@contacts The new list of contacts, contact's vCard are ignored and are not imported
-changeImportedContacts contacts:vector<contact> = ImportedContacts;
+//@contacts The new list of contacts to import
+changeImportedContacts contacts:vector<importedContact> = ImportedContacts;
 
 //@description Clears all imported contacts, contact list remains unchanged
 clearImportedContacts = Ok;
@@ -13276,10 +13300,11 @@ sendResoldGift gift_name:string owner_id:MessageSender price:GiftResalePrice = G
 //@exclude_non_upgradable Pass true to exclude gifts that can be purchased limited number of times and can't be upgraded
 //@exclude_upgraded Pass true to exclude upgraded gifts
 //@exclude_without_colors Pass true to exclude gifts that can't be used in setUpgradedGiftColors
+//@exclude_hosted Pass true to exclude gifts that are just hosted and are not owned by the owner
 //@sort_by_price Pass true to sort results by gift price instead of send date
 //@offset Offset of the first entry to return as received from the previous request; use empty string to get the first chunk of results
 //@limit The maximum number of gifts to be returned; must be positive and can't be greater than 100. For optimal performance, the number of returned objects is chosen by TDLib and can be smaller than the specified limit
-getReceivedGifts business_connection_id:string owner_id:MessageSender collection_id:int32 exclude_unsaved:Bool exclude_saved:Bool exclude_unlimited:Bool exclude_upgradable:Bool exclude_non_upgradable:Bool exclude_upgraded:Bool exclude_without_colors:Bool sort_by_price:Bool offset:string limit:int32 = ReceivedGifts;
+getReceivedGifts business_connection_id:string owner_id:MessageSender collection_id:int32 exclude_unsaved:Bool exclude_saved:Bool exclude_unlimited:Bool exclude_upgradable:Bool exclude_non_upgradable:Bool exclude_upgraded:Bool exclude_without_colors:Bool exclude_hosted:Bool sort_by_price:Bool offset:string limit:int32 = ReceivedGifts;
 
 //@description Returns information about a received gift @received_gift_id Identifier of the gift
 getReceivedGift received_gift_id:string = ReceivedGift;
