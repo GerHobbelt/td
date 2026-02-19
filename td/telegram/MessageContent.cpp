@@ -539,7 +539,7 @@ class MessageChatSetTtl final : public MessageContent {
 
 class MessageUnsupported final : public MessageContent {
  public:
-  static constexpr int32 CURRENT_VERSION = 50;
+  static constexpr int32 CURRENT_VERSION = 51;
   int32 version = CURRENT_VERSION;
 
   MessageUnsupported() = default;
@@ -3131,10 +3131,7 @@ static void parse(unique_ptr<MessageContent> &content, ParserT &parser) {
       parse(m->amount, parser);
       parse(m->days, parser);
       if (!has_days) {
-        m->days *= 30;
-        if (m->days == 0) {
-          m->days = 7;
-        }
+        m->days = get_premium_duration_day_count(m->days);
       }
       if (has_crypto_amount) {
         parse(m->crypto_currency, parser);
@@ -3265,10 +3262,7 @@ static void parse(unique_ptr<MessageContent> &content, ParserT &parser) {
       }
       parse(m->days, parser);
       if (!has_days) {
-        m->days *= 30;
-        if (m->days == 0) {
-          m->days = 7;
-        }
+        m->days = get_premium_duration_day_count(m->days);
       }
       parse(m->code, parser);
       if (has_currency) {
@@ -3843,10 +3837,6 @@ void parse_message_content(unique_ptr<MessageContent> &content, LogEventParser &
   parse(content, parser);
 }
 
-static int32 get_month_count(int32 day_count) {
-  return max(static_cast<int32>(1), day_count / 30);
-}
-
 InlineMessageContent create_inline_message_content(Td *td, FileId file_id,
                                                    tl_object_ptr<telegram_api::BotInlineMessage> &&bot_inline_message,
                                                    int32 allowed_media_content_id, Photo *photo, Game *game) {
@@ -4074,6 +4064,14 @@ static Result<InputMessageContent> create_input_message_content(
     const PathView path_view(suggested_path);
     file_name = path_view.file_name().str();
     mime_type = MimeType::from_extension(path_view.extension());
+    if (!check_utf8(file_name)) {
+      auto extension = path_view.extension();
+      if (extension.empty()) {
+        file_name = PSTRING() << "file." << extension;
+      } else {
+        file_name = "file";
+      }
+    }
   }
 
   bool disable_web_page_preview = false;
@@ -7454,10 +7452,12 @@ void register_message_content(Td *td, const MessageContent *content, MessageFull
     }
     case MessageContentType::GiftPremium:
       return td->stickers_manager_->register_premium_gift(
-          get_month_count(static_cast<const MessageGiftPremium *>(content)->days), 0, message_full_id, source);
+          get_premium_duration_month_count(static_cast<const MessageGiftPremium *>(content)->days), 0, message_full_id,
+          source);
     case MessageContentType::GiftCode:
       return td->stickers_manager_->register_premium_gift(
-          get_month_count(static_cast<const MessageGiftCode *>(content)->days), 0, message_full_id, source);
+          get_premium_duration_month_count(static_cast<const MessageGiftCode *>(content)->days), 0, message_full_id,
+          source);
     case MessageContentType::Giveaway: {
       auto giveaway = static_cast<const MessageGiveaway *>(content);
       return td->stickers_manager_->register_premium_gift(giveaway->months, giveaway->star_count, message_full_id,
@@ -7544,14 +7544,14 @@ void reregister_message_content(Td *td, const MessageContent *old_content, const
         }
         break;
       case MessageContentType::GiftPremium:
-        if (get_month_count(static_cast<const MessageGiftPremium *>(old_content)->days) ==
-            get_month_count(static_cast<const MessageGiftPremium *>(new_content)->days)) {
+        if (get_premium_duration_month_count(static_cast<const MessageGiftPremium *>(old_content)->days) ==
+            get_premium_duration_month_count(static_cast<const MessageGiftPremium *>(new_content)->days)) {
           return;
         }
         break;
       case MessageContentType::GiftCode:
-        if (get_month_count(static_cast<const MessageGiftCode *>(old_content)->days) ==
-            get_month_count(static_cast<const MessageGiftCode *>(new_content)->days)) {
+        if (get_premium_duration_month_count(static_cast<const MessageGiftCode *>(old_content)->days) ==
+            get_premium_duration_month_count(static_cast<const MessageGiftCode *>(new_content)->days)) {
           return;
         }
         break;
@@ -7627,10 +7627,12 @@ void unregister_message_content(Td *td, const MessageContent *content, MessageFu
     }
     case MessageContentType::GiftPremium:
       return td->stickers_manager_->unregister_premium_gift(
-          get_month_count(static_cast<const MessageGiftPremium *>(content)->days), 0, message_full_id, source);
+          get_premium_duration_month_count(static_cast<const MessageGiftPremium *>(content)->days), 0, message_full_id,
+          source);
     case MessageContentType::GiftCode:
       return td->stickers_manager_->unregister_premium_gift(
-          get_month_count(static_cast<const MessageGiftCode *>(content)->days), 0, message_full_id, source);
+          get_premium_duration_month_count(static_cast<const MessageGiftCode *>(content)->days), 0, message_full_id,
+          source);
     case MessageContentType::Giveaway: {
       auto giveaway = static_cast<const MessageGiveaway *>(content);
       return td->stickers_manager_->unregister_premium_gift(giveaway->months, giveaway->star_count, message_full_id,
@@ -9790,10 +9792,11 @@ td_api::object_ptr<td_api::MessageContent> get_message_content_object(
       } else {
         LOG(ERROR) << "Receive gifted premium in " << dialog_id;
       }
+      auto month_count = get_premium_duration_month_count(m->days);
       return td_api::make_object<td_api::messageGiftedPremium>(
           gifter_user_id, receiver_user_id, get_text_object(m->text), m->currency, m->amount, m->crypto_currency,
-          m->crypto_amount, m->days,
-          td->stickers_manager_->get_premium_gift_sticker_object(get_month_count(m->days), 0));
+          m->crypto_amount, get_premium_duration_day_count(month_count) == m->days ? month_count : 0, m->days,
+          td->stickers_manager_->get_premium_gift_sticker_object(month_count, 0));
     }
     case MessageContentType::TopicCreate: {
       const auto *m = static_cast<const MessageTopicCreate *>(content);
@@ -9851,13 +9854,14 @@ td_api::object_ptr<td_api::MessageContent> get_message_content_object(
           td_api::make_object<td_api::botWriteAccessAllowReasonAcceptedRequest>());
     case MessageContentType::GiftCode: {
       const auto *m = static_cast<const MessageGiftCode *>(content);
+      auto month_count = get_premium_duration_month_count(m->days);
       return td_api::make_object<td_api::messagePremiumGiftCode>(
           m->creator_dialog_id.is_valid()
               ? get_message_sender_object(td, m->creator_dialog_id, "messagePremiumGiftCode")
               : nullptr,
           get_text_object(m->text), m->via_giveaway, m->is_unclaimed, m->currency, m->amount, m->crypto_currency,
-          m->crypto_amount, m->days,
-          td->stickers_manager_->get_premium_gift_sticker_object(get_month_count(m->days), 0), m->code);
+          m->crypto_amount, get_premium_duration_day_count(month_count) == m->days ? month_count : 0, m->days,
+          td->stickers_manager_->get_premium_gift_sticker_object(month_count, 0), m->code);
     }
     case MessageContentType::Giveaway: {
       const auto *m = static_cast<const MessageGiveaway *>(content);

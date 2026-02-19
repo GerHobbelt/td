@@ -6,6 +6,7 @@
 //
 #pragma once
 
+#include "td/telegram/SentEmailCode.h"
 #include "td/telegram/Td.h"
 #include "td/telegram/td_api.h"
 
@@ -100,6 +101,8 @@ class Requests {
 
   Promise<int32> create_count_request_promise(uint64 id);
 
+  Promise<SentEmailCode> create_sent_email_code_request_promise(uint64 id);
+
   template <class T>
   void on_request(uint64 id, const T &) = delete;
 
@@ -156,6 +159,8 @@ class Requests {
   void on_request(uint64 id, const td_api::getPasswordState &request);
 
   void on_request(uint64 id, td_api::setPassword &request);
+
+  void on_request(uint64 id, const td_api::isLoginEmailAddressRequired &request);
 
   void on_request(uint64 id, td_api::setLoginEmailAddress &request);
 
@@ -827,9 +832,11 @@ class Requests {
 
   void on_request(uint64 id, const td_api::setGroupCallPaidMessageStarCount &request);
 
+  void on_request(uint64 id, const td_api::getLiveStoryStreamer &request);
+
   void on_request(uint64 id, const td_api::getLiveStoryAvailableMessageSenders &request);
 
-  void on_request(uint64 id, const td_api::setGroupCallMessageSender &request);
+  void on_request(uint64 id, const td_api::setLiveStoryMessageSender &request);
 
   void on_request(uint64 id, td_api::sendGroupCallMessage &request);
 

@@ -2956,6 +2956,8 @@ class CliClient final : public Actor {
       send_request(td_api::make_object<td_api::checkEmailAddressVerificationCode>(args));
     } else if (op == "reavc") {
       send_request(td_api::make_object<td_api::resendEmailAddressVerificationCode>());
+    } else if (op == "ilear") {
+      send_request(td_api::make_object<td_api::isLoginEmailAddressRequired>());
     } else if (op == "slea") {
       send_request(td_api::make_object<td_api::setLoginEmailAddress>(args));
     } else if (op == "rleac") {
@@ -5151,16 +5153,20 @@ class CliClient final : public Actor {
       get_args(args, group_call_id, paid_message_star_count);
       send_request(
           td_api::make_object<td_api::setGroupCallPaidMessageStarCount>(group_call_id, paid_message_star_count));
+    } else if (op == "glss") {
+      GroupCallId group_call_id;
+      get_args(args, group_call_id);
+      send_request(td_api::make_object<td_api::getLiveStoryStreamer>(group_call_id));
     } else if (op == "glsams") {
-      ChatId chat_id;
-      get_args(args, chat_id);
-      send_request(td_api::make_object<td_api::getLiveStoryAvailableMessageSenders>(chat_id));
-    } else if (op == "sgcms") {
+      GroupCallId group_call_id;
+      get_args(args, group_call_id);
+      send_request(td_api::make_object<td_api::getLiveStoryAvailableMessageSenders>(group_call_id));
+    } else if (op == "slsms") {
       GroupCallId group_call_id;
       string message_sender_id;
       get_args(args, group_call_id, message_sender_id);
       send_request(
-          td_api::make_object<td_api::setGroupCallMessageSender>(group_call_id, as_message_sender(message_sender_id)));
+          td_api::make_object<td_api::setLiveStoryMessageSender>(group_call_id, as_message_sender(message_sender_id)));
     } else if (op == "sgcm") {
       GroupCallId group_call_id;
       string text;
