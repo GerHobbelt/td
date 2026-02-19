@@ -996,6 +996,39 @@ class GetMessageThreadHistoryRequest final : public RequestActor<> {
   }
 };
 
+class GetForumTopicHistoryRequest final : public RequestActor<> {
+  DialogId dialog_id_;
+  ForumTopicId forum_topic_id_;
+  MessageId from_message_id_;
+  int32 offset_;
+  int32 limit_;
+  int64 random_id_;
+
+  std::pair<DialogId, vector<MessageId>> messages_;
+
+  void do_run(Promise<Unit> &&promise) final {
+    messages_ = td_->messages_manager_->get_forum_topic_history(dialog_id_, forum_topic_id_, from_message_id_, offset_,
+                                                                limit_, random_id_, std::move(promise));
+  }
+
+  void do_send_result() final {
+    send_result(td_->messages_manager_->get_messages_object(-1, messages_.first, messages_.second, true,
+                                                            "GetForumTopicHistoryRequest"));
+  }
+
+ public:
+  GetForumTopicHistoryRequest(ActorShared<Td> td, uint64 request_id, int64 dialog_id, int32 forum_topic_id,
+                              int64 from_message_id, int32 offset, int32 limit)
+      : RequestActor(std::move(td), request_id)
+      , dialog_id_(dialog_id)
+      , forum_topic_id_(forum_topic_id)
+      , from_message_id_(from_message_id)
+      , offset_(offset)
+      , limit_(limit)
+      , random_id_(0) {
+  }
+};
+
 class SearchChatMessagesRequest final : public RequestActor<> {
   DialogId dialog_id_;
   td_api::object_ptr<td_api::MessageTopic> topic_id_;
@@ -3115,14 +3148,6 @@ void Requests::on_request(uint64 id, const td_api::setDirectMessagesChatTopicIsM
       std::move(promise));
 }
 
-void Requests::on_request(uint64 id, td_api::setDirectMessagesChatTopicDraftMessage &request) {
-  CHECK_IS_USER();
-  DialogId dialog_id(request.chat_id_);
-  answer_ok_query(id, td_->saved_messages_manager_->set_monoforum_topic_draft_message(
-                          dialog_id, td_->saved_messages_manager_->get_topic_id(dialog_id, request.topic_id_),
-                          std::move(request.draft_message_)));
-}
-
 void Requests::on_request(uint64 id, const td_api::unpinAllDirectMessagesChatTopicMessages &request) {
   CREATE_OK_REQUEST_PROMISE();
   DialogId dialog_id(request.chat_id_);
@@ -4424,6 +4449,12 @@ void Requests::on_request(uint64 id, const td_api::getForumTopic &request) {
                                              std::move(promise));
 }
 
+void Requests::on_request(uint64 id, const td_api::getForumTopicHistory &request) {
+  CHECK_IS_USER();
+  CREATE_REQUEST(GetForumTopicHistoryRequest, request.chat_id_, request.forum_topic_id_, request.from_message_id_,
+                 request.offset_, request.limit_);
+}
+
 void Requests::on_request(uint64 id, const td_api::getForumTopicLink &request) {
   CREATE_REQUEST_PROMISE();
   td_->forum_topic_manager_->get_forum_topic_link(DialogId(request.chat_id_), ForumTopicId(request.forum_topic_id_),
@@ -4512,7 +4543,9 @@ void Requests::on_request(uint64 id, const td_api::deleteChatReplyMarkup &reques
 
 void Requests::on_request(uint64 id, td_api::sendChatAction &request) {
   CREATE_OK_REQUEST_PROMISE();
-  td_->dialog_action_manager_->send_dialog_action(DialogId(request.chat_id_), MessageId(request.message_thread_id_),
+  DialogId dialog_id(request.chat_id_);
+  TRY_RESULT_PROMISE(promise, message_topic, MessageTopic::get_message_topic(td_, dialog_id, request.topic_id_));
+  td_->dialog_action_manager_->send_dialog_action(dialog_id, message_topic,
                                                   BusinessConnectionId(std::move(request.business_connection_id_)),
                                                   DialogAction(std::move(request.action_)), std::move(promise));
 }
@@ -4524,8 +4557,11 @@ void Requests::on_request(uint64 id, td_api::sendTextMessageDraft &request) {
   TRY_RESULT_PROMISE(
       promise, text,
       get_formatted_text(td_, dialog_id, std::move(request.text_), td_->auth_manager_->is_bot(), false, true, false));
-  td_->dialog_action_manager_->send_dialog_action(dialog_id, MessageId(request.message_thread_id_),
-                                                  BusinessConnectionId(),
+  MessageTopic message_topic;
+  if (request.forum_topic_id_ != 0) {
+    message_topic = MessageTopic::forum(dialog_id, ForumTopicId(request.forum_topic_id_));
+  }
+  td_->dialog_action_manager_->send_dialog_action(dialog_id, message_topic, BusinessConnectionId(),
                                                   DialogAction(request.draft_id_, std::move(text)), std::move(promise));
 }
 
@@ -4807,6 +4843,20 @@ void Requests::on_request(uint64 id, const td_api::toggleVideoChatMuteNewPartici
   CREATE_OK_REQUEST_PROMISE();
   td_->group_call_manager_->toggle_group_call_mute_new_participants(GroupCallId(request.group_call_id_),
                                                                     request.mute_new_participants_, std::move(promise));
+}
+
+void Requests::on_request(uint64 id, const td_api::toggleGroupCallCanSendMessages &request) {
+  CHECK_IS_USER();
+  CREATE_OK_REQUEST_PROMISE();
+  td_->group_call_manager_->toggle_group_call_are_messages_enabled(GroupCallId(request.group_call_id_),
+                                                                   request.can_send_messages_, std::move(promise));
+}
+
+void Requests::on_request(uint64 id, td_api::sendGroupCallMessage &request) {
+  CHECK_IS_USER();
+  CREATE_OK_REQUEST_PROMISE();
+  td_->group_call_manager_->send_group_call_message(GroupCallId(request.group_call_id_), std::move(request.text_),
+                                                    std::move(promise));
 }
 
 void Requests::on_request(uint64 id, const td_api::revokeGroupCallInviteLink &request) {
@@ -5284,9 +5334,8 @@ void Requests::on_request(uint64 id, td_api::setChatTheme &request) {
 
 void Requests::on_request(uint64 id, td_api::setChatDraftMessage &request) {
   CHECK_IS_USER();
-  answer_ok_query(
-      id, td_->messages_manager_->set_dialog_draft_message(
-              DialogId(request.chat_id_), MessageId(request.message_thread_id_), std::move(request.draft_message_)));
+  answer_ok_query(id, td_->messages_manager_->set_dialog_draft_message(DialogId(request.chat_id_), request.topic_id_,
+                                                                       std::move(request.draft_message_)));
 }
 
 void Requests::on_request(uint64 id, const td_api::toggleChatHasProtectedContent &request) {

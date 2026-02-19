@@ -4516,6 +4516,20 @@ void UpdatesManager::on_update(tl_object_ptr<telegram_api::updateGroupCallPartic
   promise.set_value(Unit());
 }
 
+void UpdatesManager::on_update(tl_object_ptr<telegram_api::updateGroupCallMessage> update, Promise<Unit> &&promise) {
+  send_closure(G()->group_call_manager(), &GroupCallManager::on_new_group_call_message, InputGroupCallId(update->call_),
+               DialogId(update->from_id_), update->random_id_, std::move(update->message_));
+  promise.set_value(Unit());
+}
+
+void UpdatesManager::on_update(tl_object_ptr<telegram_api::updateGroupCallEncryptedMessage> update,
+                               Promise<Unit> &&promise) {
+  send_closure(G()->group_call_manager(), &GroupCallManager::on_new_encrypted_group_call_message,
+               InputGroupCallId(update->call_), DialogId(update->from_id_),
+               update->encrypted_message_.as_slice().str());
+  promise.set_value(Unit());
+}
+
 void UpdatesManager::on_update(tl_object_ptr<telegram_api::updateContactsReset> update, Promise<Unit> &&promise) {
   td_->user_manager_->on_update_contacts_reset();
   promise.set_value(Unit());
@@ -4805,15 +4819,6 @@ void UpdatesManager::on_update(tl_object_ptr<telegram_api::updateStarsRevenueSta
 // unsupported updates
 
 void UpdatesManager::on_update(tl_object_ptr<telegram_api::updateNewStoryReaction> update, Promise<Unit> &&promise) {
-  promise.set_value(Unit());
-}
-
-void UpdatesManager::on_update(tl_object_ptr<telegram_api::updateGroupCallMessage> update, Promise<Unit> &&promise) {
-  promise.set_value(Unit());
-}
-
-void UpdatesManager::on_update(tl_object_ptr<telegram_api::updateGroupCallEncryptedMessage> update,
-                               Promise<Unit> &&promise) {
   promise.set_value(Unit());
 }
 

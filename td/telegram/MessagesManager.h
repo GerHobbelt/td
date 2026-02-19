@@ -437,6 +437,10 @@ class MessagesManager final : public Actor {
                                                     td_api::object_ptr<td_api::InputMessageReplyTo> &&reply_to,
                                                     bool for_draft);
 
+  MessageInputReplyTo create_message_input_reply_to(DialogId dialog_id, const MessageTopic &message_topic,
+                                                    td_api::object_ptr<td_api::InputMessageReplyTo> &&reply_to,
+                                                    bool for_draft);
+
   Result<td_api::object_ptr<td_api::message>> send_message(
       DialogId dialog_id, const MessageId top_thread_message_id,
       td_api::object_ptr<td_api::InputMessageReplyTo> &&reply_to, tl_object_ptr<td_api::messageSendOptions> &&options,
@@ -654,8 +658,8 @@ class MessagesManager final : public Actor {
 
   Status delete_dialog_reply_markup(DialogId dialog_id, MessageId message_id) TD_WARN_UNUSED_RESULT;
 
-  Status set_dialog_draft_message(DialogId dialog_id, MessageId top_thread_message_id,
-                                  tl_object_ptr<td_api::draftMessage> &&draft_message) TD_WARN_UNUSED_RESULT;
+  Status set_dialog_draft_message(DialogId dialog_id, const td_api::object_ptr<td_api::MessageTopic> &topic_id,
+                                  td_api::object_ptr<td_api::draftMessage> &&draft_message) TD_WARN_UNUSED_RESULT;
 
   void clear_all_draft_messages(bool exclude_secret_chats, Promise<Unit> &&promise);
 
@@ -719,6 +723,10 @@ class MessagesManager final : public Actor {
                                                                     MessageId from_message_id, int32 offset,
                                                                     int32 limit, int64 &random_id,
                                                                     Promise<Unit> &&promise);
+
+  std::pair<DialogId, vector<MessageId>> get_forum_topic_history(DialogId dialog_id, ForumTopicId forum_topic_id,
+                                                                 MessageId from_message_id, int32 offset, int32 limit,
+                                                                 int64 &random_id, Promise<Unit> &&promise);
 
   void get_dialog_message_calendar(DialogId dialog_id, const td_api::object_ptr<td_api::MessageTopic> &topic_id,
                                    MessageId from_message_id, MessageSearchFilter filter,
@@ -1727,6 +1735,8 @@ class MessagesManager final : public Actor {
   Status can_use_top_thread_message_id(Dialog *d, MessageId top_thread_message_id,
                                        const MessageInputReplyTo &input_reply_to);
 
+  Result<MessageTopic> get_send_message_topic(Dialog *d, const td_api::object_ptr<td_api::MessageTopic> &topic_id);
+
   Status can_use_forum_topic_id(Dialog *d, ForumTopicId forum_topic_id);
 
   int64 generate_new_random_id(const Dialog *d);
@@ -1787,6 +1797,10 @@ class MessagesManager final : public Actor {
   static MessageFullId get_replied_message_id(DialogId dialog_id, const Message *m);
 
   MessageInputReplyTo create_message_input_reply_to(Dialog *d, MessageId top_thread_message_id,
+                                                    td_api::object_ptr<td_api::InputMessageReplyTo> &&reply_to,
+                                                    bool for_draft);
+
+  MessageInputReplyTo create_message_input_reply_to(Dialog *d, const MessageTopic &message_topic,
                                                     td_api::object_ptr<td_api::InputMessageReplyTo> &&reply_to,
                                                     bool for_draft);
 
@@ -2051,11 +2065,6 @@ class MessagesManager final : public Actor {
                                        bool has_reply_info, tl_object_ptr<telegram_api::messageReplies> &&reply_info,
                                        bool has_reactions, unique_ptr<MessageReactions> &&reactions);
 
-  bool is_thread_message(DialogId dialog_id, const Message *m) const;
-
-  bool is_thread_message(DialogId dialog_id, MessageId message_id, const MessageReplyInfo &reply_info,
-                         MessageContentType content_type) const;
-
   bool is_active_message_reply_info(DialogId dialog_id, const MessageReplyInfo &reply_info) const;
 
   bool is_visible_message_reply_info(DialogId dialog_id, const Message *m) const;
@@ -2175,6 +2184,12 @@ class MessagesManager final : public Actor {
 
   void on_get_scheduled_messages_from_database(DialogId dialog_id, vector<MessageDbDialogMessage> &&messages);
 
+  std::pair<DialogId, vector<MessageId>> get_message_thread_history(DialogId dialog_id, MessageTopic topic,
+                                                                    MessageFullId top_thread_message_full_id,
+                                                                    MessageId from_message_id, int32 offset,
+                                                                    int32 limit, int64 &random_id,
+                                                                    Promise<Unit> &&promise);
+
   static bool have_dialog_scheduled_messages_in_memory(const Dialog *d);
 
   static bool is_allowed_useless_update(const tl_object_ptr<telegram_api::Update> &update);
@@ -2223,6 +2238,8 @@ class MessagesManager final : public Actor {
 
   void update_message_reply_count(Dialog *d, MessageId message_id, DialogId replier_dialog_id,
                                   MessageId reply_message_id, int32 update_date, int diff, bool is_recursive = false);
+
+  void fix_message_topic(DialogId dialog_id, Message *m, bool from_database) const;
 
   void fix_new_message(const Dialog *d, Message *m, bool from_database) const;
 
@@ -2947,6 +2964,9 @@ class MessagesManager final : public Actor {
   td_api::object_ptr<td_api::chatPosition> get_chat_position_object(DialogListId dialog_list_id, const Dialog *d) const;
 
   vector<td_api::object_ptr<td_api::chatPosition>> get_chat_positions_object(const Dialog *d) const;
+
+  Status set_dialog_draft_message(Dialog *d, const MessageTopic &message_topic,
+                                  unique_ptr<DraftMessage> &&draft_message);
 
   bool update_dialog_draft_message(Dialog *d, unique_ptr<DraftMessage> &&draft_message, bool from_update,
                                    bool need_update_dialog_pos);

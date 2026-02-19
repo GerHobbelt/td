@@ -2753,18 +2753,13 @@ class CliClient final : public Actor {
   }
 
   void set_draft_message(ChatId chat_id, td_api::object_ptr<td_api::draftMessage> &&draft_message) {
-    if (direct_messages_chat_topic_id_ != 0) {
-      send_request(td_api::make_object<td_api::setDirectMessagesChatTopicDraftMessage>(
-          chat_id, direct_messages_chat_topic_id_, std::move(draft_message)));
-    } else {
-      send_request(
-          td_api::make_object<td_api::setChatDraftMessage>(chat_id, message_thread_id_, std::move(draft_message)));
-    }
+    send_request(
+        td_api::make_object<td_api::setChatDraftMessage>(chat_id, get_message_topic_id(), std::move(draft_message)));
   }
 
   void set_draft_message(ChatId chat_id, td_api::object_ptr<td_api::InputMessageContent> &&input_message_content) {
     send_request(td_api::make_object<td_api::setChatDraftMessage>(
-        chat_id, message_thread_id_,
+        chat_id, get_message_topic_id(),
         td_api::make_object<td_api::draftMessage>(get_input_message_reply_to(), 0, std::move(input_message_content),
                                                   message_effect_id_, get_input_suggested_post_info())));
   }
@@ -3491,9 +3486,10 @@ class CliClient final : public Actor {
       string limit;
       get_args(args, user_id, offset_chat_id, limit);
       send_request(td_api::make_object<td_api::getGroupsInCommon>(user_id, offset_chat_id, as_limit(limit, 100)));
-    } else if (op == "gh" || op == "ghl" || op == "gmth") {
+    } else if (op == "gh" || op == "ghl" || op == "gmth" || op == "gfth") {
       ChatId chat_id;
       MessageId thread_message_id;
+      ForumTopicId forum_topic_id;
       string limit;
       MessageId from_message_id;
       int32 offset;
@@ -3501,10 +3497,16 @@ class CliClient final : public Actor {
       if (op == "gmth") {
         get_args(args, thread_message_id, args);
       }
+      if (op == "gfth") {
+        get_args(args, forum_topic_id, args);
+      }
       get_args(args, limit, from_message_id, offset);
       if (op == "gmth") {
         send_request(td_api::make_object<td_api::getMessageThreadHistory>(chat_id, thread_message_id, from_message_id,
                                                                           offset, as_limit(limit)));
+      } else if (op == "gfth") {
+        send_request(td_api::make_object<td_api::getForumTopicHistory>(chat_id, forum_topic_id, from_message_id, offset,
+                                                                       as_limit(limit)));
       } else {
         send_request(td_api::make_object<td_api::getChatHistory>(chat_id, from_message_id, offset, as_limit(limit),
                                                                  op == "ghl"));
@@ -5128,6 +5130,16 @@ class CliClient final : public Actor {
       GroupCallId group_call_id;
       get_args(args, group_call_id);
       send_request(td_api::make_object<td_api::toggleVideoChatMuteNewParticipants>(group_call_id, op == "tvcmnpe"));
+    } else if (op == "tgccsm") {
+      GroupCallId group_call_id;
+      bool can_send_messages;
+      get_args(args, group_call_id, can_send_messages);
+      send_request(td_api::make_object<td_api::toggleGroupCallCanSendMessages>(group_call_id, can_send_messages));
+    } else if (op == "sgcm") {
+      GroupCallId group_call_id;
+      string text;
+      get_args(args, group_call_id, text);
+      send_request(td_api::make_object<td_api::sendGroupCallMessage>(group_call_id, as_formatted_text(text)));
     } else if (op == "rgcil") {
       GroupCallId group_call_id;
       get_args(args, group_call_id);
@@ -5839,7 +5851,7 @@ class CliClient final : public Actor {
       ChatId chat_id;
       string action;
       get_args(args, chat_id, action);
-      send_request(td_api::make_object<td_api::sendChatAction>(chat_id, message_thread_id_, business_connection_id_,
+      send_request(td_api::make_object<td_api::sendChatAction>(chat_id, get_message_topic_id(), business_connection_id_,
                                                                as_chat_action(action)));
     } else if (op == "smt" || op == "smtp" || op == "smtf" || op == "smtpf") {
       ChatId chat_id;

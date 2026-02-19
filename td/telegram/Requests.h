@@ -381,8 +381,6 @@ class Requests {
 
   void on_request(uint64 id, const td_api::setDirectMessagesChatTopicIsMarkedAsUnread &request);
 
-  void on_request(uint64 id, td_api::setDirectMessagesChatTopicDraftMessage &request);
-
   void on_request(uint64 id, const td_api::unpinAllDirectMessagesChatTopicMessages &request);
 
   void on_request(uint64 id, const td_api::readAllDirectMessagesChatTopicReactions &request);
@@ -719,6 +717,8 @@ class Requests {
 
   void on_request(uint64 id, const td_api::getForumTopic &request);
 
+  void on_request(uint64 id, const td_api::getForumTopicHistory &request);
+
   void on_request(uint64 id, const td_api::getForumTopicLink &request);
 
   void on_request(uint64 id, td_api::getForumTopics &request);
@@ -814,6 +814,10 @@ class Requests {
   void on_request(uint64 id, td_api::setVideoChatTitle &request);
 
   void on_request(uint64 id, const td_api::toggleVideoChatMuteNewParticipants &request);
+
+  void on_request(uint64 id, const td_api::toggleGroupCallCanSendMessages &request);
+
+  void on_request(uint64 id, td_api::sendGroupCallMessage &request);
 
   void on_request(uint64 id, const td_api::revokeGroupCallInviteLink &request);
 

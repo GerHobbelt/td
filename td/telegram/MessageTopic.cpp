@@ -9,6 +9,7 @@
 #include "td/telegram/AuthManager.h"
 #include "td/telegram/ChatManager.h"
 #include "td/telegram/DialogManager.h"
+#include "td/telegram/ForumTopicManager.h"
 #include "td/telegram/SavedMessagesManager.h"
 #include "td/telegram/ServerMessageId.h"
 #include "td/telegram/Td.h"
@@ -51,6 +52,12 @@ MessageTopic::MessageTopic(Td *td, DialogId dialog_id, bool is_topic_message, Me
     }
     return;
   }
+  if (td->chat_manager_->is_forum_channel(channel_id) && !is_topic_message) {
+    type_ = Type::Forum;
+    dialog_id_ = dialog_id;
+    forum_topic_id_ = ForumTopicId::general();
+    return;
+  }
   if (!top_thread_message_id.is_server()) {
     if (top_thread_message_id != MessageId()) {
       LOG(ERROR) << "Have top thread " << top_thread_message_id.is_server();
@@ -63,17 +70,35 @@ MessageTopic::MessageTopic(Td *td, DialogId dialog_id, bool is_topic_message, Me
     forum_topic_id_ = ForumTopicId::from_top_thread_message_id(top_thread_message_id);
     return;
   }
-  if (td->chat_manager_->is_forum_channel(channel_id)) {
-    type_ = Type::Forum;
-    dialog_id_ = dialog_id;
-    forum_topic_id_ = ForumTopicId::general();
-    return;
-  }
   if (td->chat_manager_->is_megagroup_channel(channel_id)) {
     type_ = Type::Thread;
     dialog_id_ = dialog_id;
     top_thread_message_id_ = top_thread_message_id;
   }
+}
+
+MessageTopic MessageTopic::autodetect(Td *td, DialogId dialog_id, MessageId top_thread_message_id) {
+  if (!top_thread_message_id.is_server()) {
+    return {};
+  }
+  auto dialog_type = dialog_id.get_type();
+  if (dialog_type == DialogType::User) {
+    auto user_id = dialog_id.get_user_id();
+    if (user_id != td->user_manager_->get_my_id() &&
+        (td->user_manager_->is_user_bot(user_id) || td->auth_manager_->is_bot())) {
+      return forum(dialog_id, ForumTopicId::from_top_thread_message_id(top_thread_message_id));
+    }
+  }
+  if (dialog_type == DialogType::Channel) {
+    auto channel_id = dialog_id.get_channel_id();
+    if (td->chat_manager_->is_forum_channel(channel_id)) {
+      return forum(dialog_id, ForumTopicId::from_top_thread_message_id(top_thread_message_id));
+    }
+    if (td->chat_manager_->is_megagroup_channel(channel_id)) {
+      return thread(dialog_id, top_thread_message_id);
+    }
+  }
+  return {};
 }
 
 MessageTopic MessageTopic::thread(DialogId dialog_id, MessageId top_thread_message_id) {
@@ -82,6 +107,14 @@ MessageTopic MessageTopic::thread(DialogId dialog_id, MessageId top_thread_messa
   result.type_ = Type::Thread;
   result.dialog_id_ = dialog_id;
   result.top_thread_message_id_ = top_thread_message_id;
+  return result;
+}
+
+MessageTopic MessageTopic::forum(DialogId dialog_id, ForumTopicId forum_topic_id) {
+  MessageTopic result;
+  result.type_ = Type::Forum;
+  result.dialog_id_ = dialog_id;
+  result.forum_topic_id_ = forum_topic_id;
   return result;
 }
 
@@ -116,7 +149,8 @@ Result<MessageTopic> MessageTopic::get_message_topic(Td *td, DialogId dialog_id,
       auto top_thread_message_id =
           MessageId(static_cast<const td_api::messageTopicThread *>(topic.get())->message_thread_id_);
       if (dialog_id.get_type() != DialogType::Channel ||
-          !td->chat_manager_->is_megagroup_channel(dialog_id.get_channel_id())) {
+          !td->chat_manager_->is_megagroup_channel(dialog_id.get_channel_id()) ||
+          td->chat_manager_->is_monoforum_channel(dialog_id.get_channel_id())) {
         return Status::Error(400, "Chat doesn't have threads");
       }
       if (!top_thread_message_id.is_server()) {
@@ -131,14 +165,7 @@ Result<MessageTopic> MessageTopic::get_message_topic(Td *td, DialogId dialog_id,
       if (!forum_topic_id.is_valid()) {
         return Status::Error(400, "Invalid topic identifier specified");
       }
-      auto dialog_type = dialog_id.get_type();
-      if (dialog_type == DialogType::User &&
-          (td->user_manager_->is_user_bot(dialog_id.get_user_id()) || td->auth_manager_->is_bot())) {
-        result.type_ = Type::Forum;
-        result.forum_topic_id_ = forum_topic_id;
-        break;
-      }
-      if (dialog_type != DialogType::Channel || !td->chat_manager_->is_megagroup_channel(dialog_id.get_channel_id())) {
+      if (!td->forum_topic_manager_->can_be_forum(dialog_id)) {
         return Status::Error(400, "Chat is not a forum");
       }
       result.type_ = Type::Forum;
@@ -146,13 +173,13 @@ Result<MessageTopic> MessageTopic::get_message_topic(Td *td, DialogId dialog_id,
       break;
     }
     case td_api::messageTopicDirectMessages::ID: {
-      if (!td->dialog_manager_->is_monoforum_channel(dialog_id)) {
-        return Status::Error(400, "Chat is not a channel direct messages chat");
+      if (!td->dialog_manager_->is_admined_monoforum_channel(dialog_id)) {
+        return Status::Error(400, "Chat is not an administered channel direct messages chat");
       }
-      SavedMessagesTopicId saved_messages_topic_id(DialogId(
-          static_cast<const td_api::messageTopicDirectMessages *>(topic.get())->direct_messages_chat_topic_id_));
-      TRY_STATUS(saved_messages_topic_id.is_valid_in(td, dialog_id));
-      if (!td->saved_messages_manager_->have_topic(dialog_id, saved_messages_topic_id)) {
+      auto saved_messages_topic_id = td->saved_messages_manager_->get_topic_id(
+          DialogId(),  // the topic itself may be not loaded
+          static_cast<const td_api::messageTopicDirectMessages *>(topic.get())->direct_messages_chat_topic_id_);
+      if (!saved_messages_topic_id.is_valid()) {
         return Status::Error(400, "Topic not found");
       }
       result.type_ = Type::Monoforum;
@@ -163,10 +190,10 @@ Result<MessageTopic> MessageTopic::get_message_topic(Td *td, DialogId dialog_id,
       if (dialog_id != td->dialog_manager_->get_my_dialog_id()) {
         return Status::Error(400, "Chat is not the Saved Messages chat");
       }
-      SavedMessagesTopicId saved_messages_topic_id(
-          DialogId(static_cast<const td_api::messageTopicSavedMessages *>(topic.get())->saved_messages_topic_id_));
-      TRY_STATUS(saved_messages_topic_id.is_valid_in(td, dialog_id));
-      if (!td->saved_messages_manager_->have_topic(dialog_id, saved_messages_topic_id)) {
+      auto saved_messages_topic_id = td->saved_messages_manager_->get_topic_id(
+          DialogId(),  // the topic itself may be not loaded
+          static_cast<const td_api::messageTopicSavedMessages *>(topic.get())->saved_messages_topic_id_);
+      if (!saved_messages_topic_id.is_valid()) {
         return Status::Error(400, "Topic not found");
       }
       result.type_ = Type::SavedMessages;
@@ -186,8 +213,8 @@ td_api::object_ptr<td_api::MessageTopic> MessageTopic::get_message_topic_object(
     case Type::Thread:
       return td_api::make_object<td_api::messageTopicThread>(top_thread_message_id_.get());
     case Type::Forum:
-      // TODO send updateForumTopic before sending its identifier
-      return td_api::make_object<td_api::messageTopicForum>(forum_topic_id_.get());
+      return td_api::make_object<td_api::messageTopicForum>(
+          td->forum_topic_manager_->get_forum_topic_id_object(dialog_id_, forum_topic_id_));
     case Type::Monoforum:
       return td_api::make_object<td_api::messageTopicDirectMessages>(
           td->saved_messages_manager_->get_saved_messages_topic_id_object(dialog_id_, saved_messages_topic_id_));
@@ -197,6 +224,25 @@ td_api::object_ptr<td_api::MessageTopic> MessageTopic::get_message_topic_object(
     default:
       UNREACHABLE();
       return nullptr;
+  }
+}
+
+MessageId MessageTopic::get_implicit_reply_to_message_id(const Td *td) const {
+  switch (type_) {
+    case Type::Thread:
+      return top_thread_message_id_;
+    case Type::Forum:
+      if (td->auth_manager_->is_bot() && dialog_id_.get_type() == DialogType::User) {
+        return MessageId();
+      }
+      return MessageId(ServerMessageId(forum_topic_id_.get()));
+    case Type::Monoforum:
+    case Type::SavedMessages:
+    case Type::None:
+      return MessageId();
+    default:
+      UNREACHABLE();
+      return MessageId();
   }
 }
 

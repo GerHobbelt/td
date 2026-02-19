@@ -1850,7 +1850,7 @@ emojiStatusCustomEmojis custom_emoji_ids:vector<int64> = EmojiStatusCustomEmojis
 //@description Describes usernames assigned to a user, a supergroup, or a channel
 //@active_usernames List of active usernames; the first one must be shown as the primary username. The order of active usernames can be changed with reorderActiveUsernames, reorderBotActiveUsernames or reorderSupergroupActiveUsernames
 //@disabled_usernames List of currently disabled usernames; the username can be activated with toggleUsernameIsActive, toggleBotUsernameIsActive, or toggleSupergroupUsernameIsActive
-//@editable_username The active username, which can be changed with setUsername or setSupergroupUsername. Information about other active usernames can be received using getCollectibleItemInfo
+//@editable_username Active or disabled username, which may be changed with setUsername or setSupergroupUsername. Information about other active usernames can be received using getCollectibleItemInfo
 usernames active_usernames:vector<string> disabled_usernames:vector<string> editable_username:string = Usernames;
 
 
@@ -5978,10 +5978,12 @@ groupCallRecentSpeaker participant_id:MessageSender is_speaking:Bool = GroupCall
 //@can_enable_video True, if the current user can broadcast video or share screen
 //@mute_new_participants True, if only group call administrators can unmute new participants; for video chats only
 //@can_toggle_mute_new_participants True, if the current user can enable or disable mute_new_participants setting; for video chats only
+//@can_send_messages True, if users can send messages to the group call
+//@can_toggle_can_send_messages True, if the current user can enable or disable sending messages in the group call
 //@record_duration Duration of the ongoing group call recording, in seconds; 0 if none. An updateGroupCall update is not triggered when value of this field changes, but the same recording goes on
 //@is_video_recorded True, if a video file is being recorded for the call
 //@duration Call duration, in seconds; for ended calls only
-groupCall id:int32 title:string invite_link:string scheduled_start_date:int32 enabled_start_notification:Bool is_active:Bool is_video_chat:Bool is_rtmp_stream:Bool is_joined:Bool need_rejoin:Bool is_owned:Bool can_be_managed:Bool participant_count:int32 has_hidden_listeners:Bool loaded_all_participants:Bool recent_speakers:vector<groupCallRecentSpeaker> is_my_video_enabled:Bool is_my_video_paused:Bool can_enable_video:Bool mute_new_participants:Bool can_toggle_mute_new_participants:Bool record_duration:int32 is_video_recorded:Bool duration:int32 = GroupCall;
+groupCall id:int32 title:string invite_link:string scheduled_start_date:int32 enabled_start_notification:Bool is_active:Bool is_video_chat:Bool is_rtmp_stream:Bool is_joined:Bool need_rejoin:Bool is_owned:Bool can_be_managed:Bool participant_count:int32 has_hidden_listeners:Bool loaded_all_participants:Bool recent_speakers:vector<groupCallRecentSpeaker> is_my_video_enabled:Bool is_my_video_paused:Bool can_enable_video:Bool mute_new_participants:Bool can_toggle_mute_new_participants:Bool can_send_messages:Bool can_toggle_can_send_messages:Bool record_duration:int32 is_video_recorded:Bool duration:int32 = GroupCall;
 
 //@description Describes a group of video synchronization source identifiers @semantics The semantics of sources, one of "SIM" or "FID" @source_ids The list of synchronization source identifiers
 groupCallVideoSourceGroup semantics:string source_ids:vector<int32> = GroupCallVideoSourceGroup;
@@ -8254,11 +8256,11 @@ messageLink link:string is_public:Bool = MessageLink;
 //@description Contains information about a link to a message or a forum topic in a chat
 //@is_public True, if the link is a public link for a message or a forum topic in a chat
 //@chat_id If found, identifier of the chat to which the link points, 0 otherwise
-//@message_thread_id If found, identifier of the message thread in which to open the message, or a forum topic to open if the message is missing
+//@topic_id Identifier of the specific topic in which the message must be opened, or a topic to open if the message is missing; may be null if none
 //@message If found, the linked message; may be null
 //@media_timestamp Timestamp from which the video/audio/video note/voice note/story playing must start, in seconds; 0 if not specified. The media can be in the message content or in its link preview
 //@for_album True, if the whole media album to which the message belongs is linked
-messageLinkInfo is_public:Bool chat_id:int53 message_thread_id:int53 message:message media_timestamp:int32 for_album:Bool = MessageLinkInfo;
+messageLinkInfo is_public:Bool chat_id:int53 topic_id:MessageTopic message:message media_timestamp:int32 for_album:Bool = MessageLinkInfo;
 
 
 //@description Contains an HTTPS link to boost a chat @link The link @is_public True, if the link will work for non-members of the chat
@@ -9222,18 +9224,18 @@ updateDeleteMessages chat_id:int53 message_ids:vector<int53> is_permanent:Bool f
 
 //@description A message sender activity in the chat has changed
 //@chat_id Chat identifier
-//@message_thread_id If not 0, the message thread identifier in which the action was performed
+//@topic_id Identifier of the specific topic in which the action was performed; may be null if none
 //@sender_id Identifier of a message sender performing the action
 //@action The action
-updateChatAction chat_id:int53 message_thread_id:int53 sender_id:MessageSender action:ChatAction = Update;
+updateChatAction chat_id:int53 topic_id:MessageTopic sender_id:MessageSender action:ChatAction = Update;
 
 //@description A new pending text message was received in a chat with a bot. The message must be shown in the chat for at most getOption("pending_text_message_period") seconds,
 //-replace any other pending message with the same draft_id, and be deleted whenever any incoming message from the bot in the message thread is received
 //@chat_id Chat identifier
-//@message_thread_id The message thread identifier in which the message will be sent
+//@forum_topic_id The forum topic identifier in which the message will be sent; 0 if none
 //@draft_id Unique identifier of the message draft within the message thread
 //@text Text of the pending message
-updatePendingTextMessage chat_id:int53 message_thread_id:int53 draft_id:int64 text:formattedText = Update;
+updatePendingTextMessage chat_id:int53 forum_topic_id:int32 draft_id:int64 text:formattedText = Update;
 
 //@description The user went online or offline @user_id User identifier @status New status of the user
 updateUserStatus user_id:int53 status:UserStatus = Update;
@@ -9335,6 +9337,12 @@ updateGroupCallParticipants group_call_id:int32 participant_user_ids:vector<int6
 //@generation The call state generation to which the emoji corresponds. If generation is different for two users, then their emoji may be also different
 //@emojis Group call state fingerprint represented as 4 emoji; may be empty if the state isn't verified yet
 updateGroupCallVerificationState group_call_id:int32 generation:int32 emojis:vector<string> = Update;
+
+//@description A new message was received in a group call. It must be shown for at most getOption("group_call_message_show_time_max") seconds after receiving
+//@group_call_id Identifier of the group call
+//@sender_id Identifier of the sender of the message
+//@text Text of the message
+updateGroupCallNewMessage group_call_id:int32 sender_id:MessageSender text:formattedText = Update;
 
 //@description New call signaling data arrived @call_id The call identifier @data The data
 updateNewCallSignalingData call_id:int32 data:bytes = Update;
@@ -10123,12 +10131,6 @@ deleteDirectMessagesChatTopicMessagesByDate chat_id:int53 topic_id:int53 min_dat
 //@is_marked_as_unread New value of is_marked_as_unread
 setDirectMessagesChatTopicIsMarkedAsUnread chat_id:int53 topic_id:int53 is_marked_as_unread:Bool = Ok;
 
-//@description Changes the draft message in the topic in a channel direct messages chat administered by the current user
-//@chat_id Chat identifier
-//@topic_id Topic identifier
-//@draft_message New draft message; pass null to remove the draft. All files in draft message content must be of the type inputFileLocal. Media thumbnails and captions are ignored
-setDirectMessagesChatTopicDraftMessage chat_id:int53 topic_id:int53 draft_message:draftMessage = Ok;
-
 //@description Removes all pinned messages from the topic in a channel direct messages chat administered by the current user
 //@chat_id Identifier of the chat
 //@topic_id Topic identifier
@@ -10893,6 +10895,16 @@ editForumTopic chat_id:int53 forum_topic_id:int32 name:string edit_icon_custom_e
 //@forum_topic_id Forum topic identifier
 getForumTopic chat_id:int53 forum_topic_id:int32 = ForumTopic;
 
+//@description Returns messages in a topic in a forum supergroup chat or a chat with a bot with topics. The messages are returned in reverse chronological order
+//-(i.e., in order of decreasing message_id). For optimal performance, the number of returned messages is chosen by TDLib
+//@chat_id Chat identifier
+//@forum_topic_id Forum topic identifier
+//@from_message_id Identifier of the message starting from which history must be fetched; use 0 to get results from the last message
+//@offset Specify 0 to get results from exactly the message from_message_id or a negative number from -99 to -1 to get additionally -offset newer messages
+//@limit The maximum number of messages to be returned; must be positive and can't be greater than 100. If the offset is negative, then the limit must be greater than or equal to -offset.
+//-For optimal performance, the number of returned messages is chosen by TDLib and can be smaller than the specified limit
+getForumTopicHistory chat_id:int53 forum_topic_id:int32 from_message_id:int53 offset:int32 limit:int32 = Messages;
+
 //@description Returns an HTTPS link to a topic in a forum supergroup chat. This is an offline method @chat_id Identifier of the chat @forum_topic_id Forum topic identifier
 getForumTopicLink chat_id:int53 forum_topic_id:int32 = MessageLink;
 
@@ -11317,17 +11329,17 @@ deleteChatReplyMarkup chat_id:int53 message_id:int53 = Ok;
 
 //@description Sends a notification about user activity in a chat
 //@chat_id Chat identifier
-//@message_thread_id If not 0, the message thread identifier in which the action was performed
+//@topic_id Identifier of the topic in which the action is performed
 //@business_connection_id Unique identifier of business connection on behalf of which to send the request; for bots only
 //@action The action description; pass null to cancel the currently active action
-sendChatAction chat_id:int53 message_thread_id:int53 business_connection_id:string action:ChatAction = Ok;
+sendChatAction chat_id:int53 topic_id:MessageTopic business_connection_id:string action:ChatAction = Ok;
 
 //@description Sends a draft for a being generated text message; for bots only
 //@chat_id Chat identifier
-//@message_thread_id The message thread identifier in which the message will be sent
+//@forum_topic_id The forum topic identifier in which the message will be sent; pass 0 if none
 //@draft_id Unique identifier of the draft
 //@text Draft text of the message
-sendTextMessageDraft chat_id:int53 message_thread_id:int53 draft_id:int64 text:formattedText = Ok;
+sendTextMessageDraft chat_id:int53 forum_topic_id:int32 draft_id:int64 text:formattedText = Ok;
 
 
 //@description Informs TDLib that the chat is opened by the user. Many useful activities depend on the chat being opened or closed (e.g., in supergroups and channels all updates are received only for opened chats) @chat_id Chat identifier
@@ -11553,11 +11565,11 @@ getGiftChatThemes offset:string limit:int32 = GiftChatThemes;
 //@description Changes the chat theme. Supported only in private and secret chats @chat_id Chat identifier @theme New chat theme; pass null to return the default theme
 setChatTheme chat_id:int53 theme:InputChatTheme = Ok;
 
-//@description Changes the draft message in a chat
+//@description Changes the draft message in a chat or a topic
 //@chat_id Chat identifier
-//@message_thread_id If not 0, the message thread identifier in which the draft was changed
+//@topic_id Topic in which the draft will be changed; pass null to change the draft for the chat itself
 //@draft_message New draft message; pass null to remove the draft. All files in draft message content must be of the type inputFileLocal. Media thumbnails and captions are ignored
-setChatDraftMessage chat_id:int53 message_thread_id:int53 draft_message:draftMessage = Ok;
+setChatDraftMessage chat_id:int53 topic_id:MessageTopic draft_message:draftMessage = Ok;
 
 //@description Changes the notification settings of a chat. Notification settings of a chat with the current user (Saved Messages) can't be changed
 //@chat_id Chat identifier
@@ -12339,6 +12351,16 @@ setVideoChatTitle group_call_id:int32 title:string = Ok;
 //@mute_new_participants New value of the mute_new_participants setting
 toggleVideoChatMuteNewParticipants group_call_id:int32 mute_new_participants:Bool = Ok;
 
+//@description Toggles whether participants of a group call can send messages there. Requires groupCall.can_toggle_can_send_messages right
+//@group_call_id Group call identifier
+//@can_send_messages New value of the can_send_messages setting
+toggleGroupCallCanSendMessages group_call_id:int32 can_send_messages:Bool = Ok;
+
+//@description Sends a message to other participants of a group call. Requires groupCall.can_send_messages right
+//@group_call_id Group call identifier
+//@text Text of the message to send; 1-getOption("group_call_message_text_length_max") characters
+sendGroupCallMessage group_call_id:int32 text:formattedText = Ok;
+
 //@description Invites a user to an active group call; for group calls not bound to a chat only. Sends a service message of the type messageGroupCall.
 //-The group call can have at most getOption("group_call_participant_count_max") participants
 //@group_call_id Group call identifier
@@ -12982,7 +13004,8 @@ getBotName bot_user_id:int53 language_code:string = Text;
 //@description Changes a profile photo for a bot @bot_user_id Identifier of the target bot @photo Profile photo to set; pass null to delete the chat photo
 setBotProfilePhoto bot_user_id:int53 photo:InputChatPhoto = Ok;
 
-//@description Changes active state for a username of a bot. The editable username can't be disabled. May return an error with a message "USERNAMES_ACTIVE_TOO_MUCH" if the maximum number of active usernames has been reached. Can be called only if userTypeBot.can_be_edited == true
+//@description Changes active state for a username of a bot. The editable username can be disabled only if there are other active usernames.
+//-May return an error with a message "USERNAMES_ACTIVE_TOO_MUCH" if the maximum number of active usernames has been reached. Can be called only if userTypeBot.can_be_edited == true
 //@bot_user_id Identifier of the target bot
 //@username The username to change
 //@is_active Pass true to activate the username; pass false to disable it

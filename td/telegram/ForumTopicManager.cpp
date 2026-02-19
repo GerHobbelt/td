@@ -107,7 +107,7 @@ class CreateForumTopicQuery final : public Td::ResultHandler {
 
     auto action = static_cast<const telegram_api::messageActionTopicCreate *>(service_message->action_.get());
     auto forum_topic_info = td::make_unique<ForumTopicInfo>(
-        dialog_id_, MessageId(ServerMessageId(service_message->id_)), action->title_,
+        dialog_id_, ForumTopicId(service_message->id_), action->title_,
         ForumTopicIcon(action->icon_color_, action->icon_emoji_id_), service_message->date_, creator_dialog_id_, true,
         false, false, action->title_missing_);
     td_->updates_manager_->on_get_updates(
@@ -994,7 +994,7 @@ void ForumTopicManager::on_get_forum_topic_info(DialogId dialog_id, const ForumT
     return;
   }
 
-  auto dialog_topics = add_dialog_topics(dialog_id);
+  auto *dialog_topics = add_dialog_topics(dialog_id);
   CHECK(dialog_topics != nullptr);
   auto forum_topic_info = td::make_unique<ForumTopicInfo>(topic_info);
   ForumTopicId forum_topic_id = forum_topic_info->get_forum_topic_id();
@@ -1025,7 +1025,7 @@ void ForumTopicManager::on_get_forum_topic_infos(DialogId dialog_id,
         LOG(ERROR) << "Receive forum topics in " << dialog_id << " from " << source;
         return;
       }
-      auto dialog_topics = add_dialog_topics(dialog_id);
+      auto *dialog_topics = add_dialog_topics(dialog_id);
       CHECK(dialog_topics != nullptr);
       auto topic = add_topic(dialog_topics, forum_topic_id);
       if (topic != nullptr) {
@@ -1040,7 +1040,7 @@ void ForumTopicManager::on_get_forum_topic_infos(DialogId dialog_id,
     return;
   }
 
-  auto dialog_topics = add_dialog_topics(dialog_id);
+  auto *dialog_topics = add_dialog_topics(dialog_id);
   CHECK(dialog_topics != nullptr);
   for (auto &forum_topic : forum_topics) {
     auto forum_topic_info = td::make_unique<ForumTopicInfo>(td_, forum_topic, dialog_id);
@@ -1098,6 +1098,16 @@ ForumTopicId ForumTopicManager::on_get_forum_topic_impl(DialogId dialog_id,
   }
 }
 
+int32 ForumTopicManager::get_forum_topic_id_object(DialogId dialog_id, ForumTopicId forum_topic_id) {
+  if (forum_topic_id == ForumTopicId()) {
+    return 0;
+  }
+
+  // TODO load topic from database or get from the server
+
+  return forum_topic_id.get();
+}
+
 td_api::object_ptr<td_api::forumTopic> ForumTopicManager::get_forum_topic_object(DialogId dialog_id,
                                                                                  ForumTopicId forum_topic_id) const {
   auto topic = get_topic(dialog_id, forum_topic_id);
@@ -1140,7 +1150,8 @@ bool ForumTopicManager::can_be_forum(DialogId dialog_id) const {
     case DialogType::User:
       return td_->auth_manager_->is_bot() || td_->user_manager_->is_user_bot(dialog_id.get_user_id());
     case DialogType::Channel:
-      return !td_->chat_manager_->is_broadcast_channel(dialog_id.get_channel_id());
+      return !td_->chat_manager_->is_broadcast_channel(dialog_id.get_channel_id()) &&
+             !td_->chat_manager_->is_monoforum_channel(dialog_id.get_channel_id());
     case DialogType::Chat:
     case DialogType::SecretChat:
     case DialogType::None:
@@ -1301,7 +1312,7 @@ void ForumTopicManager::on_topic_message_count_changed(DialogId dialog_id, Forum
 
   LOG(INFO) << "Change by " << diff << " number of loaded messages in thread of " << forum_topic_id << " in "
             << dialog_id;
-  auto dialog_topics = add_dialog_topics(dialog_id);
+  auto *dialog_topics = add_dialog_topics(dialog_id);
   auto topic = add_topic(dialog_topics, forum_topic_id);
   if (topic == nullptr) {
     return;

@@ -38,7 +38,11 @@ class MessageTopic {
   MessageTopic(Td *td, DialogId dialog_id, bool is_topic_message, MessageId top_thread_message_id,
                SavedMessagesTopicId saved_messages_topic_id);
 
+  static MessageTopic autodetect(Td *td, DialogId dialog_id, MessageId top_thread_message_id);
+
   static MessageTopic thread(DialogId dialog_id, MessageId top_thread_message_id);
+
+  static MessageTopic forum(DialogId dialog_id, ForumTopicId forum_topic_id);
 
   static MessageTopic monoforum(DialogId dialog_id, SavedMessagesTopicId saved_messages_topic_id);
 
@@ -61,6 +65,10 @@ class MessageTopic {
     return type_ == Type::Forum;
   }
 
+  bool is_general_forum() const {
+    return type_ == Type::Forum && forum_topic_id_ == ForumTopicId::general();
+  }
+
   bool is_monoforum() const {
     return type_ == Type::Monoforum;
   }
@@ -68,6 +76,18 @@ class MessageTopic {
   bool is_saved_messages() const {
     return type_ == Type::SavedMessages;
   }
+
+  MessageId get_top_thread_message_id() const {
+    CHECK(type_ == Type::Thread);
+    return top_thread_message_id_;
+  }
+
+  SavedMessagesTopicId get_monoforum_saved_messages_topic_id() const {
+    CHECK(type_ == Type::Monoforum);
+    return saved_messages_topic_id_;
+  }
+
+  MessageId get_implicit_reply_to_message_id(const Td *td) const;
 
   int32 get_input_top_msg_id() const {
     switch (type_) {
