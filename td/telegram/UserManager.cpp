@@ -45,6 +45,7 @@
 #include "td/telegram/LinkManager.h"
 #include "td/telegram/logevent/LogEvent.h"
 #include "td/telegram/logevent/LogEventHelper.h"
+#include "td/telegram/MessageEntity.hpp"
 #include "td/telegram/MessageId.h"
 #include "td/telegram/MessageQuote.h"
 #include "td/telegram/MessagesManager.h"
@@ -56,6 +57,7 @@
 #include "td/telegram/Outline.h"
 #include "td/telegram/PeerColor.h"
 #include "td/telegram/PeerColorCollectible.h"
+#include "td/telegram/PeerColorCollectible.hpp"
 #include "td/telegram/Photo.h"
 #include "td/telegram/Photo.hpp"
 #include "td/telegram/PhotoSize.h"
@@ -3002,6 +3004,7 @@ void UserManager::set_my_online_status(bool is_online, bool send_update, bool is
 
 void UserManager::on_get_user(telegram_api::object_ptr<telegram_api::User> &&user_ptr, const char *source) {
   LOG(DEBUG) << "Receive from " << source << ' ' << to_string(user_ptr);
+  CHECK(user_ptr != nullptr);
   int32 constructor_id = user_ptr->get_id();
   if (constructor_id == telegram_api::userEmpty::ID) {
     auto user = move_tl_object_as<telegram_api::userEmpty>(user_ptr);
@@ -3181,7 +3184,7 @@ void UserManager::on_get_user(telegram_api::object_ptr<telegram_api::User> &&use
   if (bot_active_users != u->bot_active_users) {
     bool is_me = user_id == get_my_id();
     if (!is_me || Time::now() > next_set_my_active_users_) {
-      bot_active_users = u->bot_active_users;
+      u->bot_active_users = bot_active_users;
       u->is_changed = true;
 
       if (is_me) {
@@ -6016,7 +6019,11 @@ bool UserManager::delete_my_profile_photo_from_cache(int64 profile_photo_id) {
       user_photos->count -= narrow_cast<int32>(removed_photos);
       // offset was not changed
       CHECK(user_photos->count >= 0);
-    } else if (user_photos->offset == 0) {
+      if (user_photos->count == 0) {
+        CHECK(user_photos->photos.empty());
+        user_photos->offset = 0;
+      }
+    } else if (user_photos->offset == 0 && static_cast<size_t>(user_photos->count) > user_photos->photos.size()) {
       // failed to find photo to remove from cache, but offset doesn't need to be adjusted
       user_photos->count--;
     } else {
@@ -6529,7 +6536,7 @@ void UserManager::get_user_profile_photos(UserId user_id, int32 offset, int32 li
 
   apply_pending_user_photo(u, user_id, "get_user_profile_photos");
 
-  auto user_photos = add_user_photos(user_id);
+  const auto *user_photos = add_user_photos(user_id);
   if (user_photos->count != -1) {  // know photo count
     CHECK(user_photos->offset != -1);
     LOG(INFO) << "Have " << user_photos->count << " cached user profile photos at offset " << user_photos->offset;
@@ -6560,18 +6567,20 @@ void UserManager::get_user_profile_photos(UserId user_id, int32 offset, int32 li
   pending_request.offset = offset;
   pending_request.limit = limit;
   pending_request.promise = std::move(promise);
-  user_photos->pending_requests.push_back(std::move(pending_request));
-  if (user_photos->pending_requests.size() != 1u) {
+  auto &requests = pending_get_user_photos_requests_[user_id];
+  requests.push_back(std::move(pending_request));
+  if (requests.size() != 1u) {
     return;
   }
 
-  send_get_user_photos_query(user_id, user_photos);
+  send_get_user_photos_query(user_id, user_photos, requests);
 }
 
-void UserManager::send_get_user_photos_query(UserId user_id, const UserPhotos *user_photos) {
-  CHECK(!user_photos->pending_requests.empty());
-  auto offset = user_photos->pending_requests[0].offset;
-  auto limit = user_photos->pending_requests[0].limit;
+void UserManager::send_get_user_photos_query(UserId user_id, const UserPhotos *user_photos,
+                                             const vector<PendingGetPhotoRequest> &requests) {
+  CHECK(!requests.empty());
+  auto offset = requests[0].offset;
+  auto limit = requests[0].limit;
 
   if (user_photos->count != -1 && offset >= user_photos->offset) {
     int32 cache_end = user_photos->offset + narrow_cast<int32>(user_photos->photos.size());
@@ -6593,15 +6602,16 @@ void UserManager::send_get_user_photos_query(UserId user_id, const UserPhotos *u
 
 void UserManager::on_get_user_profile_photos(UserId user_id, Result<Unit> &&result) {
   G()->ignore_result_if_closing(result);
-  auto user_photos = add_user_photos(user_id);
-  auto pending_requests = std::move(user_photos->pending_requests);
+  auto pending_requests = std::move(pending_get_user_photos_requests_[user_id]);
   CHECK(!pending_requests.empty());
+  pending_get_user_photos_requests_.erase(user_id);
   if (result.is_error()) {
     for (auto &request : pending_requests) {
       request.promise.set_error(result.error().clone());
     }
     return;
   }
+  const auto *user_photos = add_user_photos(user_id);
   if (user_photos->count == -1) {
     CHECK(have_min_user(user_id));
     // received result has just been dropped; resend request
@@ -6612,8 +6622,9 @@ void UserManager::on_get_user_profile_photos(UserId user_id, Result<Unit> &&resu
         return;
       }
     }
-    user_photos->pending_requests = std::move(pending_requests);
-    return send_get_user_photos_query(user_id, user_photos);
+    auto &requests = pending_get_user_photos_requests_[user_id];
+    requests = std::move(pending_requests);
+    return send_get_user_photos_query(user_id, user_photos, requests);
   }
 
   CHECK(user_photos->offset != -1);
@@ -6654,10 +6665,11 @@ void UserManager::on_get_user_profile_photos(UserId user_id, Result<Unit> &&resu
   }
 
   if (!left_requests.empty()) {
-    bool need_send = user_photos->pending_requests.empty();
-    append(user_photos->pending_requests, std::move(left_requests));
+    auto &requests = pending_get_user_photos_requests_[user_id];
+    bool need_send = requests.empty();
+    append(requests, std::move(left_requests));
     if (need_send) {
-      send_get_user_photos_query(user_id, user_photos);
+      send_get_user_photos_query(user_id, user_photos, requests);
     }
   }
 }
@@ -6745,7 +6757,7 @@ void UserManager::on_get_user_photos(UserId user_id, int32 offset, int32 limit, 
             << offset << " and limit " << limit;
   UserPhotos *user_photos = add_user_photos(user_id);
   user_photos->count = total_count;
-  CHECK(!user_photos->pending_requests.empty());
+  CHECK(pending_get_user_photos_requests_.count(user_id));
 
   if (user_photos->offset == -1) {
     user_photos->offset = 0;
@@ -9810,9 +9822,9 @@ td_api::object_ptr<td_api::user> UserManager::get_user_object(UserId user_id, co
       u->background_custom_emoji_id.get(),
       u->peer_color_collectible == nullptr ? nullptr : u->peer_color_collectible->get_upgraded_gift_colors_object(),
       td_->theme_manager_->get_profile_accent_color_id_object(u->profile_accent_color_id),
-      u->profile_background_custom_emoji_id.get(), std::move(emoji_status), u->is_contact, u->is_mutual_contact,
-      u->is_close_friend, std::move(verification_status), u->is_premium, u->is_support,
-      get_restriction_info_object(u->restriction_reasons), u->max_active_story_id.is_valid(),
+      u->profile_background_custom_emoji_id.get(), std::move(emoji_status), is_user_contact(u, user_id, false),
+      is_user_contact(u, user_id, true), u->is_close_friend, std::move(verification_status), u->is_premium,
+      u->is_support, get_restriction_info_object(u->restriction_reasons), u->max_active_story_id.is_valid(),
       get_user_has_unread_stories(u), restricts_new_chats, u->paid_message_star_count, have_access, std::move(type),
       u->language_code, u->attach_menu_enabled);
 }

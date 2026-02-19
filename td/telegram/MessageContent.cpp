@@ -539,7 +539,7 @@ class MessageChatSetTtl final : public MessageContent {
 
 class MessageUnsupported final : public MessageContent {
  public:
-  static constexpr int32 CURRENT_VERSION = 49;
+  static constexpr int32 CURRENT_VERSION = 50;
   int32 version = CURRENT_VERSION;
 
   MessageUnsupported() = default;
@@ -5440,7 +5440,7 @@ Status can_send_message_content(DialogId dialog_id, const MessageContent *conten
   return Status::OK();
 }
 
-bool can_forward_message_content(const MessageContent *content) {
+bool can_forward_message_content(const Td *td, const MessageContent *content, bool is_copy) {
   auto content_type = content->get_type();
   if (content_type == MessageContentType::Text) {
     auto *text = static_cast<const MessageText *>(content);
@@ -5450,6 +5450,16 @@ bool can_forward_message_content(const MessageContent *content) {
   if (content_type == MessageContentType::Poll) {
     auto *poll = static_cast<const MessagePoll *>(content);
     return !PollManager::is_local_poll_id(poll->poll_id);
+  }
+  if (is_copy) {
+    if (content_type == MessageContentType::Giveaway || content_type == MessageContentType::GiveawayWinners ||
+        content_type == MessageContentType::PaidMedia || content_type == MessageContentType::Invoice) {
+      return false;
+    }
+    if (content_type == MessageContentType::Poll &&
+        !td->poll_manager_->has_input_media(static_cast<const MessagePoll *>(content)->poll_id)) {
+      return false;
+    }
   }
 
   return !is_service_message_content(content_type) && content_type != MessageContentType::Unsupported &&
@@ -11222,7 +11232,7 @@ void add_message_content_dependencies(Dependencies &dependencies, const MessageC
       break;
     case MessageContentType::PrizeStars: {
       const auto *content = static_cast<const MessagePrizeStars *>(message_content);
-      dependencies.add_dialog_and_dependencies(DialogId(content->boosted_dialog_id));
+      dependencies.add_dialog_and_dependencies(content->boosted_dialog_id);
       break;
     }
     case MessageContentType::StarGift: {

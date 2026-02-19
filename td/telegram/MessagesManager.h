@@ -874,6 +874,8 @@ class MessagesManager final : public Actor {
 
   void on_authorization_success();
 
+  void init();
+
   void before_get_difference();
 
   void after_get_difference();
@@ -1712,9 +1714,6 @@ class MessagesManager final : public Actor {
       DialogId dialog_id, tl_object_ptr<td_api::InputMessageContent> &&input_message_content,
       bool check_permissions = true);
 
-  Result<MessageCopyOptions> process_message_copy_options(DialogId dialog_id,
-                                                          tl_object_ptr<td_api::messageCopyOptions> &&options) const;
-
   Status check_paid_message_star_count(int64 &paid_message_star_count, int32 message_count) const;
 
   Result<MessageSendOptions> process_message_send_options(DialogId dialog_id,
@@ -1784,7 +1783,7 @@ class MessagesManager final : public Actor {
 
   MessageId get_persistent_message_id(const Dialog *d, MessageId message_id) const;
 
-  static MessageFullId get_replied_message_id(DialogId dialog_id, const Message *m);
+  MessageFullId get_replied_message_id(DialogId dialog_id, const Message *m) const;
 
   MessageInputReplyTo create_message_input_reply_to(Dialog *d, const MessageTopic &message_topic,
                                                     td_api::object_ptr<td_api::InputMessageReplyTo> &&reply_to,
@@ -2851,8 +2850,6 @@ class MessagesManager final : public Actor {
   void hangup() final;
 
   void create_folders(int source);
-
-  void init();
 
   void ttl_db_loop();
 
