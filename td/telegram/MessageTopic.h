@@ -11,6 +11,7 @@
 #include "td/telegram/MessageId.h"
 #include "td/telegram/SavedMessagesTopicId.h"
 #include "td/telegram/td_api.h"
+#include "td/telegram/telegram_api.h"
 
 #include "td/utils/common.h"
 #include "td/utils/Status.h"
@@ -32,6 +33,10 @@ class MessageTopic {
 
   friend StringBuilder &operator<<(StringBuilder &string_builder, const MessageTopic &message_topic);
 
+  bool is_general_forum() const {
+    return type_ == Type::Forum && forum_topic_id_ == ForumTopicId::general();
+  }
+
  public:
   MessageTopic() = default;
 
@@ -51,6 +56,9 @@ class MessageTopic {
   static Result<MessageTopic> get_message_topic(Td *td, DialogId dialog_id,
                                                 const td_api::object_ptr<td_api::MessageTopic> &topic);
 
+  static Result<MessageTopic> get_send_message_topic(Td *td, DialogId dialog_id,
+                                                     const td_api::object_ptr<td_api::MessageTopic> &topic);
+
   td_api::object_ptr<td_api::MessageTopic> get_message_topic_object(Td *td) const;
 
   bool is_empty() const {
@@ -65,10 +73,6 @@ class MessageTopic {
     return type_ == Type::Forum;
   }
 
-  bool is_general_forum() const {
-    return type_ == Type::Forum && forum_topic_id_ == ForumTopicId::general();
-  }
-
   bool is_monoforum() const {
     return type_ == Type::Monoforum;
   }
@@ -80,6 +84,11 @@ class MessageTopic {
   MessageId get_top_thread_message_id() const {
     CHECK(type_ == Type::Thread);
     return top_thread_message_id_;
+  }
+
+  ForumTopicId get_forum_topic_id() const {
+    CHECK(type_ == Type::Forum);
+    return forum_topic_id_;
   }
 
   SavedMessagesTopicId get_monoforum_saved_messages_topic_id() const {
@@ -100,11 +109,13 @@ class MessageTopic {
     }
   }
 
-  SavedMessagesTopicId get_any_saved_messages_topic_id() const {
+  telegram_api::object_ptr<telegram_api::InputPeer> get_saved_input_peer(const Td *td) const {
     if (type_ != Type::SavedMessages && type_ != Type::Monoforum) {
-      return SavedMessagesTopicId();
+      return nullptr;
     }
-    return saved_messages_topic_id_;
+    auto saved_input_peer = saved_messages_topic_id_.get_input_peer(td);
+    CHECK(saved_input_peer != nullptr);
+    return saved_input_peer;
   }
 };
 

@@ -8,6 +8,7 @@
 
 #include "td/telegram/AccessRights.h"
 #include "td/telegram/AuthManager.h"
+#include "td/telegram/ChannelParticipantFilter.h"
 #include "td/telegram/ChatManager.h"
 #include "td/telegram/Dependencies.h"
 #include "td/telegram/DialogId.h"
@@ -749,15 +750,10 @@ class GetMessagePositionQuery final : public Td::ResultHandler {
     message_topic_ = message_topic;
     filter_ = filter;
 
-    auto saved_messages_topic_id = message_topic.get_any_saved_messages_topic_id();
-    telegram_api::object_ptr<telegram_api::InputPeer> saved_input_peer;
-    if (saved_messages_topic_id.is_valid()) {
-      saved_input_peer = saved_messages_topic_id.get_input_peer(td_);
-      CHECK(saved_input_peer != nullptr);
-    }
+    auto saved_input_peer = message_topic.get_saved_input_peer(td_);
     auto top_msg_id = message_topic.get_input_top_msg_id();
     if (filter == MessageSearchFilter::Empty && top_msg_id == 0) {
-      if (saved_messages_topic_id.is_valid()) {
+      if (saved_input_peer != nullptr) {
         int32 flags = 0;
         if (message_topic_.is_monoforum()) {
           flags |= telegram_api::messages_getSavedHistory::PARENT_PEER_MASK;
@@ -2342,8 +2338,8 @@ void MessageQueryManager::on_get_message_viewers(DialogId dialog_id, MessageView
                                                       "on_get_message_viewers");
         case DialogType::Channel:
           return td_->dialog_participant_manager_->get_channel_participants(
-              dialog_id.get_channel_id(), td_api::make_object<td_api::supergroupMembersFilterRecent>(), string(), 0,
-              200, 200, PromiseCreator::lambda([query_promise = std::move(query_promise)](DialogParticipants) mutable {
+              dialog_id.get_channel_id(), ChannelParticipantFilter::recent(), string(), 0, 200, 200,
+              PromiseCreator::lambda([query_promise = std::move(query_promise)](DialogParticipants) mutable {
                 query_promise.set_value(Unit());
               }));
         default:

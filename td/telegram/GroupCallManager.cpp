@@ -9,6 +9,7 @@
 #include "td/telegram/AccessRights.h"
 #include "td/telegram/AuthManager.h"
 #include "td/telegram/ChatManager.h"
+#include "td/telegram/CustomEmojiId.h"
 #include "td/telegram/DialogAction.h"
 #include "td/telegram/DialogActionManager.h"
 #include "td/telegram/DialogManager.h"
@@ -17,9 +18,9 @@
 #include "td/telegram/Global.h"
 #include "td/telegram/GroupCallJoinParameters.h"
 #include "td/telegram/MessageEntity.h"
-#include "td/telegram/MessageId.h"
 #include "td/telegram/MessageSender.h"
 #include "td/telegram/MessagesManager.h"
+#include "td/telegram/MessageTopic.h"
 #include "td/telegram/misc.h"
 #include "td/telegram/net/DcId.h"
 #include "td/telegram/net/NetQuery.h"
@@ -28,6 +29,7 @@
 #include "td/telegram/telegram_api.h"
 #include "td/telegram/UpdatesManager.h"
 #include "td/telegram/UserManager.h"
+#include "td/telegram/Version.h"
 
 #include "td/actor/SleepActor.h"
 
@@ -4007,7 +4009,8 @@ void GroupCallManager::try_load_group_call_administrators(InputGroupCallId input
                      std::move(result));
       });
   td_->dialog_participant_manager_->search_dialog_participants(
-      dialog_id, string(), 100, DialogParticipantFilter(td_api::make_object<td_api::chatMembersFilterAdministrators>()),
+      dialog_id, string(), 100,
+      DialogParticipantFilter(td_, dialog_id, td_api::make_object<td_api::chatMembersFilterAdministrators>()),
       std::move(promise));
 }
 
@@ -5990,7 +5993,7 @@ InputGroupCallId GroupCallManager::update_group_call(const tl_object_ptr<telegra
       if (group_call->min_) {
         auto old_group_call = get_group_call(input_group_call_id);
         if (old_group_call == nullptr || !old_group_call->is_inited) {
-          return {};
+          return input_group_call_id;
         }
         is_min = true;
       }

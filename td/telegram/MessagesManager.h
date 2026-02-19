@@ -433,22 +433,18 @@ class MessagesManager final : public Actor {
   };
   ForwardedMessageInfo get_forwarded_message_info(MessageFullId message_full_id);
 
-  MessageInputReplyTo create_message_input_reply_to(DialogId dialog_id, MessageId top_thread_message_id,
-                                                    td_api::object_ptr<td_api::InputMessageReplyTo> &&reply_to,
-                                                    bool for_draft);
-
   MessageInputReplyTo create_message_input_reply_to(DialogId dialog_id, const MessageTopic &message_topic,
                                                     td_api::object_ptr<td_api::InputMessageReplyTo> &&reply_to,
                                                     bool for_draft);
 
   Result<td_api::object_ptr<td_api::message>> send_message(
-      DialogId dialog_id, const MessageId top_thread_message_id,
+      DialogId dialog_id, const td_api::object_ptr<td_api::MessageTopic> &topic_id,
       td_api::object_ptr<td_api::InputMessageReplyTo> &&reply_to, tl_object_ptr<td_api::messageSendOptions> &&options,
       tl_object_ptr<td_api::ReplyMarkup> &&reply_markup,
       tl_object_ptr<td_api::InputMessageContent> &&input_message_content) TD_WARN_UNUSED_RESULT;
 
   Result<td_api::object_ptr<td_api::messages>> send_message_group(
-      DialogId dialog_id, const MessageId top_thread_message_id,
+      DialogId dialog_id, const td_api::object_ptr<td_api::MessageTopic> &topic_id,
       td_api::object_ptr<td_api::InputMessageReplyTo> &&reply_to, tl_object_ptr<td_api::messageSendOptions> &&options,
       vector<tl_object_ptr<td_api::InputMessageContent>> &&input_message_contents) TD_WARN_UNUSED_RESULT;
 
@@ -456,14 +452,14 @@ class MessagesManager final : public Actor {
                                            const string &parameter) TD_WARN_UNUSED_RESULT;
 
   Result<td_api::object_ptr<td_api::message>> send_inline_query_result_message(
-      DialogId dialog_id, const MessageId top_thread_message_id,
+      DialogId dialog_id, const td_api::object_ptr<td_api::MessageTopic> &topic_id,
       td_api::object_ptr<td_api::InputMessageReplyTo> &&reply_to, tl_object_ptr<td_api::messageSendOptions> &&options,
       int64 query_id, const string &result_id, bool hide_via_bot) TD_WARN_UNUSED_RESULT;
 
   Result<td_api::object_ptr<td_api::messages>> forward_messages(
-      DialogId to_dialog_id, MessageId top_thread_message_id, DialogId from_dialog_id, vector<MessageId> message_ids,
-      tl_object_ptr<td_api::messageSendOptions> &&options, bool in_game_share, int32 new_video_start_timestamp,
-      vector<MessageCopyOptions> &&copy_options, bool add_offer = false,
+      DialogId to_dialog_id, const td_api::object_ptr<td_api::MessageTopic> &topic_id, DialogId from_dialog_id,
+      vector<MessageId> message_ids, tl_object_ptr<td_api::messageSendOptions> &&options, bool in_game_share,
+      int32 new_video_start_timestamp, vector<MessageCopyOptions> &&copy_options, bool add_offer = false,
       MessageId suggested_post_reply_to_message_id = MessageId()) TD_WARN_UNUSED_RESULT;
 
   void add_offer(DialogId dialog_id, MessageId message_id, td_api::object_ptr<td_api::messageSendOptions> &&options,
@@ -1089,6 +1085,7 @@ class MessagesManager final : public Actor {
     MessageInputReplyTo input_reply_to;                      // for send_message
     int64 reply_to_random_id = 0;                            // for send_message
     string send_emoji;                                       // for send_message
+    int32 new_video_start_timestamp = 0;                     // for send_message
     mutable vector<FileUploadId> file_upload_ids;            // for send_message
     mutable vector<FileUploadId> thumbnail_file_upload_ids;  // for send_message
 
@@ -1130,9 +1127,9 @@ class MessagesManager final : public Actor {
     bool update_stickersets_order = false;  // for send_message
     bool clear_draft = false;               // for send_message
     bool in_game_share = false;             // for send_message
+    bool initial_is_topic_message = false;  // for send_message
     bool hide_via_bot = false;              // for resend_message
     bool is_bot_start_message = false;      // for resend_message
-    int32 new_video_start_timestamp = 0;    // for send_message
 
     DialogId real_forward_from_dialog_id;    // for resend_message
     MessageId real_forward_from_message_id;  // for resend_message
@@ -1546,14 +1543,13 @@ class MessagesManager final : public Actor {
     int32 sending_id = 0;
     MessageEffectId effect_id;
     int64 paid_message_star_count = 0;
-    SavedMessagesTopicId monoforum_topic_id;
     SuggestedPost suggested_post;
 
     MessageSendOptions() = default;
     MessageSendOptions(bool disable_notification, bool from_background, bool update_stickersets_order,
                        bool protect_content, bool allow_paid, bool only_preview, bool has_suggested_post,
                        int32 schedule_date, int32 sending_id, MessageEffectId effect_id, int64 paid_message_star_count,
-                       SavedMessagesTopicId monoforum_topic_id, SuggestedPost &&suggested_post)
+                       SuggestedPost &&suggested_post)
         : disable_notification(disable_notification)
         , from_background(from_background)
         , update_stickersets_order(update_stickersets_order)
@@ -1565,7 +1561,6 @@ class MessagesManager final : public Actor {
         , sending_id(sending_id)
         , effect_id(effect_id)
         , paid_message_star_count(paid_message_star_count)
-        , monoforum_topic_id(monoforum_topic_id)
         , suggested_post(std::move(suggested_post)) {
     }
   };
@@ -1732,23 +1727,18 @@ class MessagesManager final : public Actor {
 
   static Status can_use_message_send_options(const MessageSendOptions &options, const InputMessageContent &content);
 
-  Status can_use_top_thread_message_id(Dialog *d, MessageId top_thread_message_id,
-                                       const MessageInputReplyTo &input_reply_to);
-
-  Result<MessageTopic> get_send_message_topic(Dialog *d, const td_api::object_ptr<td_api::MessageTopic> &topic_id);
-
   Status can_use_forum_topic_id(Dialog *d, ForumTopicId forum_topic_id);
 
   int64 generate_new_random_id(const Dialog *d);
 
-  unique_ptr<Message> create_message_to_send(Dialog *d, MessageId top_thread_message_id,
+  unique_ptr<Message> create_message_to_send(Dialog *d, const MessageTopic &message_topic,
                                              MessageInputReplyTo &&input_reply_to, const MessageSendOptions &options,
                                              unique_ptr<MessageContent> &&content, bool invert_media,
                                              bool suppress_reply_info, unique_ptr<MessageForwardInfo> forward_info,
                                              DialogId real_forward_from_dialog_id, bool is_copy,
-                                             DialogId send_as_dialog_id) const;
+                                             DialogId send_as_dialog_id);
 
-  Message *get_message_to_send(Dialog *d, MessageId top_thread_message_id, MessageInputReplyTo &&input_reply_to,
+  Message *get_message_to_send(Dialog *d, const MessageTopic &message_topic, MessageInputReplyTo &&input_reply_to,
                                const MessageSendOptions &options, unique_ptr<MessageContent> &&content,
                                bool invert_media, bool *need_update_dialog_pos, bool suppress_reply_info = false,
                                unique_ptr<MessageForwardInfo> forward_info = nullptr,
@@ -1795,10 +1785,6 @@ class MessagesManager final : public Actor {
   MessageId get_persistent_message_id(const Dialog *d, MessageId message_id) const;
 
   static MessageFullId get_replied_message_id(DialogId dialog_id, const Message *m);
-
-  MessageInputReplyTo create_message_input_reply_to(Dialog *d, MessageId top_thread_message_id,
-                                                    td_api::object_ptr<td_api::InputMessageReplyTo> &&reply_to,
-                                                    bool for_draft);
 
   MessageInputReplyTo create_message_input_reply_to(Dialog *d, const MessageTopic &message_topic,
                                                     td_api::object_ptr<td_api::InputMessageReplyTo> &&reply_to,
@@ -1849,15 +1835,15 @@ class MessagesManager final : public Actor {
                                             vector<MessageId> message_ids, vector<int64> random_ids,
                                             Promise<Unit> &&promise);
 
-  void send_forward_message_query(int32 flags, DialogId to_dialog_id, const MessageId top_thread_message_id,
-                                  const SavedMessagesTopicId saved_messages_topic_id,
+  void send_forward_message_query(int32 flags, DialogId to_dialog_id, MessageTopic messages_topic,
                                   const MessageInputReplyTo input_reply_to, DialogId from_dialog_id,
                                   telegram_api::object_ptr<telegram_api::InputPeer> as_input_peer,
                                   vector<MessageId> message_ids, vector<int64> random_ids, int32 schedule_date,
                                   int32 new_video_start_timestamp, int64 paid_message_star_count,
                                   unique_ptr<SuggestedPost> &&suggested_post, Promise<Unit> &&promise);
 
-  Result<td_api::object_ptr<td_api::message>> forward_message(DialogId to_dialog_id, MessageId top_thread_message_id,
+  Result<td_api::object_ptr<td_api::message>> forward_message(DialogId to_dialog_id,
+                                                              const td_api::object_ptr<td_api::MessageTopic> &topic_id,
                                                               DialogId from_dialog_id, MessageId message_id,
                                                               td_api::object_ptr<td_api::messageSendOptions> &&options,
                                                               bool in_game_share, int32 new_video_start_timestamp,
@@ -1898,12 +1884,13 @@ class MessagesManager final : public Actor {
     bool drop_media_captions = false;
 
     Dialog *from_dialog = nullptr;
-    MessageId top_thread_message_id;
+    MessageTopic message_topic;
     Dialog *to_dialog = nullptr;
     MessageSendOptions message_send_options;
   };
 
-  Result<ForwardedMessages> get_forwarded_messages(DialogId to_dialog_id, MessageId top_thread_message_id,
+  Result<ForwardedMessages> get_forwarded_messages(DialogId to_dialog_id,
+                                                   const td_api::object_ptr<td_api::MessageTopic> &topic_id,
                                                    DialogId from_dialog_id, const vector<MessageId> &message_ids,
                                                    td_api::object_ptr<td_api::messageSendOptions> &&options,
                                                    int32 new_video_start_timestamp,
@@ -3169,11 +3156,11 @@ class MessagesManager final : public Actor {
 
   static DialogId get_message_sender(const Message *m);
 
-  static ForumTopicId get_message_forum_topic_id(const Message *m);
-
-  static SavedMessagesTopicId get_input_message_monoforum_topic_id(const Message *m);
+  ForumTopicId get_message_forum_topic_id(DialogId dialog_id, const Message *m) const;
 
   MessageTopic get_message_topic(DialogId dialog_id, const Message *m) const;
+
+  MessageTopic get_send_message_topic(DialogId dialog_id, const Message *m) const;
 
   class UploadMediaCallback;
   class UploadThumbnailCallback;
@@ -3479,7 +3466,7 @@ class MessagesManager final : public Actor {
 
   FlatHashMap<MessageFullId, MessageId, MessageFullIdHash> yet_unsent_message_full_id_to_persistent_message_id_;
   FlatHashMap<MessageFullId, std::set<MessageId>, MessageFullIdHash>
-      yet_unsent_thread_message_ids_;  // {dialog_id, top_thread_message_id} -> yet unsent message IDs
+      yet_unsent_thread_message_ids_;  // {dialog_id, top_thread_message_id} -> yet unsent message identifiers
 
   FlatHashMap<DialogId, unique_ptr<SuffixLoadQueries>, DialogIdHash> dialog_suffix_load_queries_;
 

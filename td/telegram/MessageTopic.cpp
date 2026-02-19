@@ -11,9 +11,10 @@
 #include "td/telegram/DialogManager.h"
 #include "td/telegram/ForumTopicManager.h"
 #include "td/telegram/SavedMessagesManager.h"
-#include "td/telegram/ServerMessageId.h"
 #include "td/telegram/Td.h"
 #include "td/telegram/UserManager.h"
+
+#include "td/utils/logging.h"
 
 namespace td {
 
@@ -206,6 +207,32 @@ Result<MessageTopic> MessageTopic::get_message_topic(Td *td, DialogId dialog_id,
   return result;
 }
 
+Result<MessageTopic> MessageTopic::get_send_message_topic(Td *td, DialogId dialog_id,
+                                                          const td_api::object_ptr<td_api::MessageTopic> &topic_id) {
+  TRY_RESULT(message_topic, MessageTopic::get_message_topic(td, dialog_id, topic_id));
+
+  // topic is required in administered direct messages chats
+  if (td->dialog_manager_->is_admined_monoforum_channel(dialog_id) && !message_topic.is_monoforum()) {
+    return Status::Error(400, "Channel direct messages topic must be specified");
+  }
+
+  // in other chats the topic can be specified implicitly
+  if (message_topic.is_empty()) {
+    return MessageTopic();
+  }
+
+  // sending to the general topic must be done implicitly
+  if (message_topic.is_general_forum()) {
+    return MessageTopic();
+  }
+
+  if (message_topic.is_saved_messages()) {
+    return Status::Error(400, "Messages can't be explicitly sent to a Saved Messages topic");
+  }
+
+  return std::move(message_topic);
+}
+
 td_api::object_ptr<td_api::MessageTopic> MessageTopic::get_message_topic_object(Td *td) const {
   switch (type_) {
     case Type::None:
@@ -231,11 +258,16 @@ MessageId MessageTopic::get_implicit_reply_to_message_id(const Td *td) const {
   switch (type_) {
     case Type::Thread:
       return top_thread_message_id_;
-    case Type::Forum:
-      if (td->auth_manager_->is_bot() && dialog_id_.get_type() == DialogType::User) {
+    case Type::Forum: {
+      auto dialog_type = dialog_id_.get_type();
+      if (td->auth_manager_->is_bot() && dialog_type == DialogType::User) {
         return MessageId();
       }
-      return MessageId(ServerMessageId(forum_topic_id_.get()));
+      if (dialog_type == DialogType::Channel && forum_topic_id_ == ForumTopicId::general()) {
+        return MessageId();
+      }
+      return forum_topic_id_.to_top_thread_message_id();
+    }
     case Type::Monoforum:
     case Type::SavedMessages:
     case Type::None:
@@ -259,11 +291,11 @@ StringBuilder &operator<<(StringBuilder &string_builder, const MessageTopic &mes
     case MessageTopic::Type::Thread:
       return string_builder << "Thread[" << message_topic.top_thread_message_id_ << ']';
     case MessageTopic::Type::Forum:
-      return string_builder << "Forum[" << message_topic.forum_topic_id_ << ']';
+      return string_builder << "ForumTopic[" << message_topic.forum_topic_id_ << ']';
     case MessageTopic::Type::Monoforum:
-      return string_builder << "DirectMessages[" << message_topic.saved_messages_topic_id_ << ']';
+      return string_builder << "DirectMessagesTopic[" << message_topic.saved_messages_topic_id_ << ']';
     case MessageTopic::Type::SavedMessages:
-      return string_builder << "SavedMessages[" << message_topic.saved_messages_topic_id_ << ']';
+      return string_builder << "SavedMessagesTopic[" << message_topic.saved_messages_topic_id_ << ']';
     default:
       UNREACHABLE();
       return string_builder;

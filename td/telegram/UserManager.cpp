@@ -55,6 +55,7 @@
 #include "td/telegram/OptionManager.h"
 #include "td/telegram/Outline.h"
 #include "td/telegram/PeerColor.h"
+#include "td/telegram/PeerColorCollectible.h"
 #include "td/telegram/Photo.h"
 #include "td/telegram/Photo.hpp"
 #include "td/telegram/PhotoSize.h"
@@ -2724,7 +2725,7 @@ void UserManager::tear_down() {
 }
 
 void UserManager::start_up() {
-  if (!td_->auth_manager_->is_bot()) {
+  if (td_->auth_manager_->is_authorized() && !td_->auth_manager_->is_bot()) {
     auto my_saved_music_ids_str = G()->td_db()->get_binlog_pmc()->get(get_my_saved_music_ids_database_key());
     vector<int64> my_saved_music_ids;
     if (my_saved_music_ids_str.empty() || log_event_parse(my_saved_music_ids, my_saved_music_ids_str).is_error()) {
@@ -3153,7 +3154,7 @@ void UserManager::on_get_user(telegram_api::object_ptr<telegram_api::User> &&use
       is_scam != u->is_scam || is_fake != u->is_fake || is_inline_bot != u->is_inline_bot ||
       is_business_bot != u->is_business_bot || inline_query_placeholder != u->inline_query_placeholder ||
       need_location_bot != u->need_location_bot || can_be_added_to_attach_menu != u->can_be_added_to_attach_menu ||
-      bot_active_users != u->bot_active_users || has_main_app != u->has_main_app) {
+      has_main_app != u->has_main_app) {
     if (is_bot != u->is_bot) {
       LOG_IF(ERROR, !is_deleted && !u->is_deleted && u->is_received)
           << "User.is_bot has changed for " << user_id << "/" << u->usernames << " from " << source << " from "
@@ -3172,11 +3173,21 @@ void UserManager::on_get_user(telegram_api::object_ptr<telegram_api::User> &&use
     u->inline_query_placeholder = std::move(inline_query_placeholder);
     u->need_location_bot = need_location_bot;
     u->can_be_added_to_attach_menu = can_be_added_to_attach_menu;
-    u->bot_active_users = bot_active_users;
     u->has_main_app = has_main_app;
 
     LOG(DEBUG) << "Info has changed for " << user_id;
     u->is_changed = true;
+  }
+  if (bot_active_users != u->bot_active_users) {
+    bool is_me = user_id == get_my_id();
+    if (!is_me || Time::now() > next_set_my_active_users_) {
+      bot_active_users = u->bot_active_users;
+      u->is_changed = true;
+
+      if (is_me) {
+        next_set_my_active_users_ = Time::now() + 600;
+      }
+    }
   }
   if (contact_require_premium != u->contact_require_premium || paid_message_star_count != u->paid_message_star_count) {
     u->contact_require_premium = contact_require_premium;
@@ -4069,11 +4080,11 @@ void UserManager::on_update_my_user_location(DialogLocation &&location) {
   if (user_full == nullptr) {
     return;
   }
-  on_update_user_full_location(user_full, user_id, std::move(location));
+  on_update_user_full_location(user_full, std::move(location));
   update_user_full(user_full, user_id, "on_update_my_user_location");
 }
 
-void UserManager::on_update_user_full_location(UserFull *user_full, UserId user_id, DialogLocation &&location) {
+void UserManager::on_update_user_full_location(UserFull *user_full, DialogLocation &&location) {
   CHECK(user_full != nullptr);
   if (BusinessInfo::set_location(user_full->business_info, std::move(location))) {
     user_full->is_changed = true;
@@ -4086,11 +4097,11 @@ void UserManager::on_update_my_user_work_hours(BusinessWorkHours &&work_hours) {
   if (user_full == nullptr) {
     return;
   }
-  on_update_user_full_work_hours(user_full, user_id, std::move(work_hours));
+  on_update_user_full_work_hours(user_full, std::move(work_hours));
   update_user_full(user_full, user_id, "on_update_my_user_work_hours");
 }
 
-void UserManager::on_update_user_full_work_hours(UserFull *user_full, UserId user_id, BusinessWorkHours &&work_hours) {
+void UserManager::on_update_user_full_work_hours(UserFull *user_full, BusinessWorkHours &&work_hours) {
   CHECK(user_full != nullptr);
   if (BusinessInfo::set_work_hours(user_full->business_info, std::move(work_hours))) {
     user_full->is_changed = true;
@@ -4147,11 +4158,11 @@ void UserManager::on_update_my_user_intro(BusinessIntro &&intro) {
   if (user_full == nullptr) {
     return;
   }
-  on_update_user_full_intro(user_full, user_id, std::move(intro));
+  on_update_user_full_intro(user_full, std::move(intro));
   update_user_full(user_full, user_id, "on_update_my_user_intro");
 }
 
-void UserManager::on_update_user_full_intro(UserFull *user_full, UserId user_id, BusinessIntro &&intro) {
+void UserManager::on_update_user_full_intro(UserFull *user_full, BusinessIntro &&intro) {
   CHECK(user_full != nullptr);
   if (BusinessInfo::set_intro(user_full->business_info, std::move(intro))) {
     user_full->is_changed = true;
@@ -4162,13 +4173,13 @@ void UserManager::on_update_user_commands(UserId user_id,
                                           vector<telegram_api::object_ptr<telegram_api::botCommand>> &&bot_commands) {
   UserFull *user_full = get_user_full_force(user_id, "on_update_user_commands");
   if (user_full != nullptr) {
-    on_update_user_full_commands(user_full, user_id, std::move(bot_commands));
+    on_update_user_full_commands(user_full, std::move(bot_commands));
     update_user_full(user_full, user_id, "on_update_user_commands");
   }
 }
 
 void UserManager::on_update_user_full_commands(
-    UserFull *user_full, UserId user_id, vector<telegram_api::object_ptr<telegram_api::botCommand>> &&bot_commands) {
+    UserFull *user_full, vector<telegram_api::object_ptr<telegram_api::botCommand>> &&bot_commands) {
   CHECK(user_full != nullptr);
   auto commands =
       transform(std::move(bot_commands), [](telegram_api::object_ptr<telegram_api::botCommand> &&bot_command) {
@@ -4187,12 +4198,12 @@ void UserManager::on_update_user_full_commands(
 void UserManager::on_update_user_referral_program_info(UserId user_id, ReferralProgramInfo &&referral_program_info) {
   UserFull *user_full = get_user_full_force(user_id, "on_update_user_referral_program_info");
   if (user_full != nullptr) {
-    on_update_user_full_referral_program_info(user_full, user_id, std::move(referral_program_info));
+    on_update_user_full_referral_program_info(user_full, std::move(referral_program_info));
     update_user_full(user_full, user_id, "on_update_user_referral_program_info");
   }
 }
 
-void UserManager::on_update_user_full_referral_program_info(UserFull *user_full, UserId user_id,
+void UserManager::on_update_user_full_referral_program_info(UserFull *user_full,
                                                             ReferralProgramInfo &&referral_program_info) {
   CHECK(user_full != nullptr);
   if (user_full->bot_info == nullptr && !referral_program_info.is_valid()) {
@@ -4209,12 +4220,12 @@ void UserManager::on_update_user_verifier_settings(UserId user_id,
                                                    unique_ptr<BotVerifierSettings> &&verifier_settings) {
   UserFull *user_full = get_user_full_force(user_id, "on_update_user_verifier_settings");
   if (user_full != nullptr) {
-    on_update_user_full_verifier_settings(user_full, user_id, std::move(verifier_settings));
+    on_update_user_full_verifier_settings(user_full, std::move(verifier_settings));
     update_user_full(user_full, user_id, "on_update_user_verifier_settings");
   }
 }
 
-void UserManager::on_update_user_full_verifier_settings(UserFull *user_full, UserId user_id,
+void UserManager::on_update_user_full_verifier_settings(UserFull *user_full,
                                                         unique_ptr<BotVerifierSettings> &&verifier_settings) {
   CHECK(user_full != nullptr);
   if (user_full->bot_info == nullptr && verifier_settings == nullptr) {
@@ -4269,11 +4280,11 @@ void UserManager::on_update_user_charge_paid_message_stars(UserId user_id, int64
   if (user_full == nullptr) {
     return;
   }
-  on_update_user_full_charge_paid_message_stars(user_full, user_id, charge_paid_message_stars);
+  on_update_user_full_charge_paid_message_stars(user_full, charge_paid_message_stars);
   update_user_full(user_full, user_id, "on_update_user_charge_paid_message_stars");
 }
 
-void UserManager::on_update_user_full_charge_paid_message_stars(UserFull *user_full, UserId user_id,
+void UserManager::on_update_user_full_charge_paid_message_stars(UserFull *user_full,
                                                                 int64 charge_paid_message_stars) const {
   CHECK(user_full != nullptr);
   if (user_full->charge_paid_message_stars != charge_paid_message_stars) {
@@ -4282,7 +4293,7 @@ void UserManager::on_update_user_full_charge_paid_message_stars(UserFull *user_f
   }
 }
 
-void UserManager::on_update_user_full_send_paid_message_stars(UserFull *user_full, UserId user_id,
+void UserManager::on_update_user_full_send_paid_message_stars(UserFull *user_full,
                                                               int64 send_paid_message_stars) const {
   CHECK(user_full != nullptr);
   if (user_full->send_paid_message_stars != send_paid_message_stars) {
@@ -4302,12 +4313,11 @@ void UserManager::on_update_user_wallpaper_overridden(UserId user_id, bool wallp
   if (user_full == nullptr) {
     return;
   }
-  on_update_user_full_wallpaper_overridden(user_full, user_id, wallpaper_overridden);
+  on_update_user_full_wallpaper_overridden(user_full, wallpaper_overridden);
   update_user_full(user_full, user_id, "on_update_user_wallpaper_overridden");
 }
 
-void UserManager::on_update_user_full_wallpaper_overridden(UserFull *user_full, UserId user_id,
-                                                           bool wallpaper_overridden) const {
+void UserManager::on_update_user_full_wallpaper_overridden(UserFull *user_full, bool wallpaper_overridden) const {
   CHECK(user_full != nullptr);
   if (user_full->wallpaper_overridden != wallpaper_overridden) {
     user_full->wallpaper_overridden = wallpaper_overridden;
@@ -4330,13 +4340,13 @@ void UserManager::on_update_bot_menu_button(UserId bot_user_id,
 
   auto user_full = get_user_full_force(bot_user_id, "on_update_bot_menu_button");
   if (user_full != nullptr) {
-    on_update_user_full_menu_button(user_full, bot_user_id, std::move(bot_menu_button));
+    on_update_user_full_menu_button(user_full, std::move(bot_menu_button));
     update_user_full(user_full, bot_user_id, "on_update_bot_menu_button");
   }
 }
 
 void UserManager::on_update_user_full_menu_button(
-    UserFull *user_full, UserId user_id, telegram_api::object_ptr<telegram_api::BotMenuButton> &&bot_menu_button) {
+    UserFull *user_full, telegram_api::object_ptr<telegram_api::BotMenuButton> &&bot_menu_button) {
   CHECK(user_full != nullptr);
   auto new_button = get_bot_menu_button(std::move(bot_menu_button));
   if (user_full->bot_info == nullptr && new_button == nullptr) {
@@ -4369,12 +4379,12 @@ void UserManager::on_update_bot_has_preview_medias(UserId bot_user_id, bool has_
 
   auto user_full = get_user_full_force(bot_user_id, "on_update_bot_has_preview_medias");
   if (user_full != nullptr) {
-    on_update_user_full_has_preview_medias(user_full, bot_user_id, has_preview_medias);
+    on_update_user_full_has_preview_medias(user_full, has_preview_medias);
     update_user_full(user_full, bot_user_id, "on_update_bot_has_preview_medias");
   }
 }
 
-void UserManager::on_update_user_full_has_preview_medias(UserFull *user_full, UserId user_id, bool has_preview_medias) {
+void UserManager::on_update_user_full_has_preview_medias(UserFull *user_full, bool has_preview_medias) {
   CHECK(user_full != nullptr);
   if (user_full->has_preview_medias != has_preview_medias) {
     user_full->has_preview_medias = has_preview_medias;
@@ -4393,13 +4403,12 @@ void UserManager::on_update_bot_can_manage_emoji_status(UserId bot_user_id, bool
 
   auto user_full = get_user_full_force(bot_user_id, "on_update_bot_can_manage_emoji_status");
   if (user_full != nullptr) {
-    on_update_user_full_can_manage_emoji_status(user_full, bot_user_id, can_manage_emoji_status);
+    on_update_user_full_can_manage_emoji_status(user_full, can_manage_emoji_status);
     update_user_full(user_full, bot_user_id, "on_update_bot_can_manage_emoji_status");
   }
 }
 
-void UserManager::on_update_user_full_can_manage_emoji_status(UserFull *user_full, UserId user_id,
-                                                              bool can_manage_emoji_status) {
+void UserManager::on_update_user_full_can_manage_emoji_status(UserFull *user_full, bool can_manage_emoji_status) {
   CHECK(user_full != nullptr);
   if (user_full->can_manage_emoji_status != can_manage_emoji_status) {
     user_full->can_manage_emoji_status = can_manage_emoji_status;
@@ -4407,8 +4416,7 @@ void UserManager::on_update_user_full_can_manage_emoji_status(UserFull *user_ful
   }
 }
 
-void UserManager::on_update_user_full_first_saved_music_file_id(UserFull *user_full, UserId user_id,
-                                                                FileId first_saved_music_file_id) {
+void UserManager::on_update_user_full_first_saved_music_file_id(UserFull *user_full, FileId first_saved_music_file_id) {
   CHECK(user_full != nullptr);
   if (user_full->first_saved_music_file_id != first_saved_music_file_id) {
     user_full->first_saved_music_file_id = first_saved_music_file_id;
@@ -6890,7 +6898,7 @@ void UserManager::on_add_saved_music(FileId file_id, FileId after_file_id, Promi
   if (!after_file_id.is_valid()) {
     auto user_full = get_user_full_force(user_id, "on_add_saved_music");
     if (user_full != nullptr) {
-      on_update_user_full_first_saved_music_file_id(user_full, user_id, file_id);
+      on_update_user_full_first_saved_music_file_id(user_full, file_id);
       update_user_full(user_full, user_id, "on_add_saved_music");
     }
   }
@@ -6929,10 +6937,10 @@ void UserManager::on_remove_saved_music(FileId file_id, Promise<Unit> &&promise)
   if (user_full != nullptr && user_full->first_saved_music_file_id == file_id) {
     if (user_saved_music != nullptr && user_saved_music->count != -1 && user_saved_music->offset == 0 &&
         !user_saved_music->saved_music_file_ids.empty()) {
-      on_update_user_full_first_saved_music_file_id(user_full, user_id, user_saved_music->saved_music_file_ids[0]);
+      on_update_user_full_first_saved_music_file_id(user_full, user_saved_music->saved_music_file_ids[0]);
       update_user_full(user_full, user_id, "on_remove_saved_music 1");
     } else if (user_saved_music != nullptr && user_saved_music->count == 0) {
-      on_update_user_full_first_saved_music_file_id(user_full, user_id, FileId());
+      on_update_user_full_first_saved_music_file_id(user_full, FileId());
       update_user_full(user_full, user_id, "on_remove_saved_music 2");
     } else {
       return reload_user_full(user_id, std::move(promise), "on_remove_saved_music");
@@ -7182,9 +7190,9 @@ void UserManager::on_get_user_saved_music(UserId user_id, int32 offset, int32 li
   if (user_saved_music->offset == 0) {
     auto user_full = get_user_full_force(user_id, "on_get_user_saved_music");
     if (user_full != nullptr) {
-      on_update_user_full_first_saved_music_file_id(
-          user_full, user_id,
-          user_saved_music->saved_music_file_ids.empty() ? FileId() : user_saved_music->saved_music_file_ids[0]);
+      on_update_user_full_first_saved_music_file_id(user_full, user_saved_music->saved_music_file_ids.empty()
+                                                                   ? FileId()
+                                                                   : user_saved_music->saved_music_file_ids[0]);
       update_user_full(user_full, user_id, "on_get_user_saved_music");
     }
   }
@@ -7716,8 +7724,7 @@ void UserManager::do_import_contacts(vector<Contact> contacts, int64 random_id, 
   vector<telegram_api::object_ptr<telegram_api::inputPhoneContact>> input_phone_contacts;
   input_phone_contacts.reserve(size);
   for (size_t i = 0; i < size; i++) {
-    input_phone_contacts.push_back(
-        contacts[i].get_input_phone_contact(td_->user_manager_.get(), static_cast<int64>(i)));
+    input_phone_contacts.push_back(contacts[i].get_input_phone_contact(this, static_cast<int64>(i)));
   }
 
   auto task = make_unique<ImportContactsTask>();
@@ -7781,8 +7788,7 @@ void UserManager::on_imported_contacts(
         continue;
       }
       auto i = static_cast<size_t>(client_id);
-      input_phone_contacts.push_back(
-          task->input_contacts_[i].get_input_phone_contact(td_->user_manager_.get(), client_id));
+      input_phone_contacts.push_back(task->input_contacts_[i].get_input_phone_contact(this, client_id));
     }
     td_->create_handler<ImportContactsQuery>()->send(std::move(input_phone_contacts), random_id);
     return;
@@ -8547,21 +8553,20 @@ void UserManager::on_get_user_full(telegram_api::object_ptr<telegram_api::userFu
   on_update_user_full_is_blocked(user_full, user_id, user->blocked_, user->blocked_my_stories_from_);
   on_update_user_full_gift_count(user_full, user_id, user->stargifts_count_);
   on_update_user_full_common_chat_count(user_full, user_id, user->common_chats_count_);
-  on_update_user_full_location(user_full, user_id, DialogLocation(td_, std::move(user->business_location_)));
-  on_update_user_full_work_hours(user_full, user_id, BusinessWorkHours(std::move(user->business_work_hours_)));
+  on_update_user_full_location(user_full, DialogLocation(td_, std::move(user->business_location_)));
+  on_update_user_full_work_hours(user_full, BusinessWorkHours(std::move(user->business_work_hours_)));
   on_update_user_full_away_message(user_full, user_id, BusinessAwayMessage(std::move(user->business_away_message_)));
   on_update_user_full_greeting_message(user_full, user_id,
                                        BusinessGreetingMessage(std::move(user->business_greeting_message_)));
-  on_update_user_full_intro(user_full, user_id, BusinessIntro(td_, std::move(user->business_intro_)));
+  on_update_user_full_intro(user_full, BusinessIntro(td_, std::move(user->business_intro_)));
   on_update_user_full_need_phone_number_privacy_exception(user_full, user_id,
                                                           user->settings_->need_contacts_exception_);
   on_update_user_full_charge_paid_message_stars(
-      user_full, user_id, StarManager::get_star_count(user->settings_->charge_paid_message_stars_));
-  on_update_user_full_send_paid_message_stars(user_full, user_id,
-                                              StarManager::get_star_count(user->send_paid_messages_stars_));
-  on_update_user_full_wallpaper_overridden(user_full, user_id, user->wallpaper_overridden_);
-  on_update_user_full_note(user_full, get_formatted_text(td_->user_manager_.get(), std::move(user->note_), true, false,
-                                                         "on_get_user_full note"));
+      user_full, StarManager::get_star_count(user->settings_->charge_paid_message_stars_));
+  on_update_user_full_send_paid_message_stars(user_full, StarManager::get_star_count(user->send_paid_messages_stars_));
+  on_update_user_full_wallpaper_overridden(user_full, user->wallpaper_overridden_);
+  on_update_user_full_note(user_full,
+                           get_formatted_text(this, std::move(user->note_), true, false, "on_get_user_full note"));
 
   bool can_pin_messages = user->can_pin_message_;
   bool can_be_called = user->phone_calls_available_ && !user->phone_calls_private_;
@@ -8692,12 +8697,11 @@ void UserManager::on_get_user_full(telegram_api::object_ptr<telegram_api::userFu
         }
       }
 
-      on_update_user_full_commands(user_full, user_id, std::move(user->bot_info_->commands_));
-      on_update_user_full_menu_button(user_full, user_id, std::move(user->bot_info_->menu_button_));
-      on_update_user_full_has_preview_medias(user_full, user_id, user->bot_info_->has_preview_medias_);
+      on_update_user_full_commands(user_full, std::move(user->bot_info_->commands_));
+      on_update_user_full_menu_button(user_full, std::move(user->bot_info_->menu_button_));
+      on_update_user_full_has_preview_medias(user_full, user->bot_info_->has_preview_medias_);
       on_update_user_full_verifier_settings(
-          user_full, user_id,
-          BotVerifierSettings::get_bot_verifier_settings(std::move(user->bot_info_->verifier_settings_)));
+          user_full, BotVerifierSettings::get_bot_verifier_settings(std::move(user->bot_info_->verifier_settings_)));
 
       if (bot_info->privacy_policy_url != user->bot_info_->privacy_policy_url_) {
         bot_info->privacy_policy_url = std::move(user->bot_info_->privacy_policy_url_);
@@ -8744,7 +8748,7 @@ void UserManager::on_get_user_full(telegram_api::object_ptr<telegram_api::userFu
     }
   }
 
-  on_update_user_full_can_manage_emoji_status(user_full, user_id, user->bot_can_manage_emoji_status_);
+  on_update_user_full_can_manage_emoji_status(user_full, user->bot_can_manage_emoji_status_);
   if (personal_channel_id != ChannelId() &&
       td_->chat_manager_->get_channel_type(personal_channel_id) != ChannelType::Broadcast) {
     LOG(ERROR) << "Receive personal " << personal_channel_id << " of the type "
@@ -8817,7 +8821,7 @@ void UserManager::on_get_user_full(telegram_api::object_ptr<telegram_api::userFu
       first_saved_music_file_id = document.file_id;
     }
   }
-  on_update_user_full_first_saved_music_file_id(user_full, user_id, first_saved_music_file_id);
+  on_update_user_full_first_saved_music_file_id(user_full, first_saved_music_file_id);
   if (!first_saved_music_file_id.is_valid()) {
     drop_user_saved_music(user_id, true, "on_get_user_full");
   } else {
@@ -9913,9 +9917,8 @@ td_api::object_ptr<td_api::userFullInfo> UserManager::get_user_full_info_object(
   auto user_rating = user_full->star_rating == nullptr ? nullptr : user_full->star_rating->get_user_rating_object();
   auto pending_user_rating =
       user_full->pending_star_rating == nullptr ? nullptr : user_full->pending_star_rating->get_user_rating_object();
-  auto note = is_contact && !user_full->note.text.empty()
-                  ? get_formatted_text_object(td_->user_manager_.get(), user_full->note, true, -1)
-                  : nullptr;
+  auto note = is_contact && !user_full->note.text.empty() ? get_formatted_text_object(this, user_full->note, true, -1)
+                                                          : nullptr;
   return td_api::make_object<td_api::userFullInfo>(
       get_chat_photo_object(td_->file_manager_.get(), user_full->personal_photo),
       get_chat_photo_object(td_->file_manager_.get(), user_full->photo),

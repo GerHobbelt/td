@@ -37,6 +37,7 @@
 #include "td/telegram/CallId.h"
 #include "td/telegram/CallManager.h"
 #include "td/telegram/ChannelId.h"
+#include "td/telegram/ChannelParticipantFilter.h"
 #include "td/telegram/ChannelRecommendationManager.h"
 #include "td/telegram/ChannelType.h"
 #include "td/telegram/ChatId.h"
@@ -100,6 +101,7 @@
 #include "td/telegram/MessagesManager.h"
 #include "td/telegram/MessageSource.h"
 #include "td/telegram/MessageThreadInfo.h"
+#include "td/telegram/MessageTopic.h"
 #include "td/telegram/MessageTtl.h"
 #include "td/telegram/misc.h"
 #include "td/telegram/net/ConnectionCreator.h"
@@ -1038,8 +1040,6 @@ class SearchChatMessagesRequest final : public RequestActor<> {
   int32 offset_;
   int32 limit_;
   MessageSearchFilter filter_;
-  MessageId top_thread_message_id_;
-  SavedMessagesTopicId saved_messages_topic_id_;
   ReactionType tag_;
   int64 random_id_;
 
@@ -3913,8 +3913,8 @@ void Requests::on_request(uint64 id, const td_api::setChatMessageSender &request
 
 void Requests::on_request(uint64 id, td_api::sendMessage &request) {
   auto r_sent_message = td_->messages_manager_->send_message(
-      DialogId(request.chat_id_), MessageId(request.message_thread_id_), std::move(request.reply_to_),
-      std::move(request.options_), std::move(request.reply_markup_), std::move(request.input_message_content_));
+      DialogId(request.chat_id_), request.topic_id_, std::move(request.reply_to_), std::move(request.options_),
+      std::move(request.reply_markup_), std::move(request.input_message_content_));
   if (r_sent_message.is_error()) {
     send_closure(td_actor_, &Td::send_error, id, r_sent_message.move_as_error());
   } else {
@@ -3924,8 +3924,8 @@ void Requests::on_request(uint64 id, td_api::sendMessage &request) {
 
 void Requests::on_request(uint64 id, td_api::sendMessageAlbum &request) {
   auto r_messages = td_->messages_manager_->send_message_group(
-      DialogId(request.chat_id_), MessageId(request.message_thread_id_), std::move(request.reply_to_),
-      std::move(request.options_), std::move(request.input_message_contents_));
+      DialogId(request.chat_id_), request.topic_id_, std::move(request.reply_to_), std::move(request.options_),
+      std::move(request.input_message_contents_));
   if (r_messages.is_error()) {
     send_closure(td_actor_, &Td::send_error, id, r_messages.move_as_error());
   } else {
@@ -3954,8 +3954,8 @@ void Requests::on_request(uint64 id, td_api::sendInlineQueryResultMessage &reque
   CLEAN_INPUT_STRING(request.result_id_);
 
   auto r_sent_message = td_->messages_manager_->send_inline_query_result_message(
-      DialogId(request.chat_id_), MessageId(request.message_thread_id_), std::move(request.reply_to_),
-      std::move(request.options_), request.query_id_, request.result_id_, request.hide_via_bot_);
+      DialogId(request.chat_id_), request.topic_id_, std::move(request.reply_to_), std::move(request.options_),
+      request.query_id_, request.result_id_, request.hide_via_bot_);
   if (r_sent_message.is_error()) {
     send_closure(td_actor_, &Td::send_error, id, r_sent_message.move_as_error());
   } else {
@@ -4571,8 +4571,8 @@ void Requests::on_request(uint64 id, td_api::forwardMessages &request) {
       transform(input_message_ids, [send_copy = request.send_copy_, remove_caption = request.remove_caption_](
                                        MessageId) { return MessageCopyOptions(send_copy, remove_caption); });
   auto r_messages = td_->messages_manager_->forward_messages(
-      DialogId(request.chat_id_), MessageId(request.message_thread_id_), DialogId(request.from_chat_id_),
-      std::move(input_message_ids), std::move(request.options_), false, -1, std::move(message_copy_options));
+      DialogId(request.chat_id_), request.topic_id_, DialogId(request.from_chat_id_), std::move(input_message_ids),
+      std::move(request.options_), false, -1, std::move(message_copy_options));
   if (r_messages.is_error()) {
     send_closure(td_actor_, &Td::send_error, id, r_messages.move_as_error());
   } else {
@@ -5727,8 +5727,9 @@ void Requests::on_request(uint64 id, td_api::searchChatMembers &request) {
           promise.set_value(result.ok().get_chat_members_object(td, "searchChatMembers"));
         }
       });
-  td_->dialog_participant_manager_->search_dialog_participants(DialogId(request.chat_id_), request.query_,
-                                                               request.limit_, DialogParticipantFilter(request.filter_),
+  DialogId dialog_id(request.chat_id_);
+  td_->dialog_participant_manager_->search_dialog_participants(dialog_id, request.query_, request.limit_,
+                                                               DialogParticipantFilter(td_, dialog_id, request.filter_),
                                                                std::move(query_promise));
 }
 
@@ -6807,7 +6808,7 @@ void Requests::on_request(uint64 id, const td_api::reportSupergroupAntiSpamFalse
                                                               MessageId(request.message_id_), std::move(promise));
 }
 
-void Requests::on_request(uint64 id, td_api::getSupergroupMembers &request) {
+void Requests::on_request(uint64 id, const td_api::getSupergroupMembers &request) {
   CREATE_REQUEST_PROMISE();
   auto query_promise =
       PromiseCreator::lambda([promise = std::move(promise), td = td_](Result<DialogParticipants> result) mutable {
@@ -6817,9 +6818,10 @@ void Requests::on_request(uint64 id, td_api::getSupergroupMembers &request) {
           promise.set_value(result.ok().get_chat_members_object(td, "getSupergroupMembers"));
         }
       });
-  td_->dialog_participant_manager_->get_channel_participants(ChannelId(request.supergroup_id_),
-                                                             std::move(request.filter_), string(), request.offset_,
-                                                             request.limit_, -1, std::move(query_promise));
+  ChannelId channel_id(request.supergroup_id_);
+  td_->dialog_participant_manager_->get_channel_participants(
+      channel_id, ChannelParticipantFilter(td_, DialogId(channel_id), request.filter_), string(), request.offset_,
+      request.limit_, -1, std::move(query_promise));
 }
 
 void Requests::on_request(uint64 id, const td_api::closeSecretChat &request) {
@@ -7679,12 +7681,9 @@ void Requests::on_request(uint64 id, td_api::openWebApp &request) {
   CHECK_IS_USER();
   CLEAN_INPUT_STRING(request.url_);
   CREATE_REQUEST_PROMISE();
-  auto dialog_id = DialogId(request.chat_id_);
-  td_->web_app_manager_->request_web_view(
-      dialog_id, UserId(request.bot_user_id_), MessageId(request.message_thread_id_),
-      td_->saved_messages_manager_->get_topic_id(dialog_id, request.direct_messages_chat_topic_id_),
-      std::move(request.reply_to_), std::move(request.url_), WebAppOpenParameters(std::move(request.parameters_)),
-      std::move(promise));
+  td_->web_app_manager_->request_web_view(DialogId(request.chat_id_), UserId(request.bot_user_id_), request.topic_id_,
+                                          std::move(request.reply_to_), std::move(request.url_),
+                                          WebAppOpenParameters(std::move(request.parameters_)), std::move(promise));
 }
 
 void Requests::on_request(uint64 id, const td_api::closeWebApp &request) {

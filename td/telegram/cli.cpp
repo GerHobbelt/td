@@ -2199,7 +2199,7 @@ class CliClient final : public Actor {
     return nullptr;
   }
 
-  static td_api::object_ptr<td_api::ChatMembersFilter> as_chat_members_filter(MutableSlice filter) {
+  td_api::object_ptr<td_api::ChatMembersFilter> as_chat_members_filter(MutableSlice filter) const {
     filter = trim(filter);
     to_lower_inplace(filter);
     if (filter == "a" || filter == "admin" || filter == "administrators") {
@@ -2217,8 +2217,8 @@ class CliClient final : public Actor {
     if (filter == "m" || filter == "members") {
       return td_api::make_object<td_api::chatMembersFilterMembers>();
     }
-    if (begins_with(filter, "@")) {
-      return td_api::make_object<td_api::chatMembersFilterMention>(as_message_thread_id(filter.substr(1)));
+    if (filter == "@") {
+      return td_api::make_object<td_api::chatMembersFilterMention>(get_message_topic_id());
     }
     if (filter == "r" || filter == "rest" || filter == "restricted") {
       return td_api::make_object<td_api::chatMembersFilterRestricted>();
@@ -2229,9 +2229,8 @@ class CliClient final : public Actor {
     return nullptr;
   }
 
-  static td_api::object_ptr<td_api::SupergroupMembersFilter> as_supergroup_members_filter(MutableSlice filter,
-                                                                                          const string &query,
-                                                                                          Slice message_thread_id) {
+  td_api::object_ptr<td_api::SupergroupMembersFilter> as_supergroup_members_filter(MutableSlice filter,
+                                                                                   const string &query) const {
     filter = trim(filter);
     to_lower_inplace(filter);
     if (begins_with(filter, "get")) {
@@ -2266,8 +2265,7 @@ class CliClient final : public Actor {
       return td_api::make_object<td_api::supergroupMembersFilterRestricted>(query);
     }
     if (filter == "mentions") {
-      return td_api::make_object<td_api::supergroupMembersFilterMention>(query,
-                                                                         as_message_thread_id(message_thread_id));
+      return td_api::make_object<td_api::supergroupMembersFilterMention>(query, get_message_topic_id());
     }
     return nullptr;
   }
@@ -2726,11 +2724,11 @@ class CliClient final : public Actor {
       return;
     }
     auto id = send_request(td_api::make_object<td_api::sendMessage>(
-        chat_id, message_thread_id_, get_input_message_reply_to(),
-        td_api::make_object<td_api::messageSendOptions>(
-            direct_messages_chat_topic_id_, get_input_suggested_post_info(), disable_notification, from_background,
-            false, use_test_dc_, paid_message_star_count_, false, as_message_scheduling_state(schedule_date_),
-            message_effect_id_, Random::fast(1, 1000), only_preview_),
+        chat_id, get_message_topic_id(), get_input_message_reply_to(),
+        td_api::make_object<td_api::messageSendOptions>(get_input_suggested_post_info(), disable_notification,
+                                                        from_background, false, use_test_dc_, paid_message_star_count_,
+                                                        false, as_message_scheduling_state(schedule_date_),
+                                                        message_effect_id_, Random::fast(1, 1000), only_preview_),
         nullptr, std::move(input_message_content)));
     if (id != 0) {
       query_id_to_send_message_info_[id].start_time = Time::now();
@@ -2747,21 +2745,17 @@ class CliClient final : public Actor {
 
   td_api::object_ptr<td_api::messageSendOptions> default_message_send_options() const {
     return td_api::make_object<td_api::messageSendOptions>(
-        direct_messages_chat_topic_id_, get_input_suggested_post_info(), false, false, false, use_test_dc_,
-        paid_message_star_count_, true, as_message_scheduling_state(schedule_date_), message_effect_id_,
-        Random::fast(1, 1000), only_preview_);
-  }
-
-  void set_draft_message(ChatId chat_id, td_api::object_ptr<td_api::draftMessage> &&draft_message) {
-    send_request(
-        td_api::make_object<td_api::setChatDraftMessage>(chat_id, get_message_topic_id(), std::move(draft_message)));
+        get_input_suggested_post_info(), false, false, false, use_test_dc_, paid_message_star_count_, true,
+        as_message_scheduling_state(schedule_date_), message_effect_id_, Random::fast(1, 1000), only_preview_);
   }
 
   void set_draft_message(ChatId chat_id, td_api::object_ptr<td_api::InputMessageContent> &&input_message_content) {
     send_request(td_api::make_object<td_api::setChatDraftMessage>(
         chat_id, get_message_topic_id(),
-        td_api::make_object<td_api::draftMessage>(get_input_message_reply_to(), 0, std::move(input_message_content),
-                                                  message_effect_id_, get_input_suggested_post_info())));
+        input_message_content == nullptr ? nullptr
+                                         : td_api::make_object<td_api::draftMessage>(
+                                               get_input_message_reply_to(), 0, std::move(input_message_content),
+                                               message_effect_id_, get_input_suggested_post_info())));
   }
 
   void send_get_background_url(td_api::object_ptr<td_api::BackgroundType> &&background_type) {
@@ -4654,16 +4648,11 @@ class CliClient final : public Actor {
                op == "GetSupergroupContacts" || op == "GetSupergroupMembers" || op == "GetSupergroupRestricted" ||
                op == "SearchSupergroupMembers" || op == "SearchSupergroupMentions") {
       string supergroup_id;
-      string message_thread_id;
       int32 offset;
       SearchQuery query;
-      if (op == "SearchSupergroupMentions") {
-        get_args(args, message_thread_id, args);
-      }
       get_args(args, supergroup_id, offset, query);
       send_request(td_api::make_object<td_api::getSupergroupMembers>(
-          as_supergroup_id(supergroup_id), as_supergroup_members_filter(op, query.query, message_thread_id), offset,
-          query.limit));
+          as_supergroup_id(supergroup_id), as_supergroup_members_filter(op, query.query), offset, query.limit));
     } else if (op == "gd") {
       ChatId chat_id;
       get_args(args, chat_id);
@@ -4938,7 +4927,7 @@ class CliClient final : public Actor {
       string message_ids;
       get_args(args, chat_id, from_chat_id, message_ids);
       send_request(td_api::make_object<td_api::forwardMessages>(
-          chat_id, message_thread_id_, from_chat_id, as_message_ids(message_ids), default_message_send_options(),
+          chat_id, get_message_topic_id(), from_chat_id, as_message_ids(message_ids), default_message_send_options(),
           op[0] == 'c', rand_bool()));
     } else if (op == "sqrsm") {
       ChatId chat_id;
@@ -5466,7 +5455,7 @@ class CliClient final : public Actor {
       ChatId chat_id;
       string message;
       get_args(args, chat_id, message);
-      td_api::object_ptr<td_api::draftMessage> draft_message;
+      td_api::object_ptr<td_api::InputMessageContent> input_message_content;
       auto reply_to = get_input_message_reply_to();
       if (reply_to != nullptr || !message.empty()) {
         vector<td_api::object_ptr<td_api::textEntity>> entities;
@@ -5474,13 +5463,10 @@ class CliClient final : public Actor {
           entities.push_back(
               td_api::make_object<td_api::textEntity>(0, 1, td_api::make_object<td_api::textEntityTypePre>()));
         }
-        draft_message = td_api::make_object<td_api::draftMessage>(
-            std::move(reply_to), 0,
-            td_api::make_object<td_api::inputMessageText>(as_formatted_text(message, std::move(entities)),
-                                                          get_link_preview_options(), false),
-            message_effect_id_, get_input_suggested_post_info());
+        input_message_content = td_api::make_object<td_api::inputMessageText>(
+            as_formatted_text(message, std::move(entities)), get_link_preview_options(), false);
       }
-      set_draft_message(chat_id, std::move(draft_message));
+      set_draft_message(chat_id, std::move(input_message_content));
     } else if (op == "scdmvn") {
       ChatId chat_id;
       string video;
@@ -5834,9 +5820,8 @@ class CliClient final : public Actor {
       UserId bot_user_id;
       string url;
       get_args(args, chat_id, bot_user_id, url);
-      send_request(td_api::make_object<td_api::openWebApp>(chat_id, bot_user_id, url, message_thread_id_,
-                                                           direct_messages_chat_topic_id_, get_input_message_reply_to(),
-                                                           as_web_app_open_parameters()));
+      send_request(td_api::make_object<td_api::openWebApp>(chat_id, bot_user_id, url, get_message_topic_id(),
+                                                           get_input_message_reply_to(), as_web_app_open_parameters()));
     } else if (op == "cwa") {
       int64 launch_id;
       get_args(args, launch_id);
@@ -6027,7 +6012,7 @@ class CliClient final : public Actor {
             quick_reply_shortcut_name_, reply_message_id_, std::move(input_message_contents)));
       } else {
         send_request(td_api::make_object<td_api::sendMessageAlbum>(
-            chat_id, message_thread_id_, get_input_message_reply_to(), default_message_send_options(),
+            chat_id, get_message_topic_id(), get_input_message_reply_to(), default_message_send_options(),
             std::move(input_message_contents)));
       }
     } else if (op == "savt") {
@@ -6342,7 +6327,8 @@ class CliClient final : public Actor {
       get_args(args, chat_id, query_id, result_id);
       if (quick_reply_shortcut_name_.empty()) {
         send_request(td_api::make_object<td_api::sendInlineQueryResultMessage>(
-            chat_id, message_thread_id_, nullptr, default_message_send_options(), query_id, result_id, op == "siqrh"));
+            chat_id, get_message_topic_id(), get_input_message_reply_to(), default_message_send_options(), query_id,
+            result_id, op == "siqrh"));
       } else {
         send_request(td_api::make_object<td_api::addQuickReplyShortcutInlineQueryResultMessage>(
             quick_reply_shortcut_name_, reply_message_id_, query_id, result_id, op == "siqrh"));
