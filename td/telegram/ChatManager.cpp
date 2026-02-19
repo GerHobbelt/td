@@ -2831,7 +2831,7 @@ bool ChatManager::have_input_peer_channel(const Channel *c, ChannelId channel_id
     if (is_public) {
       return true;
     }
-    if (!from_linked && c->has_linked_channel) {
+    if (!from_linked && c->has_linked_channel && c->is_megagroup) {
       auto linked_channel_id = get_linked_channel_id(channel_id);
       if (linked_channel_id.is_valid() && have_channel(linked_channel_id)) {
         if (have_input_peer_channel(get_channel(linked_channel_id), linked_channel_id, access_rights, true)) {
@@ -4207,6 +4207,22 @@ void ChatManager::save_created_public_channels(PublicDialogType type) {
 
 void ChatManager::check_created_public_dialogs_limit(PublicDialogType type, Promise<Unit> &&promise) {
   td_->create_handler<GetCreatedPublicChannelsQuery>(std::move(promise))->send(type, true);
+}
+
+void ChatManager::load_created_public_broadcasts(Promise<Unit> &&promise) {
+  if (td_->auth_manager_->is_bot() || are_created_public_broadcasts_inited()) {
+    return promise.set_value(Unit());
+  }
+
+  auto new_promise = PromiseCreator::lambda(
+      [promise = std::move(promise)](Result<td_api::object_ptr<td_api::chats>> &&result) mutable {
+        if (result.is_error()) {
+          promise.set_error(result.move_as_error());
+        } else {
+          promise.set_value(Unit());
+        }
+      });
+  get_created_public_dialogs(PublicDialogType::ForPersonalDialog, std::move(new_promise), true);
 }
 
 bool ChatManager::are_created_public_broadcasts_inited() const {

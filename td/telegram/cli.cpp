@@ -5040,16 +5040,22 @@ class CliClient final : public Actor {
             group_call_source_, get_group_call_join_payload(op == "cgcv", false), true, true);
       }
       send_request(td_api::make_object<td_api::createGroupCall>(std::move(parameters)));
-    } else if (op == "ggcru") {
+    } else if (op == "gvcru") {
       ChatId chat_id;
-      bool for_live_story;
-      get_args(args, chat_id, for_live_story);
-      send_request(td_api::make_object<td_api::getGroupCallRtmpUrl>(chat_id, for_live_story));
-    } else if (op == "rgcru") {
+      get_args(args, chat_id);
+      send_request(td_api::make_object<td_api::getVideoChatRtmpUrl>(chat_id));
+    } else if (op == "rvcru") {
       ChatId chat_id;
-      bool for_live_story;
-      get_args(args, chat_id, for_live_story);
-      send_request(td_api::make_object<td_api::replaceGroupCallRtmpUrl>(chat_id, for_live_story));
+      get_args(args, chat_id);
+      send_request(td_api::make_object<td_api::replaceVideoChatRtmpUrl>(chat_id));
+    } else if (op == "glsru") {
+      ChatId chat_id;
+      get_args(args, chat_id);
+      send_request(td_api::make_object<td_api::getLiveStoryRtmpUrl>(chat_id));
+    } else if (op == "rlsru") {
+      ChatId chat_id;
+      get_args(args, chat_id);
+      send_request(td_api::make_object<td_api::replaceLiveStoryRtmpUrl>(chat_id));
     } else if (op == "ggc") {
       GroupCallId group_call_id;
       get_args(args, group_call_id);
@@ -5110,7 +5116,7 @@ class CliClient final : public Actor {
       get_args(args, group_call_id);
       send_request(td_api::make_object<td_api::joinLiveStory>(
           group_call_id, td_api::make_object<td_api::groupCallJoinParameters>(
-                             group_call_source_, get_group_call_join_payload(op == "jslsv", false), true, true)));
+                             group_call_source_, get_group_call_join_payload(op == "jlsv", false), true, true)));
     } else if (op == "sgcss") {
       GroupCallId group_call_id;
       get_args(args, group_call_id);
@@ -5134,11 +5140,11 @@ class CliClient final : public Actor {
       GroupCallId group_call_id;
       get_args(args, group_call_id);
       send_request(td_api::make_object<td_api::toggleVideoChatMuteNewParticipants>(group_call_id, op == "tvcmnpe"));
-    } else if (op == "tgccsm") {
+    } else if (op == "tgcama") {
       GroupCallId group_call_id;
-      bool can_send_messages;
-      get_args(args, group_call_id, can_send_messages);
-      send_request(td_api::make_object<td_api::toggleGroupCallCanSendMessages>(group_call_id, can_send_messages));
+      bool are_messages_allowed;
+      get_args(args, group_call_id, are_messages_allowed);
+      send_request(td_api::make_object<td_api::toggleGroupCallAreMessagesAllowed>(group_call_id, are_messages_allowed));
     } else if (op == "sgcpmsc") {
       GroupCallId group_call_id;
       int64 paid_message_star_count;
@@ -5161,11 +5167,19 @@ class CliClient final : public Actor {
       get_args(args, group_call_id, text);
       send_request(td_api::make_object<td_api::sendGroupCallMessage>(group_call_id, as_formatted_text(text),
                                                                      paid_message_star_count_));
-    } else if (op == "splsr") {
+    } else if (op == "aplsr") {
       GroupCallId group_call_id;
       int64 star_count;
+      get_args(args, group_call_id, star_count);
+      send_request(td_api::make_object<td_api::addPendingLiveStoryReaction>(group_call_id, star_count));
+    } else if (op == "cplsr") {
+      GroupCallId group_call_id;
       get_args(args, group_call_id);
-      send_request(td_api::make_object<td_api::sendPaidLiveStoryReaction>(group_call_id, star_count));
+      send_request(td_api::make_object<td_api::commitPendingLiveStoryReactions>(group_call_id));
+    } else if (op == "rplsr") {
+      GroupCallId group_call_id;
+      get_args(args, group_call_id);
+      send_request(td_api::make_object<td_api::removePendingLiveStoryReactions>(group_call_id));
     } else if (op == "dgcm" || op == "dgcms") {
       GroupCallId group_call_id;
       string message_ids;

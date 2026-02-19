@@ -6,6 +6,7 @@
 //
 #include "td/telegram/GroupCallMessage.h"
 
+#include "td/telegram/CustomEmojiId.h"
 #include "td/telegram/Global.h"
 #include "td/telegram/MessageEntity.h"
 #include "td/telegram/MessageSender.h"
@@ -14,6 +15,7 @@
 #include "td/telegram/Td.h"
 #include "td/telegram/telegram_api.h"
 #include "td/telegram/UserManager.h"
+#include "td/telegram/Version.h"
 
 #include "td/utils/JsonBuilder.h"
 #include "td/utils/logging.h"
@@ -294,11 +296,12 @@ string GroupCallMessage::encode_to_json() const {
   }));
 }
 
-td_api::object_ptr<td_api::groupCallMessage> GroupCallMessage::get_group_call_message_object(Td *td,
-                                                                                             int32 message_id) const {
+td_api::object_ptr<td_api::groupCallMessage> GroupCallMessage::get_group_call_message_object(
+    Td *td, int32 message_id, bool can_be_deleted) const {
   return td_api::make_object<td_api::groupCallMessage>(
       message_id, get_message_sender_object(td, sender_dialog_id_, "get_group_call_message_object"), date_,
-      get_formatted_text_object(td->user_manager_.get(), text_, true, -1), paid_message_star_count_, from_admin_);
+      get_formatted_text_object(td->user_manager_.get(), text_, true, -1), paid_message_star_count_, from_admin_,
+      can_be_deleted);
 }
 
 StringBuilder &operator<<(StringBuilder &string_builder, const GroupCallMessage &group_call_message) {

@@ -6027,13 +6027,14 @@ groupCallRecentSpeaker participant_id:MessageSender is_speaking:Bool = GroupCall
 //@can_enable_video True, if the current user can broadcast video or share screen
 //@mute_new_participants True, if only group call administrators can unmute new participants; for video chats only
 //@can_toggle_mute_new_participants True, if the current user can enable or disable mute_new_participants setting; for video chats only
-//@can_send_messages True, if users can send messages to the group call
-//@can_toggle_can_send_messages True, if the current user can enable or disable sending messages in the group call
+//@can_send_messages True, if the current user can send messages to the group call
+//@are_messages_allowed True, if sending of messages is allowed in the group call
+//@can_toggle_are_messages_allowed True, if the current user can enable or disable sending of messages in the group call
 //@can_delete_messages True, if the user can delete messages in the group call
 //@record_duration Duration of the ongoing group call recording, in seconds; 0 if none. An updateGroupCall update is not triggered when value of this field changes, but the same recording goes on
 //@is_video_recorded True, if a video file is being recorded for the call
 //@duration Call duration, in seconds; for ended calls only
-groupCall id:int32 title:string invite_link:string paid_message_star_count:int53 scheduled_start_date:int32 enabled_start_notification:Bool is_active:Bool is_video_chat:Bool is_live_story:Bool is_rtmp_stream:Bool is_joined:Bool need_rejoin:Bool is_owned:Bool can_be_managed:Bool participant_count:int32 has_hidden_listeners:Bool loaded_all_participants:Bool message_sender_id:MessageSender recent_speakers:vector<groupCallRecentSpeaker> is_my_video_enabled:Bool is_my_video_paused:Bool can_enable_video:Bool mute_new_participants:Bool can_toggle_mute_new_participants:Bool can_send_messages:Bool can_toggle_can_send_messages:Bool can_delete_messages:Bool record_duration:int32 is_video_recorded:Bool duration:int32 = GroupCall;
+groupCall id:int32 title:string invite_link:string paid_message_star_count:int53 scheduled_start_date:int32 enabled_start_notification:Bool is_active:Bool is_video_chat:Bool is_live_story:Bool is_rtmp_stream:Bool is_joined:Bool need_rejoin:Bool is_owned:Bool can_be_managed:Bool participant_count:int32 has_hidden_listeners:Bool loaded_all_participants:Bool message_sender_id:MessageSender recent_speakers:vector<groupCallRecentSpeaker> is_my_video_enabled:Bool is_my_video_paused:Bool can_enable_video:Bool mute_new_participants:Bool can_toggle_mute_new_participants:Bool can_send_messages:Bool are_messages_allowed:Bool can_toggle_are_messages_allowed:Bool can_delete_messages:Bool record_duration:int32 is_video_recorded:Bool duration:int32 = GroupCall;
 
 //@description Describes a group of video synchronization source identifiers @semantics The semantics of sources, one of "SIM" or "FID" @source_ids The list of synchronization source identifiers
 groupCallVideoSourceGroup semantics:string source_ids:vector<int32> = GroupCallVideoSourceGroup;
@@ -6078,7 +6079,8 @@ groupCallInfo group_call_id:int32 join_payload:string = GroupCallInfo;
 //@text Text of the message. If empty, then the message is a paid reaction in a live story
 //@paid_message_star_count The number of Telegram Stars that were paid to send the message; for live stories only
 //@is_from_owner True, if the message is sent by the owner of the call and must be treated as a message of the maximum level; for live stories only
-groupCallMessage message_id:int32 sender_id:MessageSender date:int32 text:formattedText paid_message_star_count:int53 is_from_owner:Bool = GroupCallMessage;
+//@can_be_deleted True, if the message can be deleted by the current user; for live stories only
+groupCallMessage message_id:int32 sender_id:MessageSender date:int32 text:formattedText paid_message_star_count:int53 is_from_owner:Bool can_be_deleted:Bool = GroupCallMessage;
 
 //@description Represents a level of features for a message sent in a live story group call
 //@min_star_count The minimum number of Telegram Stars required to get features of the level
@@ -7401,6 +7403,18 @@ canPostStoryResultWeeklyLimitExceeded retry_after:int32 = CanPostStoryResult;
 //@description The monthly limit for the number of posted stories exceeded. The user needs to buy Telegram Premium or wait specified time @retry_after Time left before the user can post the next story
 canPostStoryResultMonthlyLimitExceeded retry_after:int32 = CanPostStoryResult;
 
+//@description The user or the chat has an active live story. The live story must be deleted first @story_id Identifier of the active live story
+canPostStoryResultLiveStoryIsActive story_id:int32 = CanPostStoryResult;
+
+
+//@class StartLiveStoryResult @description Represents result of starting a live story
+
+//@description The live story was successfully posted @story The live story
+startLiveStoryResultOk story:story = StartLiveStoryResult;
+
+//@description The live story failed to post with an error to be handled @error_type Type of the error; other error types may be returned as regular errors
+startLiveStoryResultFail error_type:CanPostStoryResult = StartLiveStoryResult;
+
 
 //@class CanTransferOwnershipResult @description Represents result of checking whether the current session can be used to transfer a chat ownership to another user
 
@@ -8230,6 +8244,9 @@ internalLinkTypePasswordSettings = InternalLinkType;
 //@hash Hash value from the link
 //@phone_number Phone number value from the link
 internalLinkTypePhoneNumberConfirmation hash:string phone_number:string = InternalLinkType;
+
+//@description The link is a link to the phone number privacy settings section of the application settings
+internalLinkTypePhoneNumberPrivacySettings = InternalLinkType;
 
 //@description The link is a link to the Premium features screen of the application from which the user can subscribe to Telegram Premium. Call getPremiumFeatures with the given referrer to process the link
 //@referrer Referrer specified in the link
@@ -9441,6 +9458,9 @@ updateGroupCallMessageSendFailed group_call_id:int32 message_id:int32 error:erro
 //@message_ids Identifiers of the deleted messages
 updateGroupCallMessagesDeleted group_call_id:int32 message_ids:vector<int32> = Update;
 
+//@description The list of top donors in live story group call has changed @group_call_id Identifier of the group call @donors New list of live story donors
+updateLiveStoryTopDonors group_call_id:int32 donors:liveStoryDonors = Update;
+
 //@description New call signaling data arrived @call_id The call identifier @data The data
 updateNewCallSignalingData call_id:int32 data:bytes = Update;
 
@@ -9490,7 +9510,7 @@ updateStoryListChatCount story_list:StoryList chat_count:int32 = Update;
 updateStoryStealthMode active_until_date:int32 cooldown_until_date:int32 = Update;
 
 //@description Lists of bots which Mini Apps must be allowed to read text from clipboard and must be opened without a warning
-//@bot_user_ids List of user identifiers of the bots; the corresponding user objects may not be sent
+//@bot_user_ids List of user identifiers of the bots; the corresponding users may not be sent using updateUser updates and may not be accessible
 updateTrustedMiniAppBots bot_user_ids:vector<int53> = Update;
 
 //@description An option changed its value @name The option name @value The new option value
@@ -9613,7 +9633,7 @@ updateTonRevenueStatus status:tonRevenueStatus = Update;
 //@next_reset_date Point in time (Unix timestamp) when the weekly number of tries will reset; 0 if unknown
 updateSpeechRecognitionTrial max_media_duration:int32 weekly_count:int32 left_count:int32 next_reset_date:int32 = Update;
 
-//@description The levels of live story group call messages has changed @levels New description of the levels in decreasing order of groupCallMessageLevel.min_star_count 
+//@description The levels of live story group call messages have changed @levels New description of the levels in decreasing order of groupCallMessageLevel.min_star_count
 updateGroupCallMessageLevels levels:vector<groupCallMessageLevel> = Update;
 
 //@description The list of supported dice emojis has changed @emojis The new list of supported dice emojis
@@ -11880,8 +11900,8 @@ postStory chat_id:int53 content:InputStoryContent areas:inputStoryAreas caption:
 //@protect_content Pass true if the content of the story must be protected from screenshotting
 //@is_rtmp_stream Pass true to create an RTMP stream instead of an ordinary group call
 //@enable_messages Pass true to allow viewers of the story to send messages
-//@paid_message_star_count The minimum number of Telegram Stars that must be paid by viewers for each sent message to the call; 0-10000
-startLiveStory chat_id:int53 privacy_settings:StoryPrivacySettings protect_content:Bool is_rtmp_stream:Bool enable_messages:Bool paid_message_star_count:int53 = Story;
+//@paid_message_star_count The minimum number of Telegram Stars that must be paid by viewers for each sent message to the call; 0-getOption("paid_group_call_message_star_count_max")
+startLiveStory chat_id:int53 privacy_settings:StoryPrivacySettings protect_content:Bool is_rtmp_stream:Bool enable_messages:Bool paid_message_star_count:int53 = StartLiveStoryResult;
 
 //@description Changes content and caption of a story. Can be called only if story.can_be_edited == true
 //@story_poster_chat_id Identifier of the chat that posted the story
@@ -12418,15 +12438,17 @@ createVideoChat chat_id:int53 title:string start_date:int32 is_rtmp_stream:Bool 
 //@description Creates a new group call that isn't bound to a chat @join_parameters Parameters to join the call; pass null to only create call link without joining the call
 createGroupCall join_parameters:groupCallJoinParameters = GroupCallInfo;
 
-//@description Returns RTMP URL for streaming to the video chat of a chat or a live story; requires can_manage_video_chats administrator right for basic group, supergroup and channel chats
-//@chat_id Chat identifier
-//@for_live_story Pass true to get URL for streaming of a live story
-getGroupCallRtmpUrl chat_id:int53 for_live_story:Bool = RtmpUrl;
+//@description Returns RTMP URL for streaming to the video chat of a chat; requires can_manage_video_chats administrator right @chat_id Chat identifier
+getVideoChatRtmpUrl chat_id:int53 = RtmpUrl;
 
-//@description Replaces the current RTMP URL for streaming to the video chat of a chat or a live story; requires owner privileges for basic group, supergroup and channel chats
-//@chat_id Chat identifier
-//@for_live_story Pass true to replace the URL for streaming of a live story
-replaceGroupCallRtmpUrl chat_id:int53 for_live_story:Bool = RtmpUrl;
+//@description Replaces the current RTMP URL for streaming to the video chat of a chat; requires owner privileges in the chat @chat_id Chat identifier
+replaceVideoChatRtmpUrl chat_id:int53 = RtmpUrl;
+
+//@description Returns RTMP URL for streaming to a live story; requires can_post_stories administrator right for channel chats @chat_id Chat identifier
+getLiveStoryRtmpUrl chat_id:int53 = RtmpUrl;
+
+//@description Replaces the current RTMP URL for streaming to a live story; requires owner privileges for channel chats @chat_id Chat identifier
+replaceLiveStoryRtmpUrl chat_id:int53 = RtmpUrl;
 
 //@description Returns information about a group call @group_call_id Group call identifier
 getGroupCall group_call_id:int32 = GroupCall;
@@ -12474,10 +12496,10 @@ setVideoChatTitle group_call_id:int32 title:string = Ok;
 //@mute_new_participants New value of the mute_new_participants setting
 toggleVideoChatMuteNewParticipants group_call_id:int32 mute_new_participants:Bool = Ok;
 
-//@description Toggles whether participants of a group call can send messages there. Requires groupCall.can_toggle_can_send_messages right
+//@description Toggles whether participants of a group call can send messages there. Requires groupCall.can_toggle_are_messages_allowed right
 //@group_call_id Group call identifier
-//@can_send_messages New value of the can_send_messages setting
-toggleGroupCallCanSendMessages group_call_id:int32 can_send_messages:Bool = Ok;
+//@are_messages_allowed New value of the are_messages_allowed setting
+toggleGroupCallAreMessagesAllowed group_call_id:int32 are_messages_allowed:Bool = Ok;
 
 //@description Returns the list of message sender identifiers, on whose behalf messages can be sent to a live story @chat_id Chat identifier
 getLiveStoryAvailableMessageSenders chat_id:int53 = ChatMessageSenders;
@@ -12492,15 +12514,22 @@ setGroupCallMessageSender group_call_id:int32 message_sender_id:MessageSender = 
 //@text Text of the message to send; 1-getOption("group_call_message_text_length_max") characters for non-live-stories; see updateGroupCallMessageLevels for live story restrictions,
 //-which depends on paid_message_star_count. Can't contain line feeds for live stories
 //@paid_message_star_count The number of Telegram Stars the user agreed to pay to send the message; for live stories only; 0-getOption("paid_group_call_message_star_count_max").
-//-Must be 0 for messages sent to live stories posted on behalf of the current user
+//-Must be 0 for messages sent to live stories posted by the current user
 sendGroupCallMessage group_call_id:int32 text:formattedText paid_message_star_count:int53 = Ok;
 
-//@description Sends a paid reaction in a live story group call. Can't be used for live stories posted on behalf of the current user
+//@description Adds pending paid reaction in a live story group call. Can't be used in live stories posted by the current user.
+//-Call commitPendingLiveStoryReactions or removePendingLiveStoryReactions to actually send all pending reactions when the undo timer is over or abort the sending
 //@group_call_id Group call identifier
-//@star_count The number of Telegram Stars to pay; 1-getOption("paid_group_call_message_star_count_max")
-sendPaidLiveStoryReaction group_call_id:int32 star_count:int53 = Ok;
+//@star_count Number of Telegram Stars to be used for the reaction. The total number of pending paid reactions must not exceed getOption("paid_group_call_message_star_count_max")
+addPendingLiveStoryReaction group_call_id:int32 star_count:int53 = Ok;
 
-//@description Deletes messages in a group call; for live story calls only. Requires groupCall.can_delete_messages right
+//@description Applies all pending paid reactions in a live story group call @group_call_id Group call identifier
+commitPendingLiveStoryReactions group_call_id:int32 = Ok;
+
+//@description Removes all pending paid reactions in a live story group call @group_call_id Group call identifier
+removePendingLiveStoryReactions group_call_id:int32 = Ok;
+
+//@description Deletes messages in a group call; for live story calls only. Requires groupCallMessage.can_be_deleted right
 //@group_call_id Group call identifier
 //@message_ids Identifiers of the messages to be deleted
 //@report_spam Pass true to report the messages as spam

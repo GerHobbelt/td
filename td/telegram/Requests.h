@@ -795,9 +795,13 @@ class Requests {
 
   void on_request(uint64 id, td_api::createGroupCall &request);
 
-  void on_request(uint64 id, const td_api::getGroupCallRtmpUrl &request);
+  void on_request(uint64 id, const td_api::getVideoChatRtmpUrl &request);
 
-  void on_request(uint64 id, const td_api::replaceGroupCallRtmpUrl &request);
+  void on_request(uint64 id, const td_api::replaceVideoChatRtmpUrl &request);
+
+  void on_request(uint64 id, const td_api::getLiveStoryRtmpUrl &request);
+
+  void on_request(uint64 id, const td_api::replaceLiveStoryRtmpUrl &request);
 
   void on_request(uint64 id, const td_api::getGroupCall &request);
 
@@ -819,7 +823,7 @@ class Requests {
 
   void on_request(uint64 id, const td_api::toggleVideoChatMuteNewParticipants &request);
 
-  void on_request(uint64 id, const td_api::toggleGroupCallCanSendMessages &request);
+  void on_request(uint64 id, const td_api::toggleGroupCallAreMessagesAllowed &request);
 
   void on_request(uint64 id, const td_api::setGroupCallPaidMessageStarCount &request);
 
@@ -829,7 +833,11 @@ class Requests {
 
   void on_request(uint64 id, td_api::sendGroupCallMessage &request);
 
-  void on_request(uint64 id, const td_api::sendPaidLiveStoryReaction &request);
+  void on_request(uint64 id, const td_api::addPendingLiveStoryReaction &request);
+
+  void on_request(uint64 id, const td_api::commitPendingLiveStoryReactions &request);
+
+  void on_request(uint64 id, const td_api::removePendingLiveStoryReactions &request);
 
   void on_request(uint64 id, const td_api::deleteGroupCallMessages &request);
 

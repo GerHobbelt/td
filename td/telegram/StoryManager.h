@@ -227,6 +227,8 @@ class StoryManager final : public Actor {
 
   void update_dialogs_to_send_stories(ChannelId channel_id, bool can_send_stories);
 
+  bool can_post_stories(DialogId owner_dialog_id) const;
+
   void can_send_story(DialogId dialog_id, Promise<td_api::object_ptr<td_api::CanPostStoryResult>> &&promise);
 
   void send_story(DialogId dialog_id, td_api::object_ptr<td_api::InputStoryContent> &&input_story_content,
@@ -240,7 +242,7 @@ class StoryManager final : public Actor {
 
   void start_live_story(DialogId dialog_id, td_api::object_ptr<td_api::StoryPrivacySettings> &&settings, bool is_pinned,
                         bool protect_content, bool is_rtmp_stream, bool enable_messages, int64 paid_message_star_count,
-                        Promise<td_api::object_ptr<td_api::story>> &&promise);
+                        Promise<td_api::object_ptr<td_api::StartLiveStoryResult>> &&promise);
 
   void edit_story(DialogId owner_dialog_id, StoryId story_id,
                   td_api::object_ptr<td_api::InputStoryContent> &&input_story_content,
@@ -266,7 +268,7 @@ class StoryManager final : public Actor {
 
   void load_active_stories(StoryListId story_list_id, Promise<Unit> &&promise);
 
-  void reload_active_stories();
+  void reload_active_stories(Promise<Unit> &&promise);
 
   void reload_all_read_stories();
 
@@ -491,8 +493,6 @@ class StoryManager final : public Actor {
   bool can_get_story_view_count(DialogId owner_dialog_id);
 
   bool can_have_stories(DialogId owner_dialog_id) const;
-
-  bool can_post_stories(DialogId owner_dialog_id) const;
 
   bool can_edit_stories(DialogId owner_dialog_id) const;
 
