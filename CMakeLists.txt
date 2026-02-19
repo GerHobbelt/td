@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.10 FATAL_ERROR)
 
-project(TDLib VERSION 1.8.59 LANGUAGES CXX C)
+project(TDLib VERSION 1.8.60 LANGUAGES CXX C)
 
 if (NOT DEFINED CMAKE_MODULE_PATH)
   set(CMAKE_MODULE_PATH "")
@@ -119,10 +119,9 @@ if (MSVC)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP")
   endif()
 
-  if (TD_ENABLE_JNI)
-    # https://github.com/tdlib/td/issues/2912
-    add_definitions(-D_DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR)
-  endif()
+  # https://github.com/tdlib/td/issues/2912
+  # https://github.com/tdlib/td/issues/3202
+  add_definitions(-D_DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR)
 endif()
 
 if (CLANG OR GCC)
@@ -414,6 +413,7 @@ set(TDLIB_SOURCE_PART1
   td/telegram/DialogId.cpp
   td/telegram/DialogInviteLink.cpp
   td/telegram/DialogInviteLinkManager.cpp
+  td/telegram/DialogListId.cpp
   td/telegram/DialogLocation.cpp
   td/telegram/DialogManager.cpp
   td/telegram/DialogNotificationSettings.cpp
@@ -512,6 +512,7 @@ set(TDLIB_SOURCE_PART1
   td/telegram/MessageSearchOffset.cpp
   td/telegram/MessageSelfDestructType.cpp
   td/telegram/MessageSender.cpp
+  td/telegram/MessageSendOptions.cpp
   td/telegram/MessagesInfo.cpp
   td/telegram/MessagesManager.cpp
   td/telegram/MessageSource.cpp
@@ -894,6 +895,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/MessageSearchOffset.h
   td/telegram/MessageSelfDestructType.h
   td/telegram/MessageSender.h
+  td/telegram/MessageSendOptions.h
   td/telegram/MessagesInfo.h
   td/telegram/MessagesManager.h
   td/telegram/MessageSource.h

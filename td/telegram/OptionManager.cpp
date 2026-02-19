@@ -516,6 +516,7 @@ bool OptionManager::is_internal_option(Slice name) {
                                                               "story_expiring_limit_default",
                                                               "story_expiring_limit_premium",
                                                               "ton_proxy_address",
+                                                              "ton_stakedice_stake_suggested_amounts",
                                                               "upload_premium_speedup_notify_period",
                                                               "video_ignore_alt_documents",
                                                               "video_note_size_max",
@@ -770,7 +771,7 @@ td_api::object_ptr<td_api::OptionValue> OptionManager::get_option_synchronously(
       break;
     case 'v':
       if (name == "version") {
-        return td_api::make_object<td_api::optionValueString>("1.8.59");
+        return td_api::make_object<td_api::optionValueString>("1.8.60");
       }
       break;
   }

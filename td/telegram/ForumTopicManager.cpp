@@ -518,7 +518,7 @@ void ForumTopicManager::create_forum_topic(DialogId dialog_id, string &&title, b
 
   auto new_title = clean_name(std::move(title), MAX_FORUM_TOPIC_TITLE_LENGTH);
   if (new_title.empty()) {
-    return promise.set_error(400, "Title must be non-empty");
+    return promise.set_error(400, "Name must be non-empty");
   }
 
   int32 icon_color = -1;
@@ -573,7 +573,7 @@ void ForumTopicManager::edit_forum_topic(DialogId dialog_id, ForumTopicId forum_
   bool edit_title = !title.empty();
   auto new_title = clean_name(std::move(title), MAX_FORUM_TOPIC_TITLE_LENGTH);
   if (edit_title && new_title.empty()) {
-    return promise.set_error(400, "Title must be non-empty");
+    return promise.set_error(400, "Name must be non-empty");
   }
   if (!edit_title && !edit_icon_custom_emoji) {
     return promise.set_value(Unit());
@@ -677,7 +677,7 @@ void ForumTopicManager::on_update_forum_topic_draft_message(DialogId dialog_id, 
   }
   auto topic = get_topic(dialog_id, forum_topic_id);
   if (topic == nullptr || topic->topic_ == nullptr) {
-    LOG(INFO) << "Ignore update about unknown " << forum_topic_id << " in " << dialog_id;
+    LOG(DEBUG) << "Ignore update about unknown " << forum_topic_id << " in " << dialog_id;
     return;
   }
   if (topic->topic_->set_draft_message(std::move(draft_message), true)) {
@@ -804,9 +804,9 @@ Status ForumTopicManager::set_forum_topic_draft_message(DialogId dialog_id, Foru
   TRY_STATUS(can_be_forum_topic_id(forum_topic_id));
   auto topic = get_topic(dialog_id, forum_topic_id);
   if (topic == nullptr || topic->topic_ == nullptr) {
-    return Status::Error(400, "Topic not found");
-  }
-  if (topic->topic_->set_draft_message(std::move(draft_message), false)) {
+    save_draft_message(td_, dialog_id, MessageTopic::forum(dialog_id, forum_topic_id), std::move(draft_message),
+                       Promise<Unit>());
+  } else if (topic->topic_->set_draft_message(std::move(draft_message), false)) {
     save_draft_message(td_, dialog_id, MessageTopic::forum(dialog_id, forum_topic_id),
                        topic->topic_->get_draft_message(), Promise<Unit>());
     on_forum_topic_changed(dialog_id, topic);
@@ -1138,7 +1138,12 @@ ForumTopicId ForumTopicManager::on_get_forum_topic_impl(DialogId dialog_id,
       }
       auto current_notification_settings =
           topic->topic_ == nullptr ? nullptr : topic->topic_->get_notification_settings();
-      auto forum_topic_full = td::make_unique<ForumTopic>(td_, std::move(forum_topic), current_notification_settings);
+      unique_ptr<DraftMessage> draft_message;
+      if (forum_topic_id == ForumTopicId::general()) {
+        draft_message = td_->messages_manager_->get_dialog_draft_message(dialog_id);
+      }
+      auto forum_topic_full = td::make_unique<ForumTopic>(td_, std::move(forum_topic), current_notification_settings,
+                                                          std::move(draft_message));
       if (forum_topic_full->is_short() && !td_->auth_manager_->is_bot()) {
         LOG(ERROR) << "Receive short forum topic";
         return ForumTopicId();
@@ -1228,6 +1233,18 @@ Status ForumTopicManager::can_be_forum_topic_id(ForumTopicId forum_topic_id) {
     return Status::Error(400, "Invalid forum topic identifier specified");
   }
   return Status::OK();
+}
+
+bool ForumTopicManager::can_send_message_to_forum_topic(DialogId dialog_id, ForumTopicId forum_topic_id) const {
+  auto *topic_info = get_topic_info(dialog_id, forum_topic_id);
+  if (topic_info == nullptr) {
+    return true;  // allow sending to unknown topic
+  }
+  if (topic_info->is_closed() && !topic_info->is_outgoing() && dialog_id.get_type() == DialogType::Channel &&
+      !td_->chat_manager_->get_channel_status(dialog_id.get_channel_id()).can_edit_topics()) {
+    return false;  // don't allow sending to closed topic
+  }
+  return true;
 }
 
 ForumTopicManager::DialogTopics *ForumTopicManager::add_dialog_topics(DialogId dialog_id) {

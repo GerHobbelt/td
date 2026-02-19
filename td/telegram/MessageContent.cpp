@@ -131,6 +131,7 @@
 #include "td/utils/MimeType.h"
 #include "td/utils/misc.h"
 #include "td/utils/PathView.h"
+#include "td/utils/Random.h"
 #include "td/utils/Slice.h"
 #include "td/utils/SliceBuilder.h"
 #include "td/utils/tl_helpers.h"
@@ -802,7 +803,7 @@ class MessageDice final : public MessageContent {
         if (seed.empty()) {
           return false;
         }
-        if (stake_ton_count <= 0 || prize_ton_count <= 0) {
+        if (stake_ton_count <= 0 || prize_ton_count < 0) {
           return false;
         }
       } else {
@@ -4415,6 +4416,21 @@ static Result<InputMessageContent> create_input_message_content(
           make_unique<MessagePhoto>(std::move(photo), std::move(caption), input_photo->has_spoiler_ && !is_secret);
       break;
     }
+    case td_api::inputMessageStakeDice::ID: {
+      auto input_dice = static_cast<td_api::inputMessageStakeDice *>(input_message_content.get());
+      if (!clean_input_string(input_dice->state_hash_)) {
+        return Status::Error(400, "State hash must be encoded in UTF-8");
+      }
+      if (input_dice->state_hash_.empty()) {
+        return Status::Error(400, "State hash must be non-empty");
+      }
+      string client_seed(32, '\0');
+      Random::secure_bytes(client_seed);
+      content = td::make_unique<MessageDice>(MessageDice::DEFAULT_EMOJI, 0, true, std::move(client_seed),
+                                             std::move(input_dice->state_hash_), input_dice->stake_toncoin_amount_, -1);
+      clear_draft = input_dice->clear_draft_;
+      break;
+    }
     case td_api::inputMessageSticker::ID: {
       auto input_sticker = static_cast<td_api::inputMessageSticker *>(input_message_content.get());
 
@@ -4677,7 +4693,7 @@ Result<InputMessageContent> get_input_message_content(
     }
     case td_api::inputMessageVideo::ID: {
       auto input_message = static_cast<td_api::inputMessageVideo *>(input_message_content.get());
-      file_type = input_message->self_destruct_type_ != nullptr ? FileType::SelfDestructingVideoNote : FileType::Video;
+      file_type = input_message->self_destruct_type_ != nullptr ? FileType::SelfDestructingVideo : FileType::Video;
       input_file = std::move(input_message->video_);
       input_thumbnail = std::move(input_message->thumbnail_);
       if (!input_message->added_sticker_file_ids_.empty()) {
@@ -5041,7 +5057,8 @@ static telegram_api::object_ptr<telegram_api::InputMedia> get_message_content_in
     case MessageContentType::Dice: {
       const auto *m = static_cast<const MessageDice *>(content);
       if (m->is_stake) {
-        return nullptr;
+        return make_tl_object<telegram_api::inputMediaStakeDice>(m->state_hash, m->stake_ton_count,
+                                                                 BufferSlice(m->seed));
       }
       return make_tl_object<telegram_api::inputMediaDice>(m->emoji);
     }
@@ -8822,6 +8839,10 @@ unique_ptr<MessageContent> dup_message_content(Td *td, DialogId dialog_id, const
       return make_unique<MessageContact>(*static_cast<const MessageContact *>(content));
     case MessageContentType::Dice: {
       auto old_content = static_cast<const MessageDice *>(content);
+      if (type == MessageContentDupType::Send && old_content->is_stake) {
+        return td::make_unique<MessageDice>(old_content->emoji, 0, true, old_content->seed, old_content->state_hash,
+                                            old_content->stake_ton_count, 0);
+      }
       return td::make_unique<MessageDice>(old_content->emoji,
                                           type != MessageContentDupType::Forward ? 0 : old_content->dice_value, false,
                                           string(), string(), 0, 0);
@@ -9109,6 +9130,7 @@ unique_ptr<MessageContent> get_action_message_content(Td *td, tl_object_ptr<tele
     case telegram_api::messageActionGameScore::ID:
     case telegram_api::messageActionPaymentSent::ID:
     case telegram_api::messageActionPaymentSentMe::ID:
+    case telegram_api::messageActionGeoProximityReached::ID:
     case telegram_api::messageActionTopicEdit::ID:
     case telegram_api::messageActionSetChatWallPaper::ID:
     case telegram_api::messageActionGiveawayResults::ID:
@@ -9333,6 +9355,7 @@ unique_ptr<MessageContent> get_action_message_content(Td *td, tl_object_ptr<tele
         LOG(ERROR) << "Receive invalid " << oneline(to_string(action));
         break;
       }
+      // ignore replied_message_info
 
       return make_unique<MessageProximityAlertTriggered>(traveler_dialog_id, watcher_dialog_id, distance);
     }
@@ -11411,7 +11434,8 @@ void update_failed_to_send_message_content(Td *td, unique_ptr<MessageContent> &c
   }
 }
 
-void add_message_content_dependencies(Dependencies &dependencies, const MessageContent *message_content, bool is_bot) {
+void add_message_content_dependencies(Dependencies &dependencies, const MessageContent *message_content,
+                                      UserId my_user_id, bool is_bot) {
   CHECK(message_content != nullptr);
   switch (message_content->get_type()) {
     case MessageContentType::Text: {
@@ -11638,16 +11662,25 @@ void add_message_content_dependencies(Dependencies &dependencies, const MessageC
     case MessageContentType::StarGift: {
       const auto *content = static_cast<const MessageStarGift *>(message_content);
       content->star_gift.add_dependencies(dependencies);
-      dependencies.add_dialog_and_dependencies(content->sender_dialog_id);
-      dependencies.add_dialog_and_dependencies(content->receiver_dialog_id);
-      dependencies.add_dialog_and_dependencies(content->owner_dialog_id);
+      dependencies.add_message_sender_dependencies(content->sender_dialog_id);
+      dependencies.add_message_sender_dependencies(content->receiver_dialog_id);
+      dependencies.add_message_sender_dependencies(content->owner_dialog_id);
+      if ((content->receiver_dialog_id == DialogId() && content->owner_dialog_id == DialogId()) ||
+          content->is_auction_acquired) {
+        // possible sender or receiver
+        dependencies.add(my_user_id);
+      }
       break;
     }
     case MessageContentType::StarGiftUnique: {
       const auto *content = static_cast<const MessageStarGiftUnique *>(message_content);
       content->star_gift.add_dependencies(dependencies);
-      dependencies.add_dialog_and_dependencies(content->sender_dialog_id);
-      dependencies.add_dialog_and_dependencies(content->owner_dialog_id);
+      dependencies.add_message_sender_dependencies(content->sender_dialog_id);
+      dependencies.add_message_sender_dependencies(content->owner_dialog_id);
+      if (content->owner_dialog_id == DialogId()) {
+        // possible receiver
+        dependencies.add(my_user_id);
+      }
       break;
     }
     case MessageContentType::PaidMessagesRefunded:

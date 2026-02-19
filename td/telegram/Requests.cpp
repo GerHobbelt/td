@@ -1214,12 +1214,9 @@ class ImportContactsRequest final : public RequestActor<> {
   void do_send_result() final {
     CHECK(imported_contacts_.first.size() == contacts_.size());
     CHECK(imported_contacts_.second.size() == contacts_.size());
-    send_result(td_api::make_object<td_api::importedContacts>(transform(imported_contacts_.first,
-                                                                        [this](UserId user_id) {
-                                                                          return td_->user_manager_->get_user_id_object(
-                                                                              user_id, "ImportContactsRequest");
-                                                                        }),
-                                                              std::move(imported_contacts_.second)));
+    send_result(td_api::make_object<td_api::importedContacts>(
+        td_->user_manager_->get_user_ids_object(imported_contacts_.first, "ImportContactsRequest"),
+        std::move(imported_contacts_.second)));
   }
 
  public:
@@ -1277,12 +1274,9 @@ class ChangeImportedContactsRequest final : public RequestActor<> {
   void do_send_result() final {
     CHECK(imported_contacts_.first.size() == contacts_size_);
     CHECK(imported_contacts_.second.size() == contacts_size_);
-    send_result(td_api::make_object<td_api::importedContacts>(transform(imported_contacts_.first,
-                                                                        [this](UserId user_id) {
-                                                                          return td_->user_manager_->get_user_id_object(
-                                                                              user_id, "ChangeImportedContactsRequest");
-                                                                        }),
-                                                              std::move(imported_contacts_.second)));
+    send_result(td_api::make_object<td_api::importedContacts>(
+        td_->user_manager_->get_user_ids_object(imported_contacts_.first, "ChangeImportedContactsRequest"),
+        std::move(imported_contacts_.second)));
   }
 
  public:
@@ -1814,9 +1808,7 @@ class GetSavedAnimationsRequest final : public RequestActor<> {
   }
 
   void do_send_result() final {
-    send_result(td_api::make_object<td_api::animations>(transform(animation_ids_, [td = td_](FileId animation_id) {
-      return td->animations_manager_->get_animation_object(animation_id);
-    })));
+    send_result(td_->animations_manager_->get_animations_object(animation_ids_));
   }
 
  public:
@@ -1878,10 +1870,7 @@ class GetSavedNotificationSoundsRequest final : public RequestActor<> {
   }
 
   void do_send_result() final {
-    send_result(td_api::make_object<td_api::notificationSounds>(
-        transform(ringtone_file_ids_, [td = td_](FileId ringtone_file_id) {
-          return td->audios_manager_->get_notification_sound_object(ringtone_file_id);
-        })));
+    send_result(td_->audios_manager_->get_notification_sounds_object(ringtone_file_ids_));
   }
 
  public:
@@ -2802,6 +2791,14 @@ void Requests::on_request(uint64 id, td_api::translateMessageText &request) {
   CREATE_REQUEST_PROMISE();
   td_->messages_manager_->translate_message_text({DialogId(request.chat_id_), MessageId(request.message_id_)},
                                                  request.to_language_code_, std::move(promise));
+}
+
+void Requests::on_request(uint64 id, td_api::summarizeMessage &request) {
+  CHECK_IS_USER();
+  CLEAN_INPUT_STRING(request.translate_to_language_code_);
+  CREATE_REQUEST_PROMISE();
+  td_->message_query_manager_->summarize_message_text({DialogId(request.chat_id_), MessageId(request.message_id_)},
+                                                      request.translate_to_language_code_, std::move(promise));
 }
 
 void Requests::on_request(uint64 id, const td_api::recognizeSpeech &request) {
@@ -5175,10 +5172,9 @@ void Requests::on_request(uint64 id, const td_api::upgradeBasicGroupChatToSuperg
 
 void Requests::on_request(uint64 id, const td_api::getChatListsToAddChat &request) {
   CHECK_IS_USER();
-  auto dialog_lists = td_->messages_manager_->get_dialog_lists_to_add_dialog(DialogId(request.chat_id_));
-  auto chat_lists =
-      transform(dialog_lists, [](DialogListId dialog_list_id) { return dialog_list_id.get_chat_list_object(); });
-  send_closure(td_actor_, &Td::send_result, id, td_api::make_object<td_api::chatLists>(std::move(chat_lists)));
+  auto dialog_list_ids = td_->messages_manager_->get_dialog_lists_to_add_dialog(DialogId(request.chat_id_));
+  send_closure(td_actor_, &Td::send_result, id,
+               td_api::make_object<td_api::chatLists>(DialogListId::get_chat_lists_object(dialog_list_ids)));
 }
 
 void Requests::on_request(uint64 id, const td_api::addChatToList &request) {
@@ -5236,9 +5232,8 @@ void Requests::on_request(uint64 id, td_api::getChatFolderChatCount &request) {
 void Requests::on_request(uint64 id, const td_api::reorderChatFolders &request) {
   CHECK_IS_USER();
   CREATE_OK_REQUEST_PROMISE();
-  td_->dialog_filter_manager_->reorder_dialog_filters(
-      transform(request.chat_folder_ids_, [](int32 id) { return DialogFilterId(id); }),
-      request.main_chat_list_position_, std::move(promise));
+  td_->dialog_filter_manager_->reorder_dialog_filters(DialogFilterId::get_dialog_filter_ids(request.chat_folder_ids_),
+                                                      request.main_chat_list_position_, std::move(promise));
 }
 
 void Requests::on_request(uint64 id, const td_api::toggleChatFolderTags &request) {
@@ -6637,7 +6632,7 @@ void Requests::on_request(uint64 id, td_api::setMessageSenderBotVerification &re
 
 void Requests::on_request(uint64 id, const td_api::removeMessageSenderBotVerification &request) {
   CREATE_OK_REQUEST_PROMISE();
-  TRY_RESULT_PROMISE(promise, dialog_id, get_message_sender_dialog_id(td_, request.verified_id_, true, false));
+  TRY_RESULT_PROMISE(promise, dialog_id, get_message_sender_dialog_id(td_, request.verified_id_, false, false));
   td_->bot_info_manager_->set_custom_bot_verification(UserId(request.bot_user_id_), dialog_id, false, string(),
                                                       std::move(promise));
 }
@@ -8029,10 +8024,7 @@ void Requests::on_request(uint64 id, const td_api::setPinnedGifts &request) {
   CREATE_OK_REQUEST_PROMISE();
   TRY_RESULT_PROMISE(promise, owner_dialog_id, get_message_sender_dialog_id(td_, request.owner_id_, true, false));
   td_->star_gift_manager_->set_dialog_pinned_gifts(
-      owner_dialog_id,
-      transform(request.received_gift_ids_,
-                [](const string &received_gift_id) { return StarGiftId(received_gift_id); }),
-      std::move(promise));
+      owner_dialog_id, StarGiftId::get_star_gift_ids(request.received_gift_ids_), std::move(promise));
 }
 
 void Requests::on_request(uint64 id, const td_api::toggleChatGiftNotifications &request) {
@@ -8189,10 +8181,7 @@ void Requests::on_request(uint64 id, td_api::createGiftCollection &request) {
   CREATE_REQUEST_PROMISE();
   TRY_RESULT_PROMISE(promise, owner_dialog_id, get_message_sender_dialog_id(td_, request.owner_id_, true, false));
   td_->star_gift_manager_->create_gift_collection(
-      owner_dialog_id, request.name_,
-      transform(request.received_gift_ids_,
-                [](const string &received_gift_id) { return StarGiftId(received_gift_id); }),
-      std::move(promise));
+      owner_dialog_id, request.name_, StarGiftId::get_star_gift_ids(request.received_gift_ids_), std::move(promise));
 }
 
 void Requests::on_request(uint64 id, const td_api::reorderGiftCollections &request) {
@@ -8226,33 +8215,27 @@ void Requests::on_request(uint64 id, const td_api::addGiftCollectionGifts &reque
   CHECK_IS_USER();
   CREATE_REQUEST_PROMISE();
   TRY_RESULT_PROMISE(promise, owner_dialog_id, get_message_sender_dialog_id(td_, request.owner_id_, true, false));
-  td_->star_gift_manager_->add_gift_collection_gifts(
-      owner_dialog_id, StarGiftCollectionId(request.collection_id_),
-      transform(request.received_gift_ids_,
-                [](const string &received_gift_id) { return StarGiftId(received_gift_id); }),
-      std::move(promise));
+  td_->star_gift_manager_->add_gift_collection_gifts(owner_dialog_id, StarGiftCollectionId(request.collection_id_),
+                                                     StarGiftId::get_star_gift_ids(request.received_gift_ids_),
+                                                     std::move(promise));
 }
 
 void Requests::on_request(uint64 id, const td_api::removeGiftCollectionGifts &request) {
   CHECK_IS_USER();
   CREATE_REQUEST_PROMISE();
   TRY_RESULT_PROMISE(promise, owner_dialog_id, get_message_sender_dialog_id(td_, request.owner_id_, true, false));
-  td_->star_gift_manager_->remove_gift_collection_gifts(
-      owner_dialog_id, StarGiftCollectionId(request.collection_id_),
-      transform(request.received_gift_ids_,
-                [](const string &received_gift_id) { return StarGiftId(received_gift_id); }),
-      std::move(promise));
+  td_->star_gift_manager_->remove_gift_collection_gifts(owner_dialog_id, StarGiftCollectionId(request.collection_id_),
+                                                        StarGiftId::get_star_gift_ids(request.received_gift_ids_),
+                                                        std::move(promise));
 }
 
 void Requests::on_request(uint64 id, const td_api::reorderGiftCollectionGifts &request) {
   CHECK_IS_USER();
   CREATE_REQUEST_PROMISE();
   TRY_RESULT_PROMISE(promise, owner_dialog_id, get_message_sender_dialog_id(td_, request.owner_id_, true, false));
-  td_->star_gift_manager_->reorder_gift_collection_gifts(
-      owner_dialog_id, StarGiftCollectionId(request.collection_id_),
-      transform(request.received_gift_ids_,
-                [](const string &received_gift_id) { return StarGiftId(received_gift_id); }),
-      std::move(promise));
+  td_->star_gift_manager_->reorder_gift_collection_gifts(owner_dialog_id, StarGiftCollectionId(request.collection_id_),
+                                                         StarGiftId::get_star_gift_ids(request.received_gift_ids_),
+                                                         std::move(promise));
 }
 
 void Requests::on_request(uint64 id, td_api::createInvoiceLink &request) {
