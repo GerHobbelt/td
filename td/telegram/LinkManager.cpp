@@ -1795,7 +1795,7 @@ class AcceptUrlAuthQuery final : public Td::ResultHandler {
     }
 
     auto result = result_ptr.move_as_ok();
-    LOG(INFO) << "Receive " << to_string(result);
+    LOG(DEBUG) << "Receive result for AcceptUrlAuthQuery: " << to_string(result);
     switch (result->get_id()) {
       case telegram_api::urlAuthResultRequest::ID:
         LOG(ERROR) << "Receive unexpected " << to_string(result);

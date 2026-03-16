@@ -721,8 +721,10 @@ class EditChatParticipantRankQuery final : public Td::ResultHandler {
   void send(DialogId dialog_id, UserId user_id, const string &rank) {
     auto input_peer = td_->dialog_manager_->get_input_peer(dialog_id, AccessRights::Read);
     CHECK(input_peer != nullptr);
-    auto participant_input_peer = td_->dialog_manager_->get_input_peer(DialogId(user_id), AccessRights::Read);
-    CHECK(participant_input_peer != nullptr);
+    auto participant_input_peer = td_->dialog_manager_->get_input_peer(DialogId(user_id), AccessRights::Know);
+    if (participant_input_peer == nullptr) {
+      return on_error(Status::Error(400, "User not found"));
+    }
     send_query(G()->net_query_creator().create(telegram_api::messages_editChatParticipantRank(
         std::move(input_peer), std::move(participant_input_peer), rank)));
   }
@@ -2201,8 +2203,7 @@ void DialogParticipantManager::set_dialog_participant_rank(DialogId dialog_id, U
                                                            Promise<Unit> &&promise) {
   TRY_STATUS_PROMISE(promise, td_->dialog_manager_->check_dialog_access(dialog_id, false, AccessRights::Read,
                                                                         "set_dialog_participant_rank 1"));
-  TRY_STATUS_PROMISE(promise, td_->dialog_manager_->check_dialog_access(DialogId(user_id), false, AccessRights::Read,
-                                                                        "set_dialog_participant_rank 2"));
+  TRY_STATUS_PROMISE(promise, td_->user_manager_->get_input_user(user_id));
 
   switch (dialog_id.get_type()) {
     case DialogType::User:
@@ -2621,6 +2622,7 @@ void DialogParticipantManager::set_channel_participant_status_impl(ChannelId cha
                                                                    DialogParticipantStatus old_status,
                                                                    bool ignore_restricted_is_member,
                                                                    Promise<Unit> &&promise) {
+  old_status.set_rank(string());
   if (old_status == new_status && !old_status.is_creator()) {
     return promise.set_value(Unit());
   }

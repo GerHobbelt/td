@@ -6,6 +6,9 @@
 //
 #include "td/telegram/InputCallId.h"
 
+#include "td/telegram/DialogId.h"
+#include "td/telegram/MessageId.h"
+
 namespace td {
 
 Result<InputCallId> InputCallId::get_input_call_id(const td_api::object_ptr<td_api::InputCall> &input_call) {

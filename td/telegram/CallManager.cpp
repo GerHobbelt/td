@@ -6,7 +6,9 @@
 //
 #include "td/telegram/CallManager.h"
 
+#include "td/telegram/DialogId.h"
 #include "td/telegram/files/FileManager.h"
+#include "td/telegram/files/FileType.h"
 #include "td/telegram/Global.h"
 #include "td/telegram/MessagesManager.h"
 #include "td/telegram/Td.h"
@@ -22,6 +24,7 @@
 #include "td/utils/SliceBuilder.h"
 
 #include <limits>
+#include <memory>
 
 namespace td {
 

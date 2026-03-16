@@ -8,6 +8,7 @@
 
 #include "td/telegram/CallId.h"
 #include "td/telegram/MessageFullId.h"
+#include "td/telegram/td_api.h"
 
 #include "td/utils/common.h"
 #include "td/utils/Status.h"

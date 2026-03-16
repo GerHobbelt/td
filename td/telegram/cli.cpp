@@ -7052,7 +7052,7 @@ class CliClient final : public Actor {
       get_args(args, chat_id, profile_accent_color_id, profile_background_custom_emoji_id);
       send_request(td_api::make_object<td_api::setChatProfileAccentColor>(chat_id, profile_accent_color_id,
                                                                           profile_background_custom_emoji_id));
-    } else if (op == "scmt") {
+    } else if (op == "scmadt") {
       ChatId chat_id;
       int32 auto_delete_time;
       get_args(args, chat_id, auto_delete_time);

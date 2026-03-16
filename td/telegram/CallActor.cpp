@@ -8,8 +8,6 @@
 
 #include "td/telegram/DhCache.h"
 #include "td/telegram/DialogId.h"
-#include "td/telegram/files/FileManager.h"
-#include "td/telegram/files/FileType.h"
 #include "td/telegram/Global.h"
 #include "td/telegram/LinkManager.h"
 #include "td/telegram/logevent/LogEvent.h"

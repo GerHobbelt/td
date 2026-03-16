@@ -7596,7 +7596,7 @@ void ChatManager::on_update_channel_title(Channel *c, ChannelId channel_id, stri
 void ChatManager::on_update_channel_status(Channel *c, ChannelId channel_id, DialogParticipantStatus &&status) {
   if (c->is_monoforum) {
     if (status.is_member()) {
-      // monoforums has no member tags
+      // monoforums have no member tags
       status = c->is_admined_monoforum && !td_->auth_manager_->is_bot()
                    ? DialogParticipantStatus::Administrator(
                          AdministratorRights(true, true, false, false, false, false, false, false, false, false, false,
@@ -9552,7 +9552,7 @@ void ChatManager::on_get_channel_forbidden(telegram_api::channelForbidden &chann
   }
   if (c->is_monoforum && c->monoforum_channel_id == ChannelId()) {
     auto expected_monoforum_channel_id =
-        ChannelId(channel_id.get() - (G()->is_test_dc() ? 1300000000000ll : 1070000000000ll));
+        ChannelId(channel_id.get() - static_cast<int64>(G()->is_test_dc() ? 1300000000000ll : 1070000000000ll));
     if (expected_monoforum_channel_id.is_valid()) {
       c->monoforum_channel_id = expected_monoforum_channel_id;
       c->need_save_to_database = true;

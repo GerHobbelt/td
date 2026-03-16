@@ -8575,7 +8575,7 @@ void MessagesManager::clear_dialog_message_list(Dialog *d, bool remove_from_dial
   }
 
   if (d->reply_markup_message_id != MessageId()) {
-    set_dialog_reply_markup(d, MessageId());
+    set_dialog_reply_markup(d, MessageId(), nullptr);
   }
 
   set_dialog_first_database_message_id(d, MessageId(), "delete_all_dialog_messages 4");
@@ -9901,7 +9901,7 @@ void MessagesManager::on_message_ttl_expired_impl(Dialog *d, Message *m, bool is
   if (m->reply_markup != nullptr) {
     if (m->reply_markup->type != ReplyMarkup::Type::InlineKeyboard) {
       if (d->reply_markup_message_id == m->message_id) {
-        set_dialog_reply_markup(d, MessageId());
+        set_dialog_reply_markup(d, MessageId(), nullptr);
       }
       m->had_reply_markup = true;
     }
@@ -11517,7 +11517,7 @@ MessageFullId MessagesManager::on_get_message(MessageInfo &&message_info, const 
     // set dialog reply markup only after updateNewMessage and updateChatLastMessage are sent
     if (need_update && m->reply_markup != nullptr && !m->message_id.is_scheduled() &&
         m->reply_markup->type != ReplyMarkup::Type::InlineKeyboard && m->reply_markup->is_personal) {
-      set_dialog_reply_markup(d, message_id);
+      set_dialog_reply_markup(d, message_id, m);
     }
 
     if (from_update) {
@@ -11762,7 +11762,7 @@ void MessagesManager::set_dialog_is_empty(Dialog *d, const char *source) {
     send_update_chat_unread_reaction_count(d, "set_dialog_is_empty");
   }
   if (d->reply_markup_message_id != MessageId()) {
-    set_dialog_reply_markup(d, MessageId());
+    set_dialog_reply_markup(d, MessageId(), nullptr);
   }
   std::fill(d->message_count_by_index.begin(), d->message_count_by_index.end(), 0);
   if (d->notification_info != nullptr) {
@@ -11892,14 +11892,14 @@ void MessagesManager::save_pinned_folder_dialog_ids(const DialogList &list) cons
               ','));
 }
 
-void MessagesManager::set_dialog_reply_markup(Dialog *d, MessageId message_id) {
+void MessagesManager::set_dialog_reply_markup(Dialog *d, MessageId message_id, const Message *m) {
   if (td_->auth_manager_->is_bot()) {
     return;
   }
 
   CHECK(!message_id.is_scheduled());
 
-  if (d->reply_markup_message_id != message_id) {
+  if (d->reply_markup_message_id != message_id || d->need_restore_reply_markup) {
     on_dialog_updated(d->dialog_id, "set_dialog_reply_markup");
   }
 
@@ -11910,7 +11910,8 @@ void MessagesManager::set_dialog_reply_markup(Dialog *d, MessageId message_id) {
     d->reply_markup_message_id = message_id;
     send_closure(G()->td(), &Td::send_update,
                  td_api::make_object<td_api::updateChatReplyMarkup>(
-                     get_chat_id_object(d->dialog_id, "updateChatReplyMarkup"), message_id.get()));
+                     get_chat_id_object(d->dialog_id, "updateChatReplyMarkup"),
+                     m == nullptr ? nullptr : get_message_object(d->dialog_id, m, "set_dialog_reply_markup")));
   }
 }
 
@@ -11922,11 +11923,11 @@ void MessagesManager::try_restore_dialog_reply_markup(Dialog *d, const Message *
   CHECK(!m->message_id.is_scheduled());
   if (m->had_reply_markup) {
     LOG(INFO) << "Restore deleted reply markup in " << d->dialog_id;
-    set_dialog_reply_markup(d, MessageId());
+    set_dialog_reply_markup(d, MessageId(), nullptr);
   } else if (m->reply_markup != nullptr && m->reply_markup->type != ReplyMarkup::Type::InlineKeyboard &&
              m->reply_markup->is_personal) {
     LOG(INFO) << "Restore reply markup in " << d->dialog_id << " to " << m->message_id;
-    set_dialog_reply_markup(d, m->message_id);
+    set_dialog_reply_markup(d, m->message_id, m);
   }
 }
 
@@ -13045,7 +13046,7 @@ void MessagesManager::on_message_deleted_from_database(Dialog *d, const Message 
   auto message_id = m->message_id;
   // TODO update reply_markup in topics
   if (d->reply_markup_message_id == message_id) {
-    set_dialog_reply_markup(d, MessageId());
+    set_dialog_reply_markup(d, MessageId(), nullptr);
   }
   // if last_read_inbox_message_id is not known, we can't be sure whether unread_count should be decreased or not
   if (has_incoming_notification(d, m) && message_id > d->last_read_inbox_message_id &&
@@ -15392,14 +15393,14 @@ Status MessagesManager::delete_dialog_reply_markup(DialogId dialog_id, MessageId
   CHECK(m->reply_markup != nullptr);
 
   if (m->reply_markup->type == ReplyMarkup::Type::ForceReply) {
-    set_dialog_reply_markup(d, MessageId());
+    set_dialog_reply_markup(d, MessageId(), nullptr);
   } else if (m->reply_markup->type == ReplyMarkup::Type::ShowKeyboard) {
     if (!m->reply_markup->is_one_time_keyboard) {
       return Status::Error(400, "Do not need to delete non one-time keyboard");
     }
     if (m->reply_markup->is_personal) {
       m->reply_markup->is_personal = false;
-      set_dialog_reply_markup(d, message_id);
+      set_dialog_reply_markup(d, message_id, m);
 
       on_message_changed(d, m, true, "delete_dialog_reply_markup");
     }
@@ -28560,7 +28561,7 @@ void MessagesManager::on_dialog_bots_updated(DialogId dialog_id, vector<UserId> 
     if (m == nullptr || (m->sender_user_id.is_valid() && !td::contains(bot_user_ids, m->sender_user_id))) {
       LOG(INFO) << "Remove reply markup in " << dialog_id << ", because bot "
                 << (m == nullptr ? UserId() : m->sender_user_id) << " isn't a member of the chat";
-      set_dialog_reply_markup(d, MessageId());
+      set_dialog_reply_markup(d, MessageId(), nullptr);
     }
   }
 }
@@ -30252,12 +30253,12 @@ MessagesManager::Message *MessagesManager::add_message_to_dialog(Dialog *d, uniq
     if (bot_dialog_id.is_valid()) {
       const Message *old_message = get_message_force(d, d->reply_markup_message_id, "add_message_to_dialog 1");
       if (old_message == nullptr || get_message_sender(old_message) == bot_dialog_id) {
-        set_dialog_reply_markup(d, MessageId());
+        set_dialog_reply_markup(d, MessageId(), nullptr);
       }
     }
   }
 
-  // must be after set_dialog_reply_markup(d, MessageId()), but before try_restore_dialog_reply_markup
+  // must be after set_dialog_reply_markup(d, MessageId(), nullptr), but before try_restore_dialog_reply_markup
   remove_message_remove_keyboard_reply_markup(message.get());
 
   {
@@ -31668,7 +31669,7 @@ bool MessagesManager::update_message(Dialog *d, Message *old_message, unique_ptr
     if (reply_markup_changed) {
       if (d->reply_markup_message_id == message_id && !td_->auth_manager_->is_bot() &&
           new_message->reply_markup == nullptr) {
-        set_dialog_reply_markup(d, MessageId());
+        set_dialog_reply_markup(d, MessageId(), nullptr);
       }
       LOG(DEBUG) << "Update message reply keyboard";
       old_message->reply_markup = std::move(new_message->reply_markup);

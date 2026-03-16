@@ -555,7 +555,7 @@ public final class Example {
                     TdApi.UpdateChatReplyMarkup updateChat = (TdApi.UpdateChatReplyMarkup) object;
                     TdApi.Chat chat = chats.get(updateChat.chatId);
                     synchronized (chat) {
-                        chat.replyMarkupMessageId = updateChat.replyMarkupMessageId;
+                        chat.replyMarkupMessageId = updateChat.replyMarkupMessage != null ? updateChat.replyMarkupMessage.id : 0;
                     }
                     break;
                 }

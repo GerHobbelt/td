@@ -2542,7 +2542,7 @@ class MessagesManager final : public Actor {
 
   void do_set_dialog_folder_id(Dialog *d, FolderId folder_id);
 
-  void set_dialog_reply_markup(Dialog *d, MessageId message_id);
+  void set_dialog_reply_markup(Dialog *d, MessageId message_id, const Message *m);
 
   void try_restore_dialog_reply_markup(Dialog *d, const Message *m);
 
