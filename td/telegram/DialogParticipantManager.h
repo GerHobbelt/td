@@ -280,9 +280,9 @@ class DialogParticipantManager final : public Actor {
 
   void update_channel_online_member_count(ChannelId channel_id, bool is_from_server);
 
-  void transfer_channel_ownership(ChannelId channel_id, UserId user_id,
-                                  tl_object_ptr<telegram_api::InputCheckPasswordSRP> input_check_password,
-                                  Promise<Unit> &&promise);
+  void transfer_chat_ownership(DialogId dialog_id, UserId user_id,
+                               telegram_api::object_ptr<telegram_api::InputCheckPasswordSRP> input_check_password,
+                               Promise<Unit> &&promise);
 
   struct OnlineMemberCountInfo {
     int32 online_member_count = 0;

@@ -8,6 +8,7 @@
 
 #include "td/telegram/CallActor.h"
 #include "td/telegram/CallId.h"
+#include "td/telegram/files/FileUploadId.h"
 #include "td/telegram/td_api.h"
 #include "td/telegram/telegram_api.h"
 #include "td/telegram/UserId.h"
@@ -49,7 +50,11 @@ class CallManager final : public Actor {
 
   void send_call_debug_information(CallId call_id, string data, Promise<Unit> promise);
 
+  void on_save_debug_information(CallId call_id, bool result);
+
   void send_call_log(CallId call_id, td_api::object_ptr<td_api::InputFile> log_file, Promise<Unit> promise);
+
+  void on_save_log(CallId call_id, FileUploadId file_upload_id, Status status, Promise<Unit> promise);
 
  private:
   bool close_flag_ = false;
@@ -83,6 +88,21 @@ class CallManager final : public Actor {
   void do_rate_call(CallId call_id, telegram_api::object_ptr<telegram_api::inputPhoneCall> input_phone_call,
                     int32 rating, string comment, vector<td_api::object_ptr<td_api::CallProblem>> &&problems,
                     Promise<Unit> promise);
+
+  void do_send_call_debug_information(CallId call_id,
+                                      telegram_api::object_ptr<telegram_api::inputPhoneCall> input_phone_call,
+                                      string data, Promise<Unit> promise);
+
+  void upload_log_file(CallId call_id, FileUploadId file_upload_id, Promise<Unit> &&promise);
+
+  void on_upload_log_file(CallId call_id, FileUploadId file_upload_id, Promise<Unit> &&promise,
+                          telegram_api::object_ptr<telegram_api::InputFile> input_file);
+
+  void on_upload_log_file_error(CallId call_id, FileUploadId file_upload_id, Promise<Unit> &&promise, Status status);
+
+  void do_send_call_log(CallId call_id, telegram_api::object_ptr<telegram_api::inputPhoneCall> input_phone_call,
+                        FileUploadId file_upload_id, telegram_api::object_ptr<telegram_api::InputFile> &&input_file,
+                        Promise<Unit> &&promise);
 };
 
 }  // namespace td

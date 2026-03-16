@@ -542,7 +542,7 @@ class MessageChatSetTtl final : public MessageContent {
 
 class MessageUnsupported final : public MessageContent {
  public:
-  static constexpr int32 CURRENT_VERSION = 55;
+  static constexpr int32 CURRENT_VERSION = 56;
   int32 version = CURRENT_VERSION;
 
   MessageUnsupported() = default;
@@ -5565,7 +5565,7 @@ Status can_send_message_content(DialogId dialog_id, const MessageContent *conten
   RestrictedRights permissions = [&] {
     if (!check_permissions) {
       return RestrictedRights(true, true, true, true, true, true, true, true, true, true, true, true, true, true, true,
-                              true, true, ChannelType::Unknown);
+                              true, true, true, ChannelType::Unknown);
     }
     switch (dialog_type) {
       case DialogType::User:
@@ -8416,7 +8416,8 @@ unique_ptr<MessageContent> get_secret_message_content(
   }
 
   auto entities = get_message_entities(td, std::move(secret_entities), is_premium, load_data_multipromise);
-  auto status = fix_formatted_text(message_text, entities, true, false, true, td->auth_manager_->is_bot(), false);
+  auto status =
+      fix_formatted_text(message_text, entities, true, false, false, true, td->auth_manager_->is_bot(), false);
   if (status.is_error()) {
     LOG(WARNING) << "Receive error " << status << " while parsing secret message \"" << message_text
                  << "\" with entities " << entities;
@@ -9281,6 +9282,8 @@ unique_ptr<MessageContent> get_action_message_content(Td *td, tl_object_ptr<tele
       case telegram_api::messageActionSuggestBirthday::ID:
       case telegram_api::messageActionStarGiftPurchaseOffer::ID:
       case telegram_api::messageActionStarGiftPurchaseOfferDeclined::ID:
+      case telegram_api::messageActionNoForwardsToggle::ID:
+      case telegram_api::messageActionNoForwardsRequest::ID:
         // ok
         break;
       default:
@@ -9999,6 +10002,10 @@ unique_ptr<MessageContent> get_action_message_content(Td *td, tl_object_ptr<tele
       }
       return td::make_unique<MessageChangeCreator>(new_creator_user_id);
     }
+    case telegram_api::messageActionNoForwardsToggle::ID:
+      return td::make_unique<MessageUnsupported>();
+    case telegram_api::messageActionNoForwardsRequest::ID:
+      return td::make_unique<MessageUnsupported>();
     default:
       UNREACHABLE();
   }

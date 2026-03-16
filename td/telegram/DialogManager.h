@@ -173,6 +173,10 @@ class DialogManager final : public Actor {
 
   CustomEmojiId get_dialog_profile_background_custom_emoji_id(DialogId dialog_id) const;
 
+  DialogParticipantStatus get_dialog_status(DialogId dialog_id) const;
+
+  DialogParticipantStatus get_dialog_permissions(DialogId dialog_id) const;
+
   RestrictedRights get_dialog_default_permissions(DialogId dialog_id) const;
 
   td_api::object_ptr<td_api::emojiStatus> get_dialog_emoji_status_object(DialogId dialog_id) const;
@@ -180,6 +184,8 @@ class DialogManager final : public Actor {
   string get_dialog_about(DialogId dialog_id);
 
   string get_dialog_search_text(DialogId dialog_id) const;
+
+  bool get_dialog_has_protected_content_force(DialogId dialog_id, bool only_my = false);
 
   bool get_dialog_has_protected_content(DialogId dialog_id) const;
 

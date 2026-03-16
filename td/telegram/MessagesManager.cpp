@@ -1192,7 +1192,7 @@ class SendMessageQuery final : public Td::ResultHandler {
       return on_error(Status::Error(400, "Have no write access to the chat"));
     }
 
-    auto reply_to = input_reply_to.get_input_reply_to(td_, message_topic);
+    auto reply_to = input_reply_to.get_input_reply_to(td_, message_topic, dialog_id, flags);
 
     if (reply_to != nullptr) {
       flags |= telegram_api::messages_sendMessage::REPLY_TO_MASK;
@@ -7752,7 +7752,7 @@ string MessagesManager::get_message_search_text(const Message *m) const {
 }
 
 bool MessagesManager::get_message_has_protected_content(DialogId dialog_id, const Message *m) const {
-  return m->noforwards || td_->dialog_manager_->get_dialog_has_protected_content(dialog_id);
+  return m->noforwards || td_->dialog_manager_->get_dialog_has_protected_content_force(dialog_id);
 }
 
 bool MessagesManager::can_add_message_offer(DialogId dialog_id, const Message *m) const {
@@ -20229,7 +20229,7 @@ unique_ptr<MessagesManager::Message> MessagesManager::create_message_to_send(
   m->send_date = G()->unix_time();
   m->date = is_scheduled ? options.schedule_date : m->send_date;
   m->schedule_repeat_period = options.schedule_repeat_period;
-  m->replied_message_info = RepliedMessageInfo(td_, input_reply_to);
+  m->replied_message_info = RepliedMessageInfo(td_, input_reply_to, message_topic);
   m->reply_to_story_full_id = input_reply_to.get_story_full_id();
   m->input_reply_to = std::move(input_reply_to);
   m->reply_to_random_id = reply_to_random_id;
@@ -23825,7 +23825,7 @@ Result<MessagesManager::ForwardedMessages> MessagesManager::get_forwarded_messag
   if (!td_->dialog_manager_->have_input_peer(from_dialog_id, false, AccessRights::Read)) {
     return Status::Error(400, "Can't access the chat to forward messages from");
   }
-  if (td_->dialog_manager_->get_dialog_has_protected_content(from_dialog_id)) {
+  if (td_->dialog_manager_->get_dialog_has_protected_content_force(from_dialog_id)) {
     for (const auto &copy_option : copy_options) {
       if (!copy_option.send_copy || !td_->auth_manager_->is_bot()) {
         return Status::Error(400, "Message has protected content and can't be forwarded");
@@ -24659,7 +24659,7 @@ Result<MessageId> MessagesManager::add_local_message(
   m->sender_user_id = sender_user_id;
   m->sender_dialog_id = sender_dialog_id;
   m->date = G()->unix_time();
-  m->replied_message_info = RepliedMessageInfo(td_, input_reply_to);
+  m->replied_message_info = RepliedMessageInfo(td_, input_reply_to, MessageTopic());
   m->reply_to_story_full_id = input_reply_to.get_story_full_id();
   if (!message_id.is_scheduled()) {
     auto reply_to_message_id = input_reply_to.get_same_chat_reply_to_message_id();
@@ -30388,7 +30388,7 @@ MessagesManager::Message *MessagesManager::add_message_to_dialog(Dialog *d, uniq
     if (from_database && !td_->auth_manager_->is_bot()) {  // otherwise the entities were found in get_message_text
       auto text = get_message_content_text_mutable(message->content.get());
       if (text != nullptr) {
-        fix_formatted_text(text->text, text->entities, true, true, true, false, false).ensure();
+        fix_formatted_text(text->text, text->entities, true, false, true, true, false, false).ensure();
         // always call to save are_media_timestamp_entities_found flag
         on_message_changed(d, message.get(), false, "save media timestamp entities");
       }
@@ -31184,7 +31184,7 @@ void MessagesManager::do_delete_message_log_event(const DeleteMessageLogEvent &l
 }
 
 int64 MessagesManager::get_message_reply_to_random_id(const Dialog *d, const Message *m) const {
-  auto same_chat_reply_to_message_id = m->replied_message_info.get_same_chat_reply_to_message_id(false);
+  auto same_chat_reply_to_message_id = m->replied_message_info.get_same_chat_reply_to_message_id(true);
   if (same_chat_reply_to_message_id != MessageId() && m->message_id.is_yet_unsent() &&
       (d->dialog_id.get_type() == DialogType::SecretChat || same_chat_reply_to_message_id.is_yet_unsent())) {
     auto *replied_m = get_message(d, same_chat_reply_to_message_id);
@@ -34809,7 +34809,7 @@ void MessagesManager::set_message_reply(const Dialog *d, Message *m, MessageInpu
   if (is_message_in_dialog) {
     unregister_message_reply(d->dialog_id, m);
   }
-  m->replied_message_info = RepliedMessageInfo(td_, input_reply_to);
+  m->replied_message_info = RepliedMessageInfo(td_, input_reply_to, get_message_topic(d->dialog_id, m));
   m->reply_to_story_full_id = StoryFullId();
   m->reply_to_random_id = get_message_reply_to_random_id(d, m);
   if (!m->message_id.is_any_server()) {

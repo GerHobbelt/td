@@ -918,11 +918,12 @@ inputChatPhotoSticker sticker:chatPhotoSticker = InputChatPhoto;
 //@can_send_polls True, if the user can send polls and checklists
 //@can_send_other_messages True, if the user can send animations, games, stickers, and dice and use inline bots
 //@can_add_link_previews True, if the user may add a link preview to their messages
+//@can_edit_custom_tag True, if the user may change the custom tag of self
 //@can_change_info True, if the user can change the chat title, photo, and other settings
 //@can_invite_users True, if the user can invite new users to the chat
 //@can_pin_messages True, if the user can pin messages
 //@can_create_topics True, if the user can create topics
-chatPermissions can_send_basic_messages:Bool can_send_audios:Bool can_send_documents:Bool can_send_photos:Bool can_send_videos:Bool can_send_video_notes:Bool can_send_voice_notes:Bool can_send_polls:Bool can_send_other_messages:Bool can_add_link_previews:Bool can_change_info:Bool can_invite_users:Bool can_pin_messages:Bool can_create_topics:Bool = ChatPermissions;
+chatPermissions can_send_basic_messages:Bool can_send_audios:Bool can_send_documents:Bool can_send_photos:Bool can_send_videos:Bool can_send_video_notes:Bool can_send_voice_notes:Bool can_send_polls:Bool can_send_other_messages:Bool can_add_link_previews:Bool can_edit_custom_tag:Bool can_change_info:Bool can_invite_users:Bool can_pin_messages:Bool can_create_topics:Bool = ChatPermissions;
 
 //@description Describes rights of the administrator
 //@can_manage_chat True, if the administrator can access the chat event log, get boost list, see hidden supergroup and channel members, report supergroup spam messages,
@@ -941,8 +942,9 @@ chatPermissions can_send_basic_messages:Bool can_send_audios:Bool can_send_docum
 //@can_edit_stories True, if the administrator can edit stories posted by other users, post stories to the chat page, pin chat stories, and access story archive; applicable to supergroups and channels only
 //@can_delete_stories True, if the administrator can delete stories posted by other users; applicable to supergroups and channels only
 //@can_manage_direct_messages True, if the administrator can answer to channel direct messages; applicable to channels only
+//@can_manage_custom_tags True, if the administrator can change custom tags of other users; applicable to basic groups and supergroups only
 //@is_anonymous True, if the administrator isn't shown in the chat member list and sends messages anonymously; applicable to supergroups only
-chatAdministratorRights can_manage_chat:Bool can_change_info:Bool can_post_messages:Bool can_edit_messages:Bool can_delete_messages:Bool can_invite_users:Bool can_restrict_members:Bool can_pin_messages:Bool can_manage_topics:Bool can_promote_members:Bool can_manage_video_chats:Bool can_post_stories:Bool can_edit_stories:Bool can_delete_stories:Bool can_manage_direct_messages:Bool is_anonymous:Bool = ChatAdministratorRights;
+chatAdministratorRights can_manage_chat:Bool can_change_info:Bool can_post_messages:Bool can_edit_messages:Bool can_delete_messages:Bool can_invite_users:Bool can_restrict_members:Bool can_pin_messages:Bool can_manage_topics:Bool can_promote_members:Bool can_manage_video_chats:Bool can_post_stories:Bool can_edit_stories:Bool can_delete_stories:Bool can_manage_direct_messages:Bool can_manage_custom_tags:Bool is_anonymous:Bool = ChatAdministratorRights;
 
 
 //@class GiftResalePrice @description Describes price of a resold gift
@@ -2171,6 +2173,7 @@ botInfo short_description:string description:string photo:photo animation:animat
 //@has_sponsored_messages_enabled True, if the user always enabled sponsored messages; known only for the current user
 //@need_phone_number_privacy_exception True, if the current user needs to explicitly allow to share their phone number with the user when the method addContact is used
 //@set_chat_background True, if the user set chat background for both chat users and it wasn't reverted yet
+//@my_has_protected_content True, if chat content can't be saved locally, forwarded, or copied because the current user disallows this
 //@bio A short user bio; may be null for bots
 //@birthdate Birthdate of the user; may be null if unknown
 //@personal_chat_id Identifier of the personal chat of the user; 0 if none
@@ -2188,7 +2191,7 @@ botInfo short_description:string description:string photo:photo animation:animat
 //@note Note added to the user's contact; may be null if none
 //@business_info Information about business settings for Telegram Business accounts; may be null if none
 //@bot_info For bots, information about the bot; may be null if the user isn't a bot
-userFullInfo personal_photo:chatPhoto photo:chatPhoto public_photo:chatPhoto block_list:BlockList can_be_called:Bool supports_video_calls:Bool has_private_calls:Bool has_private_forwards:Bool has_restricted_voice_and_video_note_messages:Bool has_posted_to_profile_stories:Bool has_sponsored_messages_enabled:Bool need_phone_number_privacy_exception:Bool set_chat_background:Bool bio:formattedText birthdate:birthdate personal_chat_id:int53 gift_count:int32 group_in_common_count:int32 incoming_paid_message_star_count:int53 outgoing_paid_message_star_count:int53 gift_settings:giftSettings bot_verification:botVerification main_profile_tab:ProfileTab first_profile_audio:audio rating:userRating pending_rating:userRating pending_rating_date:int32 note:formattedText business_info:businessInfo bot_info:botInfo = UserFullInfo;
+userFullInfo personal_photo:chatPhoto photo:chatPhoto public_photo:chatPhoto block_list:BlockList can_be_called:Bool supports_video_calls:Bool has_private_calls:Bool has_private_forwards:Bool has_restricted_voice_and_video_note_messages:Bool has_posted_to_profile_stories:Bool has_sponsored_messages_enabled:Bool need_phone_number_privacy_exception:Bool set_chat_background:Bool my_has_protected_content:Bool bio:formattedText birthdate:birthdate personal_chat_id:int53 gift_count:int32 group_in_common_count:int32 incoming_paid_message_star_count:int53 outgoing_paid_message_star_count:int53 gift_settings:giftSettings bot_verification:botVerification main_profile_tab:ProfileTab first_profile_audio:audio rating:userRating pending_rating:userRating pending_rating_date:int32 note:formattedText business_info:businessInfo bot_info:botInfo = UserFullInfo;
 
 //@description Represents a list of users @total_count Approximate total number of users found @user_ids A list of user identifiers
 users total_count:int32 user_ids:vector<int53> = Users;
@@ -2410,7 +2413,7 @@ basicGroupFullInfo photo:chatPhoto description:string creator_user_id:int53 memb
 //@id Supergroup or channel identifier
 //@usernames Usernames of the supergroup or channel; may be null
 //@date Point in time (Unix timestamp) when the current user joined, or the point in time when the supergroup or channel was created, in case the user is not a member
-//@status Status of the current user in the supergroup or channel; custom title will always be empty
+//@status Status of the current user in the supergroup or channel; custom tag will always be empty
 //@member_count Number of members in the supergroup or channel; 0 if unknown. Currently, it is guaranteed to be known only if the supergroup or channel was received through
 //-getChatSimilarChats, getChatsToPostStories, getCreatedPublicChats, getGroupsInCommon, getInactiveSupergroupChats, getRecommendedChats, getSuitableDiscussionChats,
 //-getUserPrivacySettingRules, getVideoChatAvailableParticipants, searchPublicChats, or in chatFolderInviteLinkInfo.missing_chat_ids, or in userFullInfo.personal_chat_id,
@@ -3453,7 +3456,7 @@ replyMarkupShowKeyboard rows:vector<vector<keyboardButton>> is_persistent:Bool r
 replyMarkupInlineKeyboard rows:vector<vector<inlineKeyboardButton>> = ReplyMarkup;
 
 
-//@class LoginUrlInfo @description Contains information about an inline button of type inlineKeyboardButtonTypeLoginUrl
+//@class LoginUrlInfo @description Contains information about an inline button of type inlineKeyboardButtonTypeLoginUrl or an external link
 
 //@description An HTTP URL needs to be open @url The URL to open @skip_confirmation True, if there is no need to show an ordinary open URL confirmation
 loginUrlInfoOpen url:string skip_confirmation:Bool = LoginUrlInfo;
@@ -3463,12 +3466,23 @@ loginUrlInfoOpen url:string skip_confirmation:Bool = LoginUrlInfo;
 //@domain A domain of the URL
 //@bot_user_id User identifier of a bot linked with the website
 //@request_write_access True, if the user must be asked for the permission to the bot to send them messages
+loginUrlInfoRequestConfirmation url:string domain:string bot_user_id:int53 request_write_access:Bool = LoginUrlInfo;
+
+
+//@description Information about the OAuth authorization
+//@user_id Identifier of the user for which the link was generated; may be 0 if unknown. The corresponding user may be unknown.
+//-If the user is logged in the app, then they must be chosen for authorization by default
+//@url An HTTP URL where the user authorizes
+//@domain A domain of the URL
+//@bot_user_id User identifier of a bot linked with the website
+//@request_write_access True, if the user must be asked for the permission to the bot to send them messages
 //@request_phone_number_access True, if the user must be asked for the permission to share their phone number
-//@browser The version of a browser used for the authorization; may be empty if irrelevant
-//@platform Operating system the browser is running on; may be empty if irrelevant
-//@ip_address IP address from which the authorization is performed, in human-readable format; may be empty if irrelevant
-//@location Human-readable description of a country and a region from which the authorization is performed, based on the IP address; may be empty if irrelevant
-loginUrlInfoRequestConfirmation url:string domain:string bot_user_id:int53 request_write_access:Bool request_phone_number_access:Bool browser:string platform:string ip_address:string location:string = LoginUrlInfo;
+//@browser The version of a browser used for the authorization
+//@platform Operating system the browser is running on
+//@ip_address IP address from which the authorization is performed, in human-readable format
+//@location Human-readable description of a country and a region from which the authorization is performed, based on the IP address
+//@match_codes The list of codes to match; may be empty if irrelevant
+oauthLinkInfo user_id:int53 url:string domain:string bot_user_id:int53 request_write_access:Bool request_phone_number_access:Bool browser:string platform:string ip_address:string location:string match_codes:vector<string> = OauthLinkInfo;
 
 
 //@description Contains parameters of the application theme
@@ -5137,6 +5151,30 @@ messageProximityAlertTriggered traveler_id:MessageSender watcher_id:MessageSende
 messageUnsupported = MessageContent;
 
 
+//@class DatePartPrecision @description Describes precision with which to show a date part
+
+//@description Don't show the date part
+datePartPrecisionNone = DatePartPrecision;
+
+//@description Show the date part in a short way (22:45 or 17.03.22)
+datePartPrecisionShort = DatePartPrecision;
+
+//@description Show the date part in a long way (22:45:00 or March 17, 2022)
+datePartPrecisionLong = DatePartPrecision;
+
+
+//@class DateFormattingType @description Describes date formatting
+
+//@description The date must be shown relative to the current time ([in ] X seconds, minutes, hours, days, months, years [ago])
+dateFormattingTypeRelative = DateFormattingType;
+
+//@description The date must be shown as absolute time
+//@time_precision The precision with which hours, minutes and seconds are shown
+//@day_precision The precision with which the day is shown
+//@show_day_of_week True, if the day of week should be shown
+dateFormattingTypeAbsolute time_precision:DatePartPrecision day_precision:DatePartPrecision show_day_of_week:Bool = DateFormattingType;
+
+
 //@class TextEntityType @description Represents a part of the text which must be formatted differently
 
 //@description A mention of a user, a supergroup, or a channel by their username
@@ -5204,6 +5242,9 @@ textEntityTypeCustomEmoji custom_emoji_id:int64 = TextEntityType;
 
 //@description A media timestamp @media_timestamp Timestamp from which a video/audio/video note/voice note/story playing must start, in seconds. The media can be in the content or the link preview of the current message, or in the same places in the replied message
 textEntityTypeMediaTimestamp media_timestamp:int32 = TextEntityType;
+
+//@description A date @date Point in time (Unix timestamp) to which the date points @formatting_type Date formatting type; may be null if none and the original text must not be changed
+textEntityTypeDate date:int32 formatting_type:DateFormattingType = TextEntityType;
 
 
 //@description A thumbnail to be sent along with a file; must be in JPEG or WEBP format for stickers, and less than 200 KB in size
@@ -8676,6 +8717,11 @@ internalLinkTypeNewPrivateChat = InternalLinkType;
 //@description The link is a link to open the story posting interface @content_type The type of the content of the story to post; may be null if unspecified
 internalLinkTypeNewStory content_type:StoryContentType = InternalLinkType;
 
+//@description The link is an OAuth link. Call getOauthLinkInfo with the given URL to process the link, then show the user confirmation dialog and
+//-call either acceptOauthRequest or declineOauthRequest
+//@url URL to be passed to getOauthLinkInfo
+internalLinkTypeOauth url:string = InternalLinkType;
+
 //@description The link contains a request of Telegram passport data. Call getPassportAuthorizationForm with the given parameters to process the link if the link was received from outside of the application; otherwise, ignore it
 //@bot_user_id User identifier of the service's bot; the corresponding user may be unknown yet
 //@scope Telegram Passport element types requested by the service
@@ -9813,6 +9859,12 @@ updateSupergroupFullInfo supergroup_id:int53 supergroup_full_info:supergroupFull
 //@type Notification type. If type begins with "AUTH_KEY_DROP_", then two buttons "Cancel" and "Log out" must be shown under notification; if user presses the second, all local data must be destroyed using Destroy method
 //@content Notification content
 updateServiceNotification type:string content:MessageContent = Update;
+
+//@description An OAuth authorization request was received
+//@domain A domain of the URL where the user authorizes
+//@location Human-readable description of a country and a region from which the authorization is performed, based on the IP address
+//@url The URL to pass to getOauthLinkInfo; the link is valid for 60 seconds
+updateNewOauthRequest domain:string location:string url:string = Update;
 
 //@description Information about a file was updated @file New data about the file
 updateFile file:file = Update;
@@ -11993,8 +12045,23 @@ getExternalLinkInfo link:string = LoginUrlInfo;
 //-Use the method getExternalLinkInfo to find whether a prior user confirmation is needed. May return an empty link if just a toast about successful login has to be shown
 //@link The HTTP link
 //@allow_write_access Pass true if the current user allowed the bot that was returned in getExternalLinkInfo, to send them messages
-//@allow_phone_number_access Pass true if the current user allowed the bot that was returned in getExternalLinkInfo, to access their phone number
-getExternalLink link:string allow_write_access:Bool allow_phone_number_access:Bool = HttpUrl;
+getExternalLink link:string allow_write_access:Bool = HttpUrl;
+
+//@description Returns information about an OAuth deep link. Use acceptOauthRequest or declineOauthRequest to process the link
+//@url URL of the link
+getOauthLinkInfo url:string = OauthLinkInfo;
+
+//@description Accepts an OAuth authorization request. Returns an HTTP URL to open after successful authorization.
+//-May return an empty link if just a toast about successful login has to be shown
+//@url URL of the OAuth deep link
+//@match_code The matching code chosen by the user
+//@allow_write_access Pass true if the current user allowed the bot that was returned in getOauthLinkInfo, to send them messages
+//@allow_phone_number_access Pass true if the current user allowed the bot that was returned in getOauthLinkInfo, to access their phone number
+acceptOauthRequest url:string match_code:string allow_write_access:Bool allow_phone_number_access:Bool = HttpUrl;
+
+//@description Declines an OAuth authorization request
+//@url URL of the OAuth deep link
+declineOauthRequest url:string = Ok;
 
 
 //@description Marks all mentions in a chat as read @chat_id Chat identifier
@@ -12193,7 +12260,8 @@ setChatDraftMessage chat_id:int53 topic_id:MessageTopic draft_message:draftMessa
 //@notification_settings New notification settings for the chat. If the chat is muted for more than 366 days, it is considered to be muted forever
 setChatNotificationSettings chat_id:int53 notification_settings:chatNotificationSettings = Ok;
 
-//@description Changes the ability of users to save, forward, or copy chat content. Supported only for basic groups, supergroups and channels. Requires owner privileges
+//@description Changes the ability of users to save, forward, or copy chat content. Requires owner privileges in basic groups, supergroups and channels.
+//-Requires Telegram Premium to enable protected content in private chats
 //@chat_id Chat identifier
 //@has_protected_content New value of has_protected_content
 toggleChatHasProtectedContent chat_id:int53 has_protected_content:Bool = Ok;
@@ -12290,13 +12358,13 @@ banChatMember chat_id:int53 member_id:MessageSender banned_until_date:int32 revo
 //@description Checks whether the current session can be used to transfer a chat ownership to another user
 canTransferOwnership = CanTransferOwnershipResult;
 
-//@description Changes the owner of a chat; requires owner privileges in the chat. Use the method canTransferOwnership to check whether the ownership can be transferred from the current session. Available only for supergroups and channel chats
+//@description Changes the owner of a chat; requires owner privileges in the chat. Use the method canTransferOwnership to check whether the ownership can be transferred from the current session. Available only for basic group, supergroups and channel chats
 //@chat_id Chat identifier
 //@user_id Identifier of the user to which transfer the ownership. The ownership can't be transferred to a bot or to a deleted user
 //@password The 2-step verification password of the current user
 transferChatOwnership chat_id:int53 user_id:int53 password:string = Ok;
 
-//@description Returns the user who will become the owner of the chat after 7 days if the current user does not return to the chat during that period; requires owner privileges in the chat.
+//@description Returns the user who will become the owner of the chat after 7 days if the current user does not return to the supergroup or channel during that period or immediately for basic groups; requires owner privileges in the chat.
 //-Available only for supergroups and channel chats
 //@chat_id Chat identifier
 getChatOwnerAfterLeaving chat_id:int53 = User;
@@ -14027,7 +14095,8 @@ upgradeGift business_connection_id:string received_gift_id:string keep_original_
 buyGiftUpgrade owner_id:MessageSender prepaid_upgrade_hash:string star_count:int53 = Ok;
 
 //@description Crafts a new gift from other gifts that will be permanently lost
-//@received_gift_ids Identifier of the gifts to use for crafting
+//@received_gift_ids Identifier of the gifts to use for crafting. In the case of a successful craft, the resulting gift will have the number of the first gift.
+//-Consequently, the first gift must not have been withdrawn to the TON blockchain as an NFT and must have an empty gift_address
 craftGift received_gift_ids:vector<string> = CraftGiftResult;
 
 //@description Sends an upgraded gift to another user or channel chat

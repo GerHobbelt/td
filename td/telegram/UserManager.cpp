@@ -524,29 +524,27 @@ class UploadProfilePhotoQuery final : public Td::ResultHandler {
       flags |= telegram_api::photos_uploadProfilePhoto::FILE_MASK;
       photo_input_file = std::move(input_file);
     }
-    if (td_->user_manager_->is_user_bot(user_id) != td_->auth_manager_->is_bot()) {
+    bool is_me = user_id == td_->user_manager_->get_my_id();
+    telegram_api::object_ptr<telegram_api::InputUser> input_user;
+    if (!is_me) {
       auto r_input_user = td_->user_manager_->get_input_user(user_id);
       if (r_input_user.is_error()) {
         return on_error(r_input_user.move_as_error());
       }
-      flags |= telegram_api::photos_uploadProfilePhoto::BOT_MASK;
+      input_user = r_input_user.move_as_ok();
+    }
+    if (td_->user_manager_->is_user_bot(user_id) != td_->auth_manager_->is_bot() || is_me) {
+      if (input_user != nullptr) {
+        flags |= telegram_api::photos_uploadProfilePhoto::BOT_MASK;
+      }
       send_query(G()->net_query_creator().create(
-          telegram_api::photos_uploadProfilePhoto(flags, is_fallback, r_input_user.move_as_ok(),
+          telegram_api::photos_uploadProfilePhoto(flags, is_fallback, std::move(input_user),
                                                   std::move(photo_input_file), std::move(video_input_file),
                                                   main_frame_timestamp, nullptr),
           {{user_id}}));
-    } else if (user_id == td_->user_manager_->get_my_id()) {
-      send_query(G()->net_query_creator().create(
-          telegram_api::photos_uploadProfilePhoto(flags, is_fallback, nullptr, std::move(photo_input_file),
-                                                  std::move(video_input_file), main_frame_timestamp, nullptr),
-          {{"me"}}));
     } else {
-      auto r_input_user = td_->user_manager_->get_input_user(user_id);
-      if (r_input_user.is_error()) {
-        return on_error(r_input_user.move_as_error());
-      }
       send_query(G()->net_query_creator().create(
-          telegram_api::photos_uploadContactProfilePhoto(flags, only_suggest, !only_suggest, r_input_user.move_as_ok(),
+          telegram_api::photos_uploadContactProfilePhoto(flags, only_suggest, !only_suggest, std::move(input_user),
                                                          std::move(photo_input_file), std::move(video_input_file),
                                                          main_frame_timestamp, nullptr),
           {{user_id}}));
@@ -560,31 +558,28 @@ class UploadProfilePhotoQuery final : public Td::ResultHandler {
     is_fallback_ = is_fallback;
     only_suggest_ = only_suggest;
 
-    if (td_->user_manager_->is_user_bot(user_id) != td_->auth_manager_->is_bot()) {
+    bool is_me = user_id == td_->user_manager_->get_my_id();
+    telegram_api::object_ptr<telegram_api::InputUser> input_user;
+    if (!is_me) {
       auto r_input_user = td_->user_manager_->get_input_user(user_id);
       if (r_input_user.is_error()) {
         return on_error(r_input_user.move_as_error());
       }
-      int32 flags = telegram_api::photos_uploadProfilePhoto::VIDEO_EMOJI_MARKUP_MASK |
-                    telegram_api::photos_uploadProfilePhoto::BOT_MASK;
+      input_user = r_input_user.move_as_ok();
+    }
+    if (td_->user_manager_->is_user_bot(user_id) != td_->auth_manager_->is_bot() || is_me) {
+      int32 flags = telegram_api::photos_uploadProfilePhoto::VIDEO_EMOJI_MARKUP_MASK;
+      if (input_user != nullptr) {
+        flags |= telegram_api::photos_uploadProfilePhoto::BOT_MASK;
+      }
       send_query(G()->net_query_creator().create(
-          telegram_api::photos_uploadProfilePhoto(flags, is_fallback, r_input_user.move_as_ok(), nullptr, nullptr, 0.0,
+          telegram_api::photos_uploadProfilePhoto(flags, is_fallback, std::move(input_user), nullptr, nullptr, 0.0,
                                                   sticker_photo_size->get_input_video_size_object(td_)),
           {{user_id}}));
-    } else if (user_id == td_->user_manager_->get_my_id()) {
-      int32 flags = telegram_api::photos_uploadProfilePhoto::VIDEO_EMOJI_MARKUP_MASK;
-      send_query(G()->net_query_creator().create(
-          telegram_api::photos_uploadProfilePhoto(flags, is_fallback, nullptr, nullptr, nullptr, 0.0,
-                                                  sticker_photo_size->get_input_video_size_object(td_)),
-          {{"me"}}));
     } else {
-      auto r_input_user = td_->user_manager_->get_input_user(user_id);
-      if (r_input_user.is_error()) {
-        return on_error(r_input_user.move_as_error());
-      }
       int32 flags = telegram_api::photos_uploadContactProfilePhoto::VIDEO_EMOJI_MARKUP_MASK;
       send_query(G()->net_query_creator().create(
-          telegram_api::photos_uploadContactProfilePhoto(flags, only_suggest, !only_suggest, r_input_user.move_as_ok(),
+          telegram_api::photos_uploadContactProfilePhoto(flags, only_suggest, !only_suggest, std::move(input_user),
                                                          nullptr, nullptr, 0.0,
                                                          sticker_photo_size->get_input_video_size_object(td_)),
           {{user_id}}));
@@ -2216,6 +2211,8 @@ void UserManager::UserFull::store(StorerT &storer) const {
     STORE_FLAG(has_main_profile_tab);
     STORE_FLAG(has_first_saved_music_file_id);
     STORE_FLAG(has_note);
+    STORE_FLAG(noforwards_my_enabled);
+    STORE_FLAG(noforwards_peer_enabled);
     END_STORE_FLAGS();
   }
   if (has_about) {
@@ -2418,6 +2415,8 @@ void UserManager::UserFull::parse(ParserT &parser) {
     PARSE_FLAG(has_main_profile_tab);
     PARSE_FLAG(has_first_saved_music_file_id);
     PARSE_FLAG(has_note);
+    PARSE_FLAG(noforwards_my_enabled);
+    PARSE_FLAG(noforwards_peer_enabled);
     END_PARSE_FLAGS();
   }
   if (has_about) {
@@ -4356,6 +4355,37 @@ void UserManager::on_update_user_full_wallpaper_overridden(UserFull *user_full, 
   }
 }
 
+void UserManager::on_update_user_noforwards(UserId user_id, bool noforwards_my_enabled, bool noforwards_peer_enabled) {
+  if (!user_id.is_valid()) {
+    LOG(ERROR) << "Receive invalid " << user_id;
+    return;
+  }
+
+  UserFull *user_full = get_user_full_force(user_id, "on_update_user_noforwards");
+  if (user_full == nullptr) {
+    return;
+  }
+  on_update_user_full_noforwards(user_full, noforwards_my_enabled, noforwards_peer_enabled);
+  update_user_full(user_full, user_id, "on_update_user_noforwards");
+}
+
+void UserManager::on_update_user_full_noforwards(UserFull *user_full, bool noforwards_my_enabled,
+                                                 bool noforwards_peer_enabled) const {
+  CHECK(user_full != nullptr);
+  bool old_noforwards = user_full->noforwards_my_enabled || user_full->noforwards_peer_enabled;
+  if (user_full->noforwards_my_enabled != noforwards_my_enabled) {
+    user_full->noforwards_my_enabled = noforwards_my_enabled;
+    user_full->is_changed = true;
+  }
+  if (user_full->noforwards_peer_enabled != noforwards_peer_enabled) {
+    user_full->noforwards_peer_enabled = noforwards_peer_enabled;
+    user_full->need_save_to_database = true;
+  }
+  if (old_noforwards != user_full->noforwards_my_enabled || user_full->noforwards_peer_enabled) {
+    user_full->is_has_protected_content_changed = true;
+  }
+}
+
 void UserManager::on_update_bot_menu_button(UserId bot_user_id,
                                             telegram_api::object_ptr<telegram_api::BotMenuButton> &&bot_menu_button) {
   if (!bot_user_id.is_valid()) {
@@ -5385,20 +5415,20 @@ RestrictedRights UserManager::get_user_default_permissions(UserId user_id) const
   if ((u == nullptr && user_id != get_my_id()) || user_id == get_replies_bot_user_id() ||
       user_id == get_verification_codes_bot_user_id()) {
     return RestrictedRights(false, false, false, false, false, false, false, false, false, false, false, false, false,
-                            false, false, u != nullptr, false, ChannelType::Unknown);
+                            false, false, u != nullptr, false, false, ChannelType::Unknown);
   }
   return RestrictedRights(true, true, true, true, true, true, true, true, true, true, true, true, true, false, false,
-                          true, false, ChannelType::Unknown);
+                          true, false, false, ChannelType::Unknown);
 }
 
 RestrictedRights UserManager::get_secret_chat_default_permissions(SecretChatId secret_chat_id) const {
   auto c = get_secret_chat(secret_chat_id);
   if (c == nullptr) {
     return RestrictedRights(false, false, false, false, false, false, false, false, false, false, false, false, false,
-                            false, false, false, false, ChannelType::Unknown);
+                            false, false, false, false, false, ChannelType::Unknown);
   }
   return RestrictedRights(true, true, true, true, true, true, true, true, true, true, true, true, true, false, false,
-                          false, false, ChannelType::Unknown);
+                          false, false, false, ChannelType::Unknown);
 }
 
 td_api::object_ptr<td_api::emojiStatus> UserManager::get_user_emoji_status_object(UserId user_id) const {
@@ -5416,6 +5446,22 @@ td_api::object_ptr<td_api::emojiStatus> UserManager::get_secret_chat_emoji_statu
     return nullptr;
   }
   return get_user_emoji_status_object(c->user_id);
+}
+
+bool UserManager::get_user_has_protected_content_force(UserId user_id, bool only_my) {
+  auto user_full = get_user_full_force(user_id, "get_user_has_protected_content_force");
+  if (user_full != nullptr) {
+    return user_full->noforwards_my_enabled || (!only_my && user_full->noforwards_peer_enabled);
+  }
+  return false;
+}
+
+bool UserManager::get_user_has_protected_content(UserId user_id) const {
+  auto user_full = get_user_full(user_id);
+  if (user_full != nullptr) {
+    return user_full->noforwards_my_enabled || user_full->noforwards_peer_enabled;
+  }
+  return false;
 }
 
 bool UserManager::get_user_stories_hidden(UserId user_id) const {
@@ -6128,7 +6174,7 @@ bool UserManager::delete_my_profile_photo_from_cache(int64 profile_photo_id) {
 void UserManager::delete_profile_photo(int64 profile_photo_id, bool is_recursive, Promise<Unit> &&promise) {
   TRY_STATUS_PROMISE(promise, G()->close_status());
   const UserFull *user_full = get_user_full_force(get_my_id(), "delete_profile_photo");
-  if (user_full == nullptr) {
+  if (user_full == nullptr || (td_->auth_manager_->is_bot() && !is_recursive)) {
     // must load UserFull first, because fallback photo can't be deleted via DeleteProfilePhotoQuery
     if (is_recursive) {
       return promise.set_error(500, "Failed to load UserFullInfo");
@@ -6140,10 +6186,12 @@ void UserManager::delete_profile_photo(int64 profile_photo_id, bool is_recursive
           }
           send_closure(actor_id, &UserManager::delete_profile_photo, profile_photo_id, true, std::move(promise));
         });
-    reload_user_full(get_my_id(), std::move(reload_promise), "delete_profile_photo");
-    return;
+    return reload_user_full(get_my_id(), std::move(reload_promise), "delete_profile_photo");
   }
   if (td_->auth_manager_->is_bot()) {
+    if (user_full->photo.is_empty()) {
+      return promise.set_value(Unit());
+    }
     profile_photo_id = user_full->photo.id.get();
   }
   if (user_full->photo.id.get() == profile_photo_id || user_full->fallback_photo.id.get() == profile_photo_id) {
@@ -8620,6 +8668,7 @@ void UserManager::on_get_user_full(telegram_api::object_ptr<telegram_api::userFu
       user_full, StarManager::get_star_count(user->settings_->charge_paid_message_stars_));
   on_update_user_full_send_paid_message_stars(user_full, StarManager::get_star_count(user->send_paid_messages_stars_));
   on_update_user_full_wallpaper_overridden(user_full, user->wallpaper_overridden_);
+  on_update_user_full_noforwards(user_full, user->noforwards_my_enabled_, user->noforwards_peer_enabled_);
   on_update_user_full_note(user_full,
                            get_formatted_text(this, std::move(user->note_), true, false, "on_get_user_full note"));
 
@@ -9111,6 +9160,8 @@ void UserManager::drop_user_full(UserId user_id) {
   user_full->has_private_calls = false;
   user_full->need_phone_number_privacy_exception = false;
   user_full->wallpaper_overridden = false;
+  user_full->noforwards_my_enabled = false;
+  user_full->noforwards_peer_enabled = false;
   user_full->about = string();
   user_full->bot_info = nullptr;
   user_full->gift_count = 0;
@@ -9689,6 +9740,10 @@ void UserManager::update_user_full(UserFull *user_full, UserId user_id, const ch
     register_user_saved_music(user_id, user_full->first_saved_music_file_id);
     user_full->is_first_saved_music_file_id_changed = false;
   }
+  if (user_full->is_has_protected_content_changed) {
+    td_->messages_manager_->on_dialog_has_protected_content_updated(DialogId(user_id));
+    user_full->is_has_protected_content_changed = false;
+  }
   if (true) {
     vector<FileId> file_ids;
     if (!user_full->personal_photo.is_empty()) {
@@ -9976,7 +10031,7 @@ td_api::object_ptr<td_api::userFullInfo> UserManager::get_user_full_info_object(
   td_api::object_ptr<td_api::formattedText> note;
   if (is_contact && !user_full->note.text.empty()) {
     auto user_note = user_full->note;
-    if (fix_formatted_text(user_note.text, user_note.entities, false, false, true, true, false).is_ok()) {
+    if (fix_formatted_text(user_note.text, user_note.entities, false, false, false, true, true, false).is_ok()) {
       note = get_formatted_text_object(this, user_note, true, -1);
     }
   }
@@ -9988,10 +10043,10 @@ td_api::object_ptr<td_api::userFullInfo> UserManager::get_user_full_info_object(
       user_full->can_be_called, user_full->supports_video_calls, user_full->has_private_calls,
       !user_full->private_forward_name.empty(), voice_messages_forbidden, user_full->has_pinned_stories,
       user_full->sponsored_enabled, user_full->need_phone_number_privacy_exception, user_full->wallpaper_overridden,
-      std::move(bio_object), user_full->birthdate.get_birthdate_object(), personal_chat_id, user_full->gift_count,
-      user_full->common_chat_count, user_full->charge_paid_message_stars, user_full->send_paid_message_stars,
-      user_full->gift_settings.get_gift_settings_object(), std::move(bot_verification),
-      get_profile_tab_object(user_full->main_profile_tab),
+      user_full->noforwards_my_enabled, std::move(bio_object), user_full->birthdate.get_birthdate_object(),
+      personal_chat_id, user_full->gift_count, user_full->common_chat_count, user_full->charge_paid_message_stars,
+      user_full->send_paid_message_stars, user_full->gift_settings.get_gift_settings_object(),
+      std::move(bot_verification), get_profile_tab_object(user_full->main_profile_tab),
       td_->audios_manager_->get_audio_object(user_full->first_saved_music_file_id), std::move(user_rating),
       std::move(pending_user_rating), user_full->pending_star_rating_date, std::move(note), std::move(business_info),
       std::move(bot_info));

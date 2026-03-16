@@ -80,8 +80,15 @@ class LinkManager final : public Actor {
   void get_login_url(MessageFullId message_full_id, int64 button_id, bool allow_write_access,
                      Promise<td_api::object_ptr<td_api::httpUrl>> &&promise);
 
-  void get_link_login_url(const string &url, bool allow_write_access, bool allow_phone_number_access,
+  void get_link_login_url(const string &url, bool allow_write_access,
                           Promise<td_api::object_ptr<td_api::httpUrl>> &&promise);
+
+  void get_oauth_link_info(string &&link, Promise<td_api::object_ptr<td_api::oauthLinkInfo>> &&promise);
+
+  void accept_oauth_request(const string &url, const string &match_code, bool allow_write_access,
+                            bool allow_phone_number_access, Promise<td_api::object_ptr<td_api::httpUrl>> &&promise);
+
+  void decline_oauth_request(const string &url, Promise<Unit> &&promise);
 
   static Result<string> get_background_url(const string &name,
                                            td_api::object_ptr<td_api::BackgroundType> background_type);
@@ -156,6 +163,7 @@ class LinkManager final : public Actor {
   class InternalLinkNewChannelChat;
   class InternalLinkNewGroupChat;
   class InternalLinkNewPrivateChat;
+  class InternalLinkOauth;
   class InternalLinkPassportDataRequest;
   class InternalLinkPostStory;
   class InternalLinkPremiumFeatures;
@@ -203,6 +211,8 @@ class LinkManager final : public Actor {
   static Result<string> check_link_impl(Slice link, bool http_only, bool https_only);
 
   static Result<string> get_proxy_link(const Proxy &proxy, bool is_internal);
+
+  static Result<Slice> check_tg_url_host(Slice url, Slice host);
 
   Td *td_;
   ActorShared<> parent_;

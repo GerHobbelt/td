@@ -518,6 +518,9 @@ static td_api::object_ptr<td_api::ChatEventAction> get_chat_event_action_object(
           telegram_api::move_object_as<telegram_api::channelAdminLogEventActionToggleAutotranslation>(action_ptr);
       return td_api::make_object<td_api::chatEventAutomaticTranslationToggled>(action->new_value_);
     }
+    case telegram_api::channelAdminLogEventActionParticipantEditRank::ID: {
+      return nullptr;
+    }
     default:
       UNREACHABLE();
       return nullptr;
@@ -619,7 +622,7 @@ static telegram_api::object_ptr<telegram_api::channelAdminLogEventsFilter> get_i
       filters->member_restrictions_, filters->member_restrictions_, filters->member_restrictions_,
       filters->member_promotions_, filters->member_promotions_, filters->info_changes_, filters->setting_changes_,
       filters->message_pins_, filters->message_edits_, filters->message_deletions_, filters->video_chat_changes_,
-      filters->invite_link_changes_, false /*send*/, filters->forum_changes_, filters->subscription_extensions_);
+      filters->invite_link_changes_, false /*send*/, filters->forum_changes_, filters->subscription_extensions_, false);
 }
 
 void get_dialog_event_log(Td *td, DialogId dialog_id, const string &query, int64 from_event_id, int32 limit,

@@ -408,7 +408,7 @@ class ToggleNoForwardsQuery final : public Td::ResultHandler {
     auto input_peer = td_->dialog_manager_->get_input_peer(dialog_id, AccessRights::Read);
     CHECK(input_peer != nullptr);
     send_query(G()->net_query_creator().create(
-        telegram_api::messages_toggleNoForwards(std::move(input_peer), has_protected_content), {{dialog_id_}}));
+        telegram_api::messages_toggleNoForwards(0, std::move(input_peer), has_protected_content, 0), {{dialog_id_}}));
   }
 
   void on_result(BufferSlice packet) final {
@@ -2089,6 +2089,40 @@ CustomEmojiId DialogManager::get_dialog_profile_background_custom_emoji_id(Dialo
   }
 }
 
+DialogParticipantStatus DialogManager::get_dialog_status(DialogId dialog_id) const {
+  switch (dialog_id.get_type()) {
+    case DialogType::User:
+      return DialogParticipantStatus::Member(0);
+    case DialogType::Chat:
+      return td_->chat_manager_->get_chat_status(dialog_id.get_chat_id());
+    case DialogType::Channel:
+      return td_->chat_manager_->get_channel_status(dialog_id.get_channel_id());
+    case DialogType::SecretChat:
+      return DialogParticipantStatus::Member(0);
+    case DialogType::None:
+    default:
+      UNREACHABLE();
+      return DialogParticipantStatus::Member(0);
+  }
+}
+
+DialogParticipantStatus DialogManager::get_dialog_permissions(DialogId dialog_id) const {
+  switch (dialog_id.get_type()) {
+    case DialogType::User:
+      return DialogParticipantStatus::Member(0);
+    case DialogType::Chat:
+      return td_->chat_manager_->get_chat_permissions(dialog_id.get_chat_id());
+    case DialogType::Channel:
+      return td_->chat_manager_->get_channel_permissions(dialog_id.get_channel_id());
+    case DialogType::SecretChat:
+      return DialogParticipantStatus::Member(0);
+    case DialogType::None:
+    default:
+      UNREACHABLE();
+      return DialogParticipantStatus::Member(0);
+  }
+}
+
 RestrictedRights DialogManager::get_dialog_default_permissions(DialogId dialog_id) const {
   switch (dialog_id.get_type()) {
     case DialogType::User:
@@ -2103,7 +2137,7 @@ RestrictedRights DialogManager::get_dialog_default_permissions(DialogId dialog_i
     default:
       UNREACHABLE();
       return RestrictedRights(false, false, false, false, false, false, false, false, false, false, false, false, false,
-                              false, false, false, false, ChannelType::Unknown);
+                              false, false, false, false, false, ChannelType::Unknown);
   }
 }
 
@@ -2159,10 +2193,27 @@ string DialogManager::get_dialog_search_text(DialogId dialog_id) const {
   return string();
 }
 
+bool DialogManager::get_dialog_has_protected_content_force(DialogId dialog_id, bool only_my) {
+  switch (dialog_id.get_type()) {
+    case DialogType::User:
+      return td_->user_manager_->get_user_has_protected_content_force(dialog_id.get_user_id(), only_my);
+    case DialogType::Chat:
+      return td_->chat_manager_->get_chat_has_protected_content(dialog_id.get_chat_id());
+    case DialogType::Channel:
+      return td_->chat_manager_->get_channel_has_protected_content(dialog_id.get_channel_id());
+    case DialogType::SecretChat:
+      return false;
+    case DialogType::None:
+    default:
+      UNREACHABLE();
+      return true;
+  }
+}
+
 bool DialogManager::get_dialog_has_protected_content(DialogId dialog_id) const {
   switch (dialog_id.get_type()) {
     case DialogType::User:
-      return false;
+      return td_->user_manager_->get_user_has_protected_content(dialog_id.get_user_id());
     case DialogType::Chat:
       return td_->chat_manager_->get_chat_has_protected_content(dialog_id.get_chat_id());
     case DialogType::Channel:
@@ -2592,7 +2643,7 @@ void DialogManager::toggle_dialog_has_protected_content(DialogId dialog_id, bool
 
   switch (dialog_id.get_type()) {
     case DialogType::User:
-      return promise.set_error(400, "Can't restrict saving content in the chat");
+      break;
     case DialogType::Chat: {
       auto chat_id = dialog_id.get_chat_id();
       auto status = td_->chat_manager_->get_chat_status(chat_id);
@@ -2615,7 +2666,7 @@ void DialogManager::toggle_dialog_has_protected_content(DialogId dialog_id, bool
   }
 
   // TODO this can be wrong if there were previous toggle_dialog_has_protected_content requests
-  if (get_dialog_has_protected_content(dialog_id) == has_protected_content) {
+  if (get_dialog_has_protected_content_force(dialog_id, true) == has_protected_content) {
     return promise.set_value(Unit());
   }
 

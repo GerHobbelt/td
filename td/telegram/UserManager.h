@@ -186,6 +186,8 @@ class UserManager final : public Actor {
 
   void on_update_user_wallpaper_overridden(UserId user_id, bool wallpaper_overridden);
 
+  void on_update_user_noforwards(UserId user_id, bool noforwards_my_enabled, bool noforwards_peer_enabled);
+
   void on_update_user_note(UserId user_id, FormattedText &&note);
 
   void on_update_bot_menu_button(UserId bot_user_id,
@@ -310,6 +312,10 @@ class UserManager final : public Actor {
   td_api::object_ptr<td_api::emojiStatus> get_user_emoji_status_object(UserId user_id) const;
 
   td_api::object_ptr<td_api::emojiStatus> get_secret_chat_emoji_status_object(SecretChatId secret_chat_id) const;
+
+  bool get_user_has_protected_content_force(UserId user_id, bool only_my);
+
+  bool get_user_has_protected_content(UserId user_id) const;
 
   bool get_user_stories_hidden(UserId user_id) const;
 
@@ -730,6 +736,8 @@ class UserManager final : public Actor {
     bool can_pin_messages = true;
     bool need_phone_number_privacy_exception = false;
     bool wallpaper_overridden = false;
+    bool noforwards_my_enabled = false;
+    bool noforwards_peer_enabled = false;
     bool voice_messages_forbidden = false;
     bool has_pinned_stories = false;
     bool read_dates_private = false;
@@ -742,6 +750,7 @@ class UserManager final : public Actor {
     bool is_common_chat_count_changed = true;
     bool is_pending_star_rating_changed = true;
     bool is_first_saved_music_file_id_changed = true;
+    bool is_has_protected_content_changed = false;
     bool is_being_updated = false;
     bool is_changed = true;             // have new changes that need to be sent to the client and database
     bool need_send_update = true;       // have new changes that need only to be sent to the client
@@ -975,6 +984,9 @@ class UserManager final : public Actor {
   void on_update_user_full_send_paid_message_stars(UserFull *user_full, int64 send_paid_message_stars) const;
 
   void on_update_user_full_wallpaper_overridden(UserFull *user_full, bool wallpaper_overridden) const;
+
+  void on_update_user_full_noforwards(UserFull *user_full, bool noforwards_my_enabled,
+                                      bool noforwards_peer_enabled) const;
 
   static void on_update_user_full_menu_button(UserFull *user_full,
                                               telegram_api::object_ptr<telegram_api::BotMenuButton> &&bot_menu_button);

@@ -464,6 +464,12 @@ class Requests {
 
   void on_request(uint64 id, td_api::getExternalLink &request);
 
+  void on_request(uint64 id, td_api::getOauthLinkInfo &request);
+
+  void on_request(uint64 id, td_api::acceptOauthRequest &request);
+
+  void on_request(uint64 id, td_api::declineOauthRequest &request);
+
   void on_request(uint64 id, const td_api::getChatHistory &request);
 
   void on_request(uint64 id, const td_api::deleteChatHistory &request);
