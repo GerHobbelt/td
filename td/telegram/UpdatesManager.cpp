@@ -4305,6 +4305,12 @@ void UpdatesManager::on_update(tl_object_ptr<telegram_api::updateChatParticipant
   promise.set_value(Unit());
 }
 
+void UpdatesManager::on_update(tl_object_ptr<telegram_api::updateChatParticipantRank> update, Promise<Unit> &&promise) {
+  td_->chat_manager_->on_update_chat_participant_rank(ChatId(update->chat_id_), UserId(update->user_id_),
+                                                      std::move(update->rank_), update->version_);
+  promise.set_value(Unit());
+}
+
 void UpdatesManager::on_update(tl_object_ptr<telegram_api::updateChatParticipantDelete> update,
                                Promise<Unit> &&promise) {
   td_->chat_manager_->on_update_chat_delete_user(ChatId(update->chat_id_), UserId(update->user_id_), update->version_);
@@ -4945,10 +4951,6 @@ void UpdatesManager::on_update(tl_object_ptr<telegram_api::updateStarsRevenueSta
 // unsupported updates
 
 void UpdatesManager::on_update(tl_object_ptr<telegram_api::updateNewStoryReaction> update, Promise<Unit> &&promise) {
-  promise.set_value(Unit());
-}
-
-void UpdatesManager::on_update(tl_object_ptr<telegram_api::updateChatParticipantRank> update, Promise<Unit> &&promise) {
   promise.set_value(Unit());
 }
 

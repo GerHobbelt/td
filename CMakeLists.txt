@@ -478,6 +478,7 @@ set(TDLIB_SOURCE_PART1
   td/telegram/InlineMessageManager.cpp
   td/telegram/InlineQueriesManager.cpp
   td/telegram/InputBusinessChatLink.cpp
+  td/telegram/InputCallId.cpp
   td/telegram/InputDialogId.cpp
   td/telegram/InputGroupCall.cpp
   td/telegram/InputGroupCallId.cpp
@@ -857,6 +858,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/InlineMessageManager.h
   td/telegram/InlineQueriesManager.h
   td/telegram/InputBusinessChatLink.h
+  td/telegram/InputCallId.h
   td/telegram/InputDialogId.h
   td/telegram/InputGroupCall.h
   td/telegram/InputGroupCallId.h

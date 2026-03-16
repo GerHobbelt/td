@@ -1905,15 +1905,15 @@ void ChatManager::Chat::parse(ParserT &parser) {
     }
 
     if (kicked || !is_active) {
-      status = DialogParticipantStatus::Banned(0);
+      status = DialogParticipantStatus::Banned(0, string());
     } else if (left) {
       status = DialogParticipantStatus::Left();
     } else if (is_creator) {
       status = DialogParticipantStatus::Creator(true, false, string());
     } else if (is_administrator && !everyone_is_administrator) {
-      status = DialogParticipantStatus::GroupAdministrator(false);
+      status = DialogParticipantStatus::GroupAdministrator(false, string());
     } else {
-      status = DialogParticipantStatus::Member(0);
+      status = DialogParticipantStatus::Member(0, string());
     }
     default_permissions = RestrictedRights(true, true, true, true, true, true, true, true, true, true, true, true, true,
                                            everyone_is_administrator, everyone_is_administrator,
@@ -1936,7 +1936,7 @@ void ChatManager::Chat::parse(ParserT &parser) {
   }
 
   if (status.is_administrator() && !status.is_creator()) {
-    status = DialogParticipantStatus::GroupAdministrator(false);
+    status = DialogParticipantStatus::GroupAdministrator(false, string());
   }
 }
 
@@ -2247,7 +2247,7 @@ void ChatManager::Channel::parse(ParserT &parser) {
     parse(status, parser);
   } else {
     if (kicked) {
-      status = DialogParticipantStatus::Banned(0);
+      status = DialogParticipantStatus::Banned(0, string());
     } else if (left) {
       status = DialogParticipantStatus::Left();
     } else if (is_creator) {
@@ -2255,7 +2255,7 @@ void ChatManager::Channel::parse(ParserT &parser) {
     } else if (can_edit || can_moderate) {
       status = DialogParticipantStatus::ChannelAdministrator(false, is_megagroup);
     } else {
-      status = DialogParticipantStatus::Member(0);
+      status = DialogParticipantStatus::Member(0, string());
     }
   }
   parse(access_hash, parser);
@@ -2349,7 +2349,7 @@ void ChatManager::Channel::parse(ParserT &parser) {
   } else {
     if (status.is_restricted()) {
       if (status.is_member()) {
-        status = DialogParticipantStatus::Member(0);
+        status = DialogParticipantStatus::Member(0, string());
       } else {
         status = DialogParticipantStatus::Left();
       }
@@ -4881,7 +4881,7 @@ void ChatManager::on_load_channel_from_database(ChannelId channel_id, string val
     }
     if (is_new && !c->status.is_banned()) {
       c->status.update_restrictions();
-      on_channel_status_changed(c, channel_id, DialogParticipantStatus::Banned(0), c->status);
+      on_channel_status_changed(c, channel_id, DialogParticipantStatus::Banned(0, string()), c->status);
     }
   }
 
@@ -6298,10 +6298,12 @@ const vector<DialogParticipant> *ChatManager::get_chat_participants(ChatId chat_
 
 tl_object_ptr<td_api::chatMember> ChatManager::get_chat_member_object(const DialogParticipant &dialog_participant,
                                                                       const char *source) const {
+  string rank;
+  auto chat_member_status = dialog_participant.status_.get_chat_member_status_object(&rank);
   return td_api::make_object<td_api::chatMember>(
-      get_message_sender_object(td_, dialog_participant.dialog_id_, source),
+      get_message_sender_object(td_, dialog_participant.dialog_id_, source), rank,
       td_->user_manager_->get_user_id_object(dialog_participant.inviter_user_id_, "chatMember.inviter_user_id"),
-      dialog_participant.joined_date_, dialog_participant.status_.get_chat_member_status_object());
+      dialog_participant.joined_date_, std::move(chat_member_status));
 }
 
 bool ChatManager::on_get_channel_error(ChannelId channel_id, const Status &status, const char *source) {
@@ -6939,7 +6941,7 @@ void ChatManager::on_update_chat_add_user(ChatId chat_id, UserId inviter_user_id
     chat_full->participants.push_back(DialogParticipant{DialogId(user_id), inviter_user_id, date,
                                                         user_id == chat_full->creator_user_id
                                                             ? DialogParticipantStatus::Creator(true, false, string())
-                                                            : DialogParticipantStatus::Member(0)});
+                                                            : DialogParticipantStatus::Member(0, string())});
     update_chat_online_member_count(chat_full, chat_id, false);
     chat_full->is_changed = true;
     update_chat_full(chat_full, chat_id, "on_update_chat_add_user");
@@ -6987,8 +6989,8 @@ void ChatManager::on_update_chat_edit_administrator(ChatId chat_id, UserId user_
   }
   CHECK(c->version >= 0);
 
-  auto status = is_administrator ? DialogParticipantStatus::GroupAdministrator(c->status.is_creator())
-                                 : DialogParticipantStatus::Member(0);
+  auto status = is_administrator ? DialogParticipantStatus::GroupAdministrator(c->status.is_creator(), string())
+                                 : DialogParticipantStatus::Member(0, string());
   if (version > c->version) {
     if (version != c->version + 1) {
       LOG(INFO) << "Administrators of " << chat_id << " with version " << c->version
@@ -7012,9 +7014,73 @@ void ChatManager::on_update_chat_edit_administrator(ChatId chat_id, UserId user_
     if (chat_full->version + 1 == version) {
       for (auto &participant : chat_full->participants) {
         if (participant.dialog_id_ == DialogId(user_id)) {
+          status.set_rank(string(participant.status_.get_rank()));
           participant.status_ = std::move(status);
           chat_full->is_changed = true;
           update_chat_full(chat_full, chat_id, "on_update_chat_edit_administrator");
+          return;
+        }
+      }
+    }
+
+    // can't find chat member or version have increased too much
+    repair_chat_participants(chat_id);
+  }
+}
+
+void ChatManager::on_update_chat_participant_rank(ChatId chat_id, UserId user_id, string &&rank, int32 version) {
+  if (!chat_id.is_valid()) {
+    LOG(ERROR) << "Receive invalid " << chat_id;
+    return;
+  }
+  if (!td_->user_manager_->have_min_user(user_id)) {
+    LOG(ERROR) << "Can't find " << user_id;
+    return;
+  }
+  LOG(INFO) << "Receive updateChatParticipantRank in " << chat_id << " with " << user_id << ", tag " << rank
+            << " with version " << version;
+
+  auto c = get_chat_force(chat_id, "on_update_chat_participant_rank");
+  if (c == nullptr) {
+    LOG(INFO) << "Ignoring update about members of unknown " << chat_id;
+    return;
+  }
+
+  if (c->status.is_left()) {
+    // possible if updates come out of order
+    LOG(WARNING) << "Receive on_update_chat_participant_rank for left " << chat_id << ". Couldn't apply it";
+
+    repair_chat_participants(chat_id);  // just in case
+    return;
+  }
+  if (version <= -1) {
+    LOG(ERROR) << "Receive wrong version " << version << " for " << chat_id;
+    return;
+  }
+  CHECK(c->version >= 0);
+
+  if (version > c->version) {
+    if (version != c->version + 1) {
+      LOG(INFO) << "Members of " << chat_id << " with version " << c->version << " has changed, but new version is "
+                << version;
+      repair_chat_participants(chat_id);
+      return;
+    }
+
+    c->version = version;
+    c->need_save_to_database = true;
+    update_chat(c, chat_id);
+  }
+
+  ChatFull *chat_full = get_chat_full_force(chat_id, "on_update_chat_participant_rank");
+  if (chat_full != nullptr) {
+    if (chat_full->version + 1 == version) {
+      for (auto &participant : chat_full->participants) {
+        if (participant.dialog_id_ == DialogId(user_id)) {
+          if (participant.status_.set_rank(std::move(rank))) {
+            chat_full->is_changed = true;
+            update_chat_full(chat_full, chat_id, "on_update_chat_participant_rank");
+          }
           return;
         }
       }
@@ -7530,12 +7596,13 @@ void ChatManager::on_update_channel_title(Channel *c, ChannelId channel_id, stri
 void ChatManager::on_update_channel_status(Channel *c, ChannelId channel_id, DialogParticipantStatus &&status) {
   if (c->is_monoforum) {
     if (status.is_member()) {
+      // monoforums has no member tags
       status = c->is_admined_monoforum && !td_->auth_manager_->is_bot()
                    ? DialogParticipantStatus::Administrator(
                          AdministratorRights(true, true, false, false, false, false, false, false, false, false, false,
                                              false, false, false, false, false, false, ChannelType::Megagroup),
                          string(), false)
-                   : DialogParticipantStatus::Member(0);
+                   : DialogParticipantStatus::Member(0, string());
     } else {
       status = DialogParticipantStatus::Left();
     }
@@ -8362,14 +8429,14 @@ ChannelId ChatManager::get_chat_migrated_to_channel_id(ChatId chat_id) const {
 DialogParticipantStatus ChatManager::get_chat_status(ChatId chat_id) const {
   auto c = get_chat(chat_id);
   if (c == nullptr) {
-    return DialogParticipantStatus::Banned(0);
+    return DialogParticipantStatus::Banned(0, string());
   }
   return get_chat_status(c);
 }
 
 DialogParticipantStatus ChatManager::get_chat_status(const Chat *c) {
   if (!c->is_active) {
-    return DialogParticipantStatus::Banned(0);
+    return DialogParticipantStatus::Banned(0, string());
   }
   return c->status;
 }
@@ -8377,14 +8444,14 @@ DialogParticipantStatus ChatManager::get_chat_status(const Chat *c) {
 DialogParticipantStatus ChatManager::get_chat_permissions(ChatId chat_id) const {
   auto c = get_chat(chat_id);
   if (c == nullptr) {
-    return DialogParticipantStatus::Banned(0);
+    return DialogParticipantStatus::Banned(0, string());
   }
   return get_chat_permissions(c);
 }
 
 DialogParticipantStatus ChatManager::get_chat_permissions(const Chat *c) const {
   if (!c->is_active) {
-    return DialogParticipantStatus::Banned(0);
+    return DialogParticipantStatus::Banned(0, string());
   }
   return c->status.apply_restrictions(c->default_permissions, false, td_->auth_manager_->is_bot());
 }
@@ -8483,7 +8550,7 @@ int32 ChatManager::get_channel_date(ChannelId channel_id) const {
 DialogParticipantStatus ChatManager::get_channel_status(ChannelId channel_id) const {
   auto c = get_channel(channel_id);
   if (c == nullptr) {
-    return DialogParticipantStatus::Banned(0);
+    return DialogParticipantStatus::Banned(0, string());
   }
   return get_channel_status(c);
 }
@@ -8496,7 +8563,7 @@ DialogParticipantStatus ChatManager::get_channel_status(const Channel *c) {
 DialogParticipantStatus ChatManager::get_channel_permissions(ChannelId channel_id) const {
   auto c = get_channel(channel_id);
   if (c == nullptr) {
-    return DialogParticipantStatus::Banned(0);
+    return DialogParticipantStatus::Banned(0, string());
   }
   return get_channel_permissions(channel_id, c);
 }
@@ -8857,8 +8924,8 @@ void ChatManager::get_chat_participant(ChatId chat_id, UserId user_id, Promise<D
     return promise.set_error(400, "Group not found");
   }
 
-  if (td_->auth_manager_->is_bot() && user_id == td_->user_manager_->get_my_id()) {
-    // bots don't need inviter information
+  if (false && td_->auth_manager_->is_bot() && user_id == td_->user_manager_->get_my_id()) {
+    // bots don't need inviter information, but bots need member tag which isn't available in the channel status
     reload_chat(chat_id, Auto(), "get_chat_participant");
     return promise.set_value(DialogParticipant{DialogId(user_id), user_id, c->date, c->status});
   }
@@ -8958,7 +9025,7 @@ void ChatManager::on_get_chat(telegram_api::chat &chat, const char *source) {
     } else if (chat.left_) {
       return DialogParticipantStatus::Left();
     } else {
-      return DialogParticipantStatus::Member(0);
+      return DialogParticipantStatus::Member(0, string());
     }
   }();
 
@@ -9048,7 +9115,7 @@ void ChatManager::on_get_chat_forbidden(telegram_api::chatForbidden &chat, const
     c->date = 0;  // removed in 38-th layer
     c->need_save_to_database = true;
   }
-  on_update_chat_status(c, chat_id, DialogParticipantStatus::Banned(0));
+  on_update_chat_status(c, chat_id, DialogParticipantStatus::Banned(0, string()));
   if (is_uninited) {
     on_update_chat_active(c, chat_id, true);
     on_update_chat_migrated_to_channel_id(c, chat_id, ChannelId());
@@ -9252,11 +9319,11 @@ void ChatManager::on_get_channel(telegram_api::channel &channel, const char *sou
                                      is_megagroup ? ChannelType::Megagroup : ChannelType::Broadcast);
     } else if (channel.banned_rights_ != nullptr) {
       return DialogParticipantStatus(!channel.left_, std::move(channel.banned_rights_),
-                                     is_megagroup ? ChannelType::Megagroup : ChannelType::Broadcast);
+                                     is_megagroup ? ChannelType::Megagroup : ChannelType::Broadcast, string());
     } else if (channel.left_) {
       return DialogParticipantStatus::Left();
     } else {
-      return DialogParticipantStatus::Member(channel.subscription_until_date_);
+      return DialogParticipantStatus::Member(channel.subscription_until_date_, string());
     }
   }();
   if (status.is_creator()) {
@@ -9517,7 +9584,7 @@ void ChatManager::on_get_channel_forbidden(telegram_api::channelForbidden &chann
 
   on_update_channel_title(c, channel_id, std::move(channel.title_));
   on_update_channel_photo(c, channel_id, nullptr);
-  on_update_channel_status(c, channel_id, DialogParticipantStatus::Banned(channel.until_date_));
+  on_update_channel_status(c, channel_id, DialogParticipantStatus::Banned(channel.until_date_, string()));
   // on_update_channel_usernames(c, channel_id, Usernames());  // don't know if channel usernames are empty, so don't update it
   // on_update_channel_has_location(c, channel_id, false);
   on_update_channel_noforwards(c, channel_id, false);
@@ -9564,7 +9631,7 @@ td_api::object_ptr<td_api::updateBasicGroup> ChatManager::get_update_basic_group
 
 td_api::object_ptr<td_api::updateBasicGroup> ChatManager::get_update_unknown_basic_group_object(ChatId chat_id) {
   return td_api::make_object<td_api::updateBasicGroup>(td_api::make_object<td_api::basicGroup>(
-      chat_id.get(), 0, DialogParticipantStatus::Banned(0).get_chat_member_status_object(), true, 0));
+      chat_id.get(), 0, DialogParticipantStatus::Banned(0, string()).get_chat_member_status_object(nullptr), true, 0));
 }
 
 int64 ChatManager::get_basic_group_id_object(ChatId chat_id, const char *source) const {
@@ -9592,7 +9659,7 @@ tl_object_ptr<td_api::basicGroup> ChatManager::get_basic_group_object(ChatId cha
 
 tl_object_ptr<td_api::basicGroup> ChatManager::get_basic_group_object_const(ChatId chat_id, const Chat *c) const {
   return make_tl_object<td_api::basicGroup>(
-      chat_id.get(), c->participant_count, get_chat_status(c).get_chat_member_status_object(), c->is_active,
+      chat_id.get(), c->participant_count, get_chat_status(c).get_chat_member_status_object(nullptr), c->is_active,
       get_supergroup_id_object(c->migrated_to_channel_id, "get_basic_group_object"));
 }
 
@@ -9629,9 +9696,9 @@ td_api::object_ptr<td_api::updateSupergroup> ChatManager::get_update_unknown_sup
   auto min_channel = get_min_channel(channel_id);
   bool is_megagroup = min_channel == nullptr ? false : min_channel->is_megagroup_;
   return td_api::make_object<td_api::updateSupergroup>(td_api::make_object<td_api::supergroup>(
-      channel_id.get(), nullptr, 0, DialogParticipantStatus::Banned(0).get_chat_member_status_object(), 0, 0, false,
-      false, false, false, false, !is_megagroup, false, false, !is_megagroup, false, false, false, false, nullptr,
-      false, false, nullptr, 0, nullptr));
+      channel_id.get(), nullptr, 0, DialogParticipantStatus::Banned(0, string()).get_chat_member_status_object(nullptr),
+      0, 0, false, false, false, false, false, !is_megagroup, false, false, !is_megagroup, false, false, false, false,
+      nullptr, false, false, nullptr, 0, nullptr));
 }
 
 int64 ChatManager::get_supergroup_id_object(ChannelId channel_id, const char *source) const {
@@ -9668,10 +9735,10 @@ td_api::object_ptr<td_api::supergroup> ChatManager::get_supergroup_object(Channe
   }
   return td_api::make_object<td_api::supergroup>(
       channel_id.get(), c->usernames.get_usernames_object(), c->date,
-      get_channel_status(c).get_chat_member_status_object(), c->participant_count, c->boost_level, c->autotranslation,
-      c->has_linked_channel, c->has_location, c->sign_messages, c->show_message_sender, get_channel_join_to_send(c),
-      get_channel_join_request(c), c->is_slow_mode_enabled, !c->is_megagroup, c->is_gigagroup, c->is_forum,
-      c->is_monoforum, c->is_admined_monoforum, get_channel_verification_status_object(c),
+      get_channel_status(c).get_chat_member_status_object(nullptr), c->participant_count, c->boost_level,
+      c->autotranslation, c->has_linked_channel, c->has_location, c->sign_messages, c->show_message_sender,
+      get_channel_join_to_send(c), get_channel_join_request(c), c->is_slow_mode_enabled, !c->is_megagroup,
+      c->is_gigagroup, c->is_forum, c->is_monoforum, c->is_admined_monoforum, get_channel_verification_status_object(c),
       c->broadcast_messages_allowed, c->is_forum_tabs, get_restriction_info_object(c->restriction_reasons),
       c->paid_message_star_count, get_channel_active_story_state(c).get_active_story_state_object());
 }

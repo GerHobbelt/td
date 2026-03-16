@@ -8,6 +8,7 @@
 
 #include "td/telegram/files/FileManager.h"
 #include "td/telegram/Global.h"
+#include "td/telegram/MessagesManager.h"
 #include "td/telegram/Td.h"
 #include "td/telegram/telegram_api.h"
 #include "td/telegram/UpdatesManager.h"
@@ -26,13 +27,13 @@ namespace td {
 
 class SetCallRatingQuery final : public Td::ResultHandler {
   Promise<Unit> promise_;
-  CallId call_id_;
+  InputCallId call_id_;
 
  public:
   explicit SetCallRatingQuery(Promise<Unit> &&promise) : promise_(std::move(promise)) {
   }
 
-  void send(CallId call_id, telegram_api::object_ptr<telegram_api::inputPhoneCall> input_phone_call, int32 rating,
+  void send(InputCallId call_id, telegram_api::object_ptr<telegram_api::inputPhoneCall> input_phone_call, int32 rating,
             const string &comment) {
     call_id_ = std::move(call_id);
     bool user_initiative = false;
@@ -59,13 +60,13 @@ class SetCallRatingQuery final : public Td::ResultHandler {
 
 class SaveCallDebugQuery final : public Td::ResultHandler {
   Promise<Unit> promise_;
-  CallId call_id_;
+  InputCallId call_id_;
 
  public:
   explicit SaveCallDebugQuery(Promise<Unit> &&promise) : promise_(std::move(promise)) {
   }
 
-  void send(CallId call_id, telegram_api::object_ptr<telegram_api::inputPhoneCall> input_phone_call,
+  void send(InputCallId call_id, telegram_api::object_ptr<telegram_api::inputPhoneCall> input_phone_call,
             const string &data) {
     call_id_ = std::move(call_id);
     send_query(G()->net_query_creator().create(telegram_api::phone_saveCallDebug(
@@ -91,14 +92,14 @@ class SaveCallDebugQuery final : public Td::ResultHandler {
 
 class SaveCallLogQuery final : public Td::ResultHandler {
   Promise<Unit> promise_;
-  CallId call_id_;
+  InputCallId call_id_;
   FileUploadId file_upload_id_;
 
  public:
   explicit SaveCallLogQuery(Promise<Unit> &&promise) : promise_(std::move(promise)) {
   }
 
-  void send(CallId call_id, telegram_api::object_ptr<telegram_api::inputPhoneCall> input_phone_call,
+  void send(InputCallId call_id, telegram_api::object_ptr<telegram_api::inputPhoneCall> input_phone_call,
             FileUploadId file_upload_id, telegram_api::object_ptr<telegram_api::InputFile> &&input_file) {
     call_id_ = std::move(call_id);
     file_upload_id_ = file_upload_id;
@@ -119,7 +120,8 @@ class SaveCallLogQuery final : public Td::ResultHandler {
   }
 
   void on_error(Status status) final {
-    promise_.set_error(std::move(status));
+    send_closure(G()->call_manager(), &CallManager::on_save_log, std::move(call_id_), file_upload_id_,
+                 std::move(status), std::move(promise_));
   }
 };
 
@@ -225,22 +227,36 @@ void CallManager::discard_call(CallId call_id, bool is_disconnected, const strin
                std::move(safe_promise));
 }
 
-void CallManager::fetch_input_phone_call(CallId call_id,
+void CallManager::fetch_input_phone_call(InputCallId call_id,
                                          Promise<telegram_api::object_ptr<telegram_api::inputPhoneCall>> &&promise) {
-  auto actor = get_call_actor(call_id);
-  if (actor.empty()) {
-    return promise.set_error(400, "Call not found");
+  switch (call_id.get_type()) {
+    case InputCallId::Type::Call: {
+      auto actor = get_call_actor(call_id.get_call_id());
+      if (actor.empty()) {
+        return promise.set_error(400, "Call not found");
+      }
+      auto safe_promise = SafePromise<telegram_api::object_ptr<telegram_api::inputPhoneCall>>(
+          std::move(promise), Status::Error(400, "Call not found"));
+      send_closure(actor, &CallActor::get_input_phone_call_to_promise, std::move(safe_promise));
+      break;
+    }
+    case InputCallId::Type::Message: {
+      send_closure(G()->messages_manager(), &MessagesManager::get_input_phone_call_to_promise,
+                   call_id.get_message_full_id(), std::move(promise));
+      break;
+    }
+    default:
+      UNREACHABLE();
   }
-  auto safe_promise = SafePromise<telegram_api::object_ptr<telegram_api::inputPhoneCall>>(
-      std::move(promise), Status::Error(400, "Call not found"));
-  send_closure(actor, &CallActor::get_input_phone_call_to_promise, std::move(safe_promise));
 }
 
-void CallManager::rate_call(CallId call_id, int32 rating, string comment,
+void CallManager::rate_call(td_api::object_ptr<td_api::InputCall> &&input_call, int32 rating, string comment,
                             vector<td_api::object_ptr<td_api::CallProblem>> &&problems, Promise<Unit> promise) {
+  TRY_STATUS_PROMISE(promise, G()->close_status());
   if (rating < 1 || rating > 5) {
     return promise.set_error(400, "Invalid rating specified");
   }
+  TRY_RESULT_PROMISE(promise, call_id, InputCallId::get_input_call_id(input_call));
   fetch_input_phone_call(
       call_id, [actor_id = actor_id(this), call_id, rating, comment = std::move(comment),
                 problems = std::move(problems), promise = std::move(promise)](
@@ -253,8 +269,9 @@ void CallManager::rate_call(CallId call_id, int32 rating, string comment,
       });
 }
 
-void CallManager::do_rate_call(CallId call_id, telegram_api::object_ptr<telegram_api::inputPhoneCall> input_phone_call,
-                               int32 rating, string comment, vector<td_api::object_ptr<td_api::CallProblem>> &&problems,
+void CallManager::do_rate_call(InputCallId call_id,
+                               telegram_api::object_ptr<telegram_api::inputPhoneCall> input_phone_call, int32 rating,
+                               string comment, vector<td_api::object_ptr<td_api::CallProblem>> &&problems,
                                Promise<Unit> promise) {
   TRY_STATUS_PROMISE(promise, G()->close_status());
   if (rating == 5) {
@@ -305,14 +322,19 @@ void CallManager::do_rate_call(CallId call_id, telegram_api::object_ptr<telegram
       ->send(call_id, std::move(input_phone_call), rating, comment);
 }
 
-void CallManager::on_set_call_rating(CallId call_id) {
-  auto actor = get_call_actor(call_id);
-  if (!actor.empty()) {
-    send_closure(actor, &CallActor::on_set_call_rating);
+void CallManager::on_set_call_rating(InputCallId call_id) {
+  if (call_id.get_type() == InputCallId::Type::Call) {
+    auto actor = get_call_actor(call_id.get_call_id());
+    if (!actor.empty()) {
+      send_closure(actor, &CallActor::on_set_call_rating);
+    }
   }
 }
 
-void CallManager::send_call_debug_information(CallId call_id, string data, Promise<Unit> promise) {
+void CallManager::send_call_debug_information(td_api::object_ptr<td_api::InputCall> &&input_call, string data,
+                                              Promise<Unit> promise) {
+  TRY_STATUS_PROMISE(promise, G()->close_status());
+  TRY_RESULT_PROMISE(promise, call_id, InputCallId::get_input_call_id(input_call));
   fetch_input_phone_call(
       call_id, [actor_id = actor_id(this), call_id, data = std::move(data), promise = std::move(promise)](
                    Result<telegram_api::object_ptr<telegram_api::inputPhoneCall>> r_input_phone_call) mutable {
@@ -325,21 +347,25 @@ void CallManager::send_call_debug_information(CallId call_id, string data, Promi
 }
 
 void CallManager::do_send_call_debug_information(
-    CallId call_id, telegram_api::object_ptr<telegram_api::inputPhoneCall> input_phone_call, string data,
+    InputCallId call_id, telegram_api::object_ptr<telegram_api::inputPhoneCall> input_phone_call, string data,
     Promise<Unit> promise) {
   TRY_STATUS_PROMISE(promise, G()->close_status());
   td_->create_handler<SaveCallDebugQuery>(std::move(promise))->send(call_id, std::move(input_phone_call), data);
 }
 
-void CallManager::on_save_debug_information(CallId call_id, bool result) {
-  auto actor = get_call_actor(call_id);
-  if (!actor.empty()) {
-    send_closure(actor, &CallActor::on_save_debug_information, result);
+void CallManager::on_save_debug_information(InputCallId call_id, bool result) {
+  if (call_id.get_type() == InputCallId::Type::Call) {
+    auto actor = get_call_actor(call_id.get_call_id());
+    if (!actor.empty()) {
+      send_closure(actor, &CallActor::on_save_debug_information, result);
+    }
   }
 }
 
-void CallManager::send_call_log(CallId call_id, td_api::object_ptr<td_api::InputFile> log_file, Promise<Unit> promise) {
+void CallManager::send_call_log(td_api::object_ptr<td_api::InputCall> &&input_call,
+                                td_api::object_ptr<td_api::InputFile> log_file, Promise<Unit> promise) {
   TRY_STATUS_PROMISE(promise, G()->close_status());
+  TRY_RESULT_PROMISE(promise, call_id, InputCallId::get_input_call_id(input_call));
 
   auto *file_manager = td_->file_manager_.get();
   TRY_RESULT_PROMISE(promise, file_id,
@@ -356,16 +382,16 @@ void CallManager::send_call_log(CallId call_id, td_api::object_ptr<td_api::Input
   upload_log_file(std::move(call_id), {file_id, FileManager::get_internal_upload_id()}, std::move(promise));
 }
 
-void CallManager::upload_log_file(CallId call_id, FileUploadId file_upload_id, Promise<Unit> &&promise) {
+void CallManager::upload_log_file(InputCallId call_id, FileUploadId file_upload_id, Promise<Unit> &&promise) {
   LOG(INFO) << "Ask to upload call log " << file_upload_id;
 
   class UploadLogFileCallback final : public FileManager::UploadCallback {
     ActorId<CallManager> actor_id_;
-    CallId call_id_;
+    InputCallId call_id_;
     Promise<Unit> promise_;
 
    public:
-    UploadLogFileCallback(ActorId<CallManager> actor_id, CallId call_id, Promise<Unit> &&promise)
+    UploadLogFileCallback(ActorId<CallManager> actor_id, InputCallId call_id, Promise<Unit> &&promise)
         : actor_id_(actor_id), call_id_(std::move(call_id)), promise_(std::move(promise)) {
     }
 
@@ -384,7 +410,7 @@ void CallManager::upload_log_file(CallId call_id, FileUploadId file_upload_id, P
                std::make_shared<UploadLogFileCallback>(actor_id(this), std::move(call_id), std::move(promise)), 1, 0);
 }
 
-void CallManager::on_upload_log_file(CallId call_id, FileUploadId file_upload_id, Promise<Unit> &&promise,
+void CallManager::on_upload_log_file(InputCallId call_id, FileUploadId file_upload_id, Promise<Unit> &&promise,
                                      telegram_api::object_ptr<telegram_api::InputFile> input_file) {
   TRY_STATUS_PROMISE(promise, G()->close_status());
 
@@ -399,6 +425,7 @@ void CallManager::on_upload_log_file(CallId call_id, FileUploadId file_upload_id
                 promise = std::move(promise)](
                    Result<telegram_api::object_ptr<telegram_api::inputPhoneCall>> r_input_phone_call) mutable {
         if (r_input_phone_call.is_error()) {
+          send_closure(G()->file_manager(), &FileManager::delete_partial_remote_location, file_upload_id);
           return promise.set_error(r_input_phone_call.move_as_error());
         }
         send_closure(actor_id, &CallManager::do_send_call_log, std::move(call_id), r_input_phone_call.move_as_ok(),
@@ -406,7 +433,7 @@ void CallManager::on_upload_log_file(CallId call_id, FileUploadId file_upload_id
       });
 }
 
-void CallManager::on_upload_log_file_error(CallId call_id, FileUploadId file_upload_id, Promise<Unit> &&promise,
+void CallManager::on_upload_log_file_error(InputCallId call_id, FileUploadId file_upload_id, Promise<Unit> &&promise,
                                            Status status) {
   TRY_STATUS_PROMISE(promise, G()->close_status());
 
@@ -417,7 +444,7 @@ void CallManager::on_upload_log_file_error(CallId call_id, FileUploadId file_upl
                     status.message());  // TODO CHECK that status has always a code
 }
 
-void CallManager::do_send_call_log(CallId call_id,
+void CallManager::do_send_call_log(InputCallId call_id,
                                    telegram_api::object_ptr<telegram_api::inputPhoneCall> input_phone_call,
                                    FileUploadId file_upload_id,
                                    telegram_api::object_ptr<telegram_api::InputFile> &&input_file,
@@ -427,7 +454,7 @@ void CallManager::do_send_call_log(CallId call_id,
       ->send(call_id, std::move(input_phone_call), file_upload_id, std::move(input_file));
 }
 
-void CallManager::on_save_log(CallId call_id, FileUploadId file_upload_id, Status status, Promise<Unit> promise) {
+void CallManager::on_save_log(InputCallId call_id, FileUploadId file_upload_id, Status status, Promise<Unit> promise) {
   TRY_STATUS_PROMISE(promise, G()->close_status());
 
   send_closure(G()->file_manager(), &FileManager::delete_partial_remote_location, file_upload_id);
@@ -440,9 +467,11 @@ void CallManager::on_save_log(CallId call_id, FileUploadId file_upload_id, Statu
     }
     return promise.set_error(std::move(status));
   }
-  auto actor = get_call_actor(call_id);
-  if (!actor.empty()) {
-    send_closure(actor, &CallActor::on_save_log);
+  if (call_id.get_type() == InputCallId::Type::Call) {
+    auto actor = get_call_actor(call_id.get_call_id());
+    if (!actor.empty()) {
+      send_closure(actor, &CallActor::on_save_log);
+    }
   }
   promise.set_value(Unit());
 }

@@ -466,6 +466,8 @@ class Requests {
 
   void on_request(uint64 id, td_api::getOauthLinkInfo &request);
 
+  void on_request(uint64 id, td_api::checkOauthRequestMatchCode &request);
+
   void on_request(uint64 id, td_api::acceptOauthRequest &request);
 
   void on_request(uint64 id, td_api::declineOauthRequest &request);
@@ -1006,6 +1008,8 @@ class Requests {
 
   void on_request(uint64 id, const td_api::toggleChatHasProtectedContent &request);
 
+  void on_request(uint64 id, const td_api::processChatHasProtectedContentDisableRequest &request);
+
   void on_request(uint64 id, const td_api::toggleChatIsPinned &request);
 
   void on_request(uint64 id, const td_api::toggleChatViewAsTopics &request);
@@ -1101,6 +1105,8 @@ class Requests {
   void on_request(uint64 id, const td_api::addChatMembers &request);
 
   void on_request(uint64 id, td_api::setChatMemberStatus &request);
+
+  void on_request(uint64 id, td_api::setChatMemberTag &request);
 
   void on_request(uint64 id, const td_api::banChatMember &request);
 

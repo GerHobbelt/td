@@ -168,11 +168,11 @@ static auto chat_administrator_rights(bool can_manage_chat, bool can_change_info
                                       bool can_restrict_members, bool can_pin_messages, bool can_manage_topics,
                                       bool can_promote_members, bool can_manage_video_chats, bool can_post_stories,
                                       bool can_edit_stories, bool can_delete_stories, bool can_manage_direct_messages,
-                                      bool can_manage_custom_tags, bool is_anonymous) {
+                                      bool can_manage_tags, bool is_anonymous) {
   return td::td_api::make_object<td::td_api::chatAdministratorRights>(
       can_manage_chat, can_change_info, can_post_messages, can_edit_messages, can_delete_messages, can_invite_users,
       can_restrict_members, can_pin_messages, can_manage_topics, can_promote_members, can_manage_video_chats,
-      can_post_stories, can_edit_stories, can_delete_stories, can_manage_direct_messages, can_manage_custom_tags,
+      can_post_stories, can_edit_stories, can_delete_stories, can_manage_direct_messages, can_manage_tags,
       is_anonymous);
 }
 
@@ -1499,7 +1499,7 @@ TEST(Link, parse_internal_link_part3) {
   parse_internal_link(
       "tg:resolve?domain=username&startgroup&admin=manage_chat+change_info+post_messages+edit_messages+delete_messages+"
       "invite_users+restrict_members+pin_messages+manage_topics+promote_members+manage_video_chats+post_stories+edit_"
-      "stories+delete_stories+anonymous+manage_direct_messages+manage_custom_tags",
+      "stories+delete_stories+anonymous+manage_direct_messages+manage_tags",
       bot_start_in_group("username", "",
                          chat_administrator_rights(true, true, false, false, true, true, true, true, true, true, true,
                                                    true, true, true, false, true, true)));
@@ -1518,7 +1518,7 @@ TEST(Link, parse_internal_link_part3) {
   parse_internal_link(
       "tg:resolve?domain=username&startchannel&admin=manage_chat+change_info+post_messages+edit_messages+delete_"
       "messages+invite_users+restrict_members+pin_messages+manage_topics+promote_members+manage_video_chats+anonymous+"
-      "manage_direct_messages+manage_custom_tags",
+      "manage_direct_messages+manage_tags",
       bot_add_to_channel("username", chat_administrator_rights(true, true, true, true, true, true, true, false, false,
                                                                true, true, false, false, false, true, false, false)));
 
@@ -1544,7 +1544,7 @@ TEST(Link, parse_internal_link_part3) {
       "t.me/"
       "username?startgroup&admin=manage_chat+change_info+post_messages+edit_messages+delete_messages+invite_users+"
       "restrict_members+pin_messages+manage_topics+promote_members+manage_video_chats+post_stories+edit_stories+delete_"
-      "stories+anonymous+manage_direct_messages+manage_custom_tags",
+      "stories+anonymous+manage_direct_messages+manage_tags",
       bot_start_in_group("username", "",
                          chat_administrator_rights(true, true, false, false, true, true, true, true, true, true, true,
                                                    true, true, true, false, true, true)));
@@ -1559,7 +1559,7 @@ TEST(Link, parse_internal_link_part3) {
       "t.me/"
       "username?startchannel&admin=manage_chat+change_info+post_messages+edit_messages+delete_messages+invite_users+"
       "restrict_members+pin_messages+manage_topics+promote_members+manage_video_chats+post_stories+edit_stories+delete_"
-      "stories+anonymous+manage_direct_messages+manage_custom_tags",
+      "stories+anonymous+manage_direct_messages+manage_tags",
       bot_add_to_channel("username", chat_administrator_rights(true, true, true, true, true, true, true, false, false,
                                                                true, true, true, true, true, true, false, false)));
 }

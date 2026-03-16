@@ -2698,6 +2698,9 @@ UserManager::UserManager(Td *td, ActorShared<> parent) : td_(td), parent_(std::m
   user_rating_timeout_.set_callback(on_user_rating_timeout_callback);
   user_rating_timeout_.set_callback_data(static_cast<void *>(this));
 
+  noforwards_request_timeout_.set_callback(on_noforwards_request_timeout_callback);
+  noforwards_request_timeout_.set_callback_data(static_cast<void *>(this));
+
   get_user_queries_.set_merge_function([this](vector<int64> query_ids, Promise<Unit> &&promise) {
     TRY_STATUS_PROMISE(promise, G()->close_status());
     auto input_users = transform(query_ids, [this](int64 query_id) { return get_input_user_force(UserId(query_id)); });
@@ -2823,6 +2826,31 @@ void UserManager::on_user_rating_timeout(UserId user_id) {
   }
 
   update_user_full(user_full, user_id, "on_user_rating_timeout");
+}
+
+void UserManager::on_noforwards_request_timeout_callback(void *user_manager_ptr, int64 request_id_long) {
+  if (G()->close_flag()) {
+    return;
+  }
+
+  auto user_manager = static_cast<UserManager *>(user_manager_ptr);
+  send_closure_later(user_manager->actor_id(user_manager), &UserManager::on_noforwards_request_timeout,
+                     static_cast<int32>(request_id_long));
+}
+
+void UserManager::on_noforwards_request_timeout(int32 request_id) {
+  if (G()->close_flag()) {
+    return;
+  }
+
+  auto it = noforwards_request_message_ids_.find(request_id);
+  if (it == noforwards_request_message_ids_.end()) {
+    return;
+  }
+  auto message_full_id = it->second;
+  unregister_noforwards_request(message_full_id);
+  td_->messages_manager_->on_external_update_message_content(message_full_id, "on_noforwards_request_timeout", false,
+                                                             true);
 }
 
 UserId UserManager::get_user_id(const telegram_api::object_ptr<telegram_api::User> &user) {
@@ -4355,7 +4383,8 @@ void UserManager::on_update_user_full_wallpaper_overridden(UserFull *user_full, 
   }
 }
 
-void UserManager::on_update_user_noforwards(UserId user_id, bool noforwards_my_enabled, bool noforwards_peer_enabled) {
+void UserManager::on_update_user_noforwards(UserId user_id, bool update_my, bool noforwards_my_enabled,
+                                            bool update_peer, bool noforwards_peer_enabled) {
   if (!user_id.is_valid()) {
     LOG(ERROR) << "Receive invalid " << user_id;
     return;
@@ -4365,23 +4394,24 @@ void UserManager::on_update_user_noforwards(UserId user_id, bool noforwards_my_e
   if (user_full == nullptr) {
     return;
   }
-  on_update_user_full_noforwards(user_full, noforwards_my_enabled, noforwards_peer_enabled);
+  on_update_user_full_noforwards(user_full, update_my, noforwards_my_enabled, update_peer, noforwards_peer_enabled);
   update_user_full(user_full, user_id, "on_update_user_noforwards");
 }
 
-void UserManager::on_update_user_full_noforwards(UserFull *user_full, bool noforwards_my_enabled,
-                                                 bool noforwards_peer_enabled) const {
+void UserManager::on_update_user_full_noforwards(UserFull *user_full, bool update_my, bool noforwards_my_enabled,
+                                                 bool update_peer, bool noforwards_peer_enabled) const {
   CHECK(user_full != nullptr);
   bool old_noforwards = user_full->noforwards_my_enabled || user_full->noforwards_peer_enabled;
-  if (user_full->noforwards_my_enabled != noforwards_my_enabled) {
+  if (update_my && user_full->noforwards_my_enabled != noforwards_my_enabled) {
     user_full->noforwards_my_enabled = noforwards_my_enabled;
-    user_full->is_changed = true;
+    user_full->need_save_to_database = true;
   }
-  if (user_full->noforwards_peer_enabled != noforwards_peer_enabled) {
+  if (update_peer && user_full->noforwards_peer_enabled != noforwards_peer_enabled) {
     user_full->noforwards_peer_enabled = noforwards_peer_enabled;
     user_full->need_save_to_database = true;
   }
-  if (old_noforwards != user_full->noforwards_my_enabled || user_full->noforwards_peer_enabled) {
+  bool new_noforwards = user_full->noforwards_my_enabled || user_full->noforwards_peer_enabled;
+  if (old_noforwards != new_noforwards) {
     user_full->is_has_protected_content_changed = true;
   }
 }
@@ -4605,6 +4635,7 @@ void UserManager::on_update_phone_number_privacy() {
   CHECK(!td_->auth_manager_->is_bot());
   // all UserFull.need_phone_number_privacy_exception can be outdated now,
   // so mark all of them as expired
+  LOG(INFO) << "Updated phone number privacy settings";
   users_full_.foreach([&](const UserId &user_id, unique_ptr<UserFull> &user_full) { user_full->expires_at = 0.0; });
 }
 
@@ -4638,6 +4669,7 @@ void UserManager::on_update_freeze_state(int32 freeze_since_date, int32 freeze_u
 }
 
 void UserManager::invalidate_user_full(UserId user_id) {
+  LOG(INFO) << "Invalidate full information about " << user_id;
   auto user_full = get_user_full_force(user_id, "invalidate_user_full");
   if (user_full != nullptr) {
     td_->dialog_manager_->on_dialog_info_full_invalidated(DialogId(user_id));
@@ -5448,10 +5480,10 @@ td_api::object_ptr<td_api::emojiStatus> UserManager::get_secret_chat_emoji_statu
   return get_user_emoji_status_object(c->user_id);
 }
 
-bool UserManager::get_user_has_protected_content_force(UserId user_id, bool only_my) {
+bool UserManager::get_user_has_protected_content_force(UserId user_id) {
   auto user_full = get_user_full_force(user_id, "get_user_has_protected_content_force");
   if (user_full != nullptr) {
-    return user_full->noforwards_my_enabled || (!only_my && user_full->noforwards_peer_enabled);
+    return user_full->noforwards_my_enabled || user_full->noforwards_peer_enabled;
   }
   return false;
 }
@@ -5460,6 +5492,22 @@ bool UserManager::get_user_has_protected_content(UserId user_id) const {
   auto user_full = get_user_full(user_id);
   if (user_full != nullptr) {
     return user_full->noforwards_my_enabled || user_full->noforwards_peer_enabled;
+  }
+  return false;
+}
+
+bool UserManager::get_user_has_protected_content_force_by_me(UserId user_id) {
+  auto user_full = get_user_full_force(user_id, "get_user_has_protected_content_force_by_me");
+  if (user_full != nullptr) {
+    return user_full->noforwards_my_enabled;
+  }
+  return false;
+}
+
+bool UserManager::get_user_has_protected_content_force_by_other(UserId user_id) {
+  auto user_full = get_user_full_force(user_id, "get_user_has_protected_content_force_by_other");
+  if (user_full != nullptr) {
+    return user_full->noforwards_peer_enabled;
   }
   return false;
 }
@@ -6138,12 +6186,13 @@ bool UserManager::delete_my_profile_photo_from_cache(int64 profile_photo_id) {
 
     // update Photo in UserFull
     if (user_full != nullptr) {
-      if (user_full->fallback_photo.id.get() == profile_photo_id) {
+      if (!user_full->fallback_photo.is_empty() && user_full->fallback_photo.id.get() == profile_photo_id) {
         LOG(INFO) << "Drop full public photo of " << user_id;
-        user_full->photo = Photo();
+        user_full->fallback_photo = Photo();
         user_full->is_changed = true;
       } else if (have_new_photo) {
-        if (user_full->photo.id.get() == profile_photo_id && user_photos->photos[0] != user_full->photo) {
+        if (!user_full->photo.is_empty() && user_full->photo.id.get() == profile_photo_id &&
+            user_photos->photos[0] != user_full->photo) {
           LOG(INFO) << "Update full photo of " << user_id << " to " << user_photos->photos[0];
           user_full->photo = user_photos->photos[0];
           user_full->is_changed = true;
@@ -6194,9 +6243,12 @@ void UserManager::delete_profile_photo(int64 profile_photo_id, bool is_recursive
     }
     profile_photo_id = user_full->photo.id.get();
   }
-  if (user_full->photo.id.get() == profile_photo_id || user_full->fallback_photo.id.get() == profile_photo_id) {
+  bool update_main_photo = !user_full->photo.is_empty() && user_full->photo.id.get() == profile_photo_id;
+  bool update_fallback_photo =
+      !user_full->fallback_photo.is_empty() && user_full->fallback_photo.id.get() == profile_photo_id;
+  if (update_main_photo || update_fallback_photo) {
     td_->create_handler<UpdateProfilePhotoQuery>(std::move(promise))
-        ->send(get_my_id(), FileId(), profile_photo_id, user_full->fallback_photo.id.get() == profile_photo_id,
+        ->send(get_my_id(), FileId(), profile_photo_id, update_fallback_photo,
                telegram_api::make_object<telegram_api::inputPhotoEmpty>());
     return;
   }
@@ -8668,7 +8720,7 @@ void UserManager::on_get_user_full(telegram_api::object_ptr<telegram_api::userFu
       user_full, StarManager::get_star_count(user->settings_->charge_paid_message_stars_));
   on_update_user_full_send_paid_message_stars(user_full, StarManager::get_star_count(user->send_paid_messages_stars_));
   on_update_user_full_wallpaper_overridden(user_full, user->wallpaper_overridden_);
-  on_update_user_full_noforwards(user_full, user->noforwards_my_enabled_, user->noforwards_peer_enabled_);
+  on_update_user_full_noforwards(user_full, true, user->noforwards_my_enabled_, true, user->noforwards_peer_enabled_);
   on_update_user_full_note(user_full,
                            get_formatted_text(this, std::move(user->note_), true, false, "on_get_user_full note"));
 
@@ -9018,7 +9070,7 @@ void UserManager::on_load_user_full_from_database(UserId user_id, string value) 
   }
   dependencies.add(user_full->personal_channel_id);
   add_formatted_text_dependencies(dependencies, &user_full->note);
-  if (!dependencies.resolve_force(td_, "on_load_user_full_from_database")) {
+  if (!dependencies.resolve_force(td_, "on_load_user_full_from_database 1")) {
     users_full_.erase(user_id);
     G()->td_db()->get_sqlite_pmc()->erase(get_user_full_database_key(user_id), Auto());
     return;
@@ -9034,24 +9086,52 @@ void UserManager::on_load_user_full_from_database(UserId user_id, string value) 
 
   User *u = get_user(user_id);
   CHECK(u != nullptr);
-  drop_user_full_photos(user_full, user_id, u->photo.id, "on_load_user_full_from_database");
+  drop_user_full_photos(user_full, user_id, u->photo.id, "on_load_user_full_from_database 2");
   if (!user_full->photo.is_empty()) {
     register_user_photo(u, user_id, user_full->photo);
   }
   if (user_id == get_my_id() && !user_full->fallback_photo.is_empty()) {
     register_suggested_profile_photo(user_full->fallback_photo);
   }
+  if (user_full->noforwards_my_enabled || user_full->noforwards_peer_enabled) {
+    user_full->is_has_protected_content_changed = true;
+  }
 
   td_->group_call_manager_->on_update_dialog_about(DialogId(user_id), user_full->about, false);
 
   user_full->is_update_user_full_sent = true;
-  update_user_full(user_full, user_id, "on_load_user_full_from_database", true);
+  update_user_full(user_full, user_id, "on_load_user_full_from_database 3", true);
 
   if (is_user_deleted(u)) {
     drop_user_full(user_id);
   } else if (user_full->expires_at == 0.0) {
-    reload_user_full(user_id, Auto(), "on_load_user_full_from_database");
+    reload_user_full(user_id, Auto(), "on_load_user_full_from_database 4");
   }
+}
+
+void UserManager::register_noforwards_request(MessageFullId message_full_id, int32 message_date) {
+  auto message_id = message_full_id.get_message_id();
+  auto duration = td_->option_manager_->get_option_integer("has_protected_content_disable_request_duration");
+  auto left_time = message_date + duration - G()->unix_time();
+  if (left_time > 0 && !message_id.is_scheduled()) {
+    auto &request_id = noforwards_request_ids_[message_full_id];
+    CHECK(request_id == 0);
+    request_id = ++current_noforwards_request_id_;
+    noforwards_request_message_ids_[request_id] = message_full_id;
+    noforwards_request_timeout_.set_timeout_in(request_id, static_cast<double>(left_time) + 1);
+  }
+}
+
+void UserManager::unregister_noforwards_request(MessageFullId message_full_id) {
+  auto it = noforwards_request_ids_.find(message_full_id);
+  if (it == noforwards_request_ids_.end()) {
+    return;
+  }
+  auto request_id = it->second;
+  CHECK(request_id != 0);
+  noforwards_request_ids_.erase(it);
+  noforwards_request_message_ids_.erase(request_id);
+  noforwards_request_timeout_.cancel_timeout(request_id);
 }
 
 void UserManager::get_web_app_placeholder(UserId user_id, Promise<td_api::object_ptr<td_api::outline>> &&promise) {
@@ -9069,7 +9149,10 @@ int64 UserManager::get_user_full_profile_photo_id(const UserFull *user_full) {
   if (!user_full->photo.is_empty()) {
     return user_full->photo.id.get();
   }
-  return user_full->fallback_photo.id.get();
+  if (!user_full->fallback_photo.is_empty()) {
+    return user_full->fallback_photo.id.get();
+  }
+  return 0;
 }
 
 void UserManager::drop_user_full_photos(UserFull *user_full, UserId user_id, int64 expected_photo_id,
@@ -9097,6 +9180,8 @@ void UserManager::drop_user_full_photos(UserFull *user_full, UserId user_id, int
     }
   }
   if (expected_photo_id != get_user_full_profile_photo_id(user_full)) {
+    LOG(INFO) << "Drop full " << user_id << ", because expected photo " << expected_photo_id << " instead of "
+              << get_user_full_profile_photo_id(user_full) << " from " << source;
     user_full->expires_at = 0.0;
   }
   if (user_full->is_update_user_full_sent) {
@@ -9147,6 +9232,7 @@ void UserManager::drop_user_full(UserId user_id) {
     return;
   }
 
+  LOG(INFO) << "Drop full information about " << user_id;
   user_full->expires_at = 0.0;
 
   user_full->photo = Photo();
@@ -9160,8 +9246,6 @@ void UserManager::drop_user_full(UserId user_id) {
   user_full->has_private_calls = false;
   user_full->need_phone_number_privacy_exception = false;
   user_full->wallpaper_overridden = false;
-  user_full->noforwards_my_enabled = false;
-  user_full->noforwards_peer_enabled = false;
   user_full->about = string();
   user_full->bot_info = nullptr;
   user_full->gift_count = 0;
@@ -10043,10 +10127,10 @@ td_api::object_ptr<td_api::userFullInfo> UserManager::get_user_full_info_object(
       user_full->can_be_called, user_full->supports_video_calls, user_full->has_private_calls,
       !user_full->private_forward_name.empty(), voice_messages_forbidden, user_full->has_pinned_stories,
       user_full->sponsored_enabled, user_full->need_phone_number_privacy_exception, user_full->wallpaper_overridden,
-      user_full->noforwards_my_enabled, std::move(bio_object), user_full->birthdate.get_birthdate_object(),
-      personal_chat_id, user_full->gift_count, user_full->common_chat_count, user_full->charge_paid_message_stars,
-      user_full->send_paid_message_stars, user_full->gift_settings.get_gift_settings_object(),
-      std::move(bot_verification), get_profile_tab_object(user_full->main_profile_tab),
+      std::move(bio_object), user_full->birthdate.get_birthdate_object(), personal_chat_id, user_full->gift_count,
+      user_full->common_chat_count, user_full->charge_paid_message_stars, user_full->send_paid_message_stars,
+      user_full->gift_settings.get_gift_settings_object(), std::move(bot_verification),
+      get_profile_tab_object(user_full->main_profile_tab),
       td_->audios_manager_->get_audio_object(user_full->first_saved_music_file_id), std::move(user_rating),
       std::move(pending_user_rating), user_full->pending_star_rating_date, std::move(note), std::move(business_info),
       std::move(bot_info));

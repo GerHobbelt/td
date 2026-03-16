@@ -84,8 +84,9 @@ class MessageEntity {
       : type(type), offset(offset), length(length), custom_emoji_id(custom_emoji_id) {
     CHECK(type == Type::CustomEmoji);
   }
-  MessageEntity(int32 offset, int32 length, int32 date, int32 date_flags)
-      : type(Type::FormattedDate), offset(offset), length(length), date(date), date_flags(date_flags) {
+  MessageEntity(Type type, int32 offset, int32 length, int32 date, int32 date_flags)
+      : type(type), offset(offset), length(length), date(date), date_flags(date_flags) {
+    CHECK(type == Type::FormattedDate);
   }
 
   tl_object_ptr<td_api::textEntity> get_text_entity_object(const UserManager *user_manager) const;

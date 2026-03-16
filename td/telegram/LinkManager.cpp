@@ -438,7 +438,7 @@ static AdministratorRights get_administrator_rights(Slice rights, bool for_chann
       can_delete_stories = true;
     } else if (right == "manage_direct_messages") {
       can_manage_direct_messages = true;
-    } else if (right == "manage_custom_tags") {
+    } else if (right == "manage_tags") {
       can_manage_ranks = true;
     } else if (right == "anonymous") {
       is_anonymous = true;
@@ -498,7 +498,7 @@ static string get_admin_string(AdministratorRights rights) {
     admin_rights.emplace_back("manage_direct_messages");
   }
   if (rights.can_manage_ranks()) {
-    admin_rights.emplace_back("manage_custom_tags");
+    admin_rights.emplace_back("manage_tags");
   }
   if (rights.is_anonymous()) {
     admin_rights.emplace_back("anonymous");
@@ -1682,11 +1682,14 @@ class RequestUrlOauthQuery final : public Td::ResultHandler {
       : promise_(std::move(promise)) {
   }
 
-  void send(string url) {
+  void send(string url, const string &in_app_origin) {
     url_ = std::move(url);
     int32 flags = telegram_api::messages_requestUrlAuth::URL_MASK;
-    send_query(
-        G()->net_query_creator().create(telegram_api::messages_requestUrlAuth(flags, nullptr, 0, 0, url_, string())));
+    if (!in_app_origin.empty()) {
+      flags |= telegram_api::messages_requestUrlAuth::IN_APP_ORIGIN_MASK;
+    }
+    send_query(G()->net_query_creator().create(
+        telegram_api::messages_requestUrlAuth(flags, nullptr, 0, 0, url_, in_app_origin)));
   }
 
   void on_result(BufferSlice packet) final {
@@ -1713,7 +1716,7 @@ class RequestUrlOauthQuery final : public Td::ResultHandler {
         promise_.set_value(td_api::make_object<td_api::oauthLinkInfo>(
             user_id.get(), url_, request->domain_, td_->user_manager_->get_user_id_object(bot_user_id, "oauthLinkInfo"),
             request->request_write_access_, request->request_phone_number_, request->browser_, request->platform_,
-            request->ip_, request->region_, std::move(request->match_codes_)));
+            request->ip_, request->region_, request->match_codes_first_, std::move(request->match_codes_)));
         break;
       }
       case telegram_api::urlAuthResultAccepted::ID:
@@ -1726,6 +1729,34 @@ class RequestUrlOauthQuery final : public Td::ResultHandler {
 
   void on_error(Status status) final {
     LOG(INFO) << "Receive error for RequestUrlOauthQuery: " << status;
+    promise_.set_error(std::move(status));
+  }
+};
+
+class CheckUrlAuthMatchCodeQuery final : public Td::ResultHandler {
+  Promise<Unit> promise_;
+
+ public:
+  explicit CheckUrlAuthMatchCodeQuery(Promise<Unit> &&promise) : promise_(std::move(promise)) {
+  }
+
+  void send(string url, const string &match_code) {
+    send_query(G()->net_query_creator().create(telegram_api::messages_checkUrlAuthMatchCode(url, match_code)));
+  }
+
+  void on_result(BufferSlice packet) final {
+    auto result_ptr = fetch_result<telegram_api::messages_checkUrlAuthMatchCode>(packet);
+    if (result_ptr.is_error()) {
+      return on_error(result_ptr.move_as_error());
+    }
+
+    if (!result_ptr.ok()) {
+      return on_error(Status::Error(400, "MATCH_CODE_INVALID"));
+    }
+    promise_.set_value(Unit());
+  }
+
+  void on_error(Status status) final {
     promise_.set_error(std::move(status));
   }
 };
@@ -4010,6 +4041,10 @@ void LinkManager::get_link_login_url(const string &url, bool allow_write_access,
       ->send(url, MessageFullId(), 0, allow_write_access, false, string());
 }
 
+void LinkManager::check_oauth_request_match_code(const string &url, const string &match_code, Promise<Unit> &&promise) {
+  td_->create_handler<CheckUrlAuthMatchCodeQuery>(std::move(promise))->send(url, match_code);
+}
+
 void LinkManager::accept_oauth_request(const string &url, const string &match_code, bool allow_write_access,
                                        bool allow_phone_number_access,
                                        Promise<td_api::object_ptr<td_api::httpUrl>> &&promise) {
@@ -4021,7 +4056,8 @@ void LinkManager::decline_oauth_request(const string &url, Promise<Unit> &&promi
   td_->create_handler<DeclineUrlAuthQuery>(std::move(promise))->send(url);
 }
 
-void LinkManager::get_oauth_link_info(string &&link, Promise<td_api::object_ptr<td_api::oauthLinkInfo>> &&promise) {
+void LinkManager::get_oauth_link_info(string &&link, const string &in_app_origin,
+                                      Promise<td_api::object_ptr<td_api::oauthLinkInfo>> &&promise) {
   auto parsed_link = parse_internal_link(link);
   if (parsed_link == nullptr) {
     return promise.set_error(400, "Invalid OAuth URL specified");
@@ -4031,7 +4067,7 @@ void LinkManager::get_oauth_link_info(string &&link, Promise<td_api::object_ptr<
     return promise.set_error(400, "Invalid OAuth URL specified");
   }
   link = std::move(static_cast<td_api::internalLinkTypeOauth &>(*parsed_object).url_);
-  td_->create_handler<RequestUrlOauthQuery>(std::move(promise))->send(link);
+  td_->create_handler<RequestUrlOauthQuery>(std::move(promise))->send(link, in_app_origin);
 }
 
 Result<string> LinkManager::get_background_url(const string &name,
@@ -4338,6 +4374,30 @@ Result<CustomEmojiId> LinkManager::get_link_custom_emoji_id(Slice url) {
     }
   }
   return Status::Error(400, "Custom emoji URL must have an emoji identifier");
+}
+
+Result<LinkManager::DateFormat> LinkManager::get_link_date_format(Slice url) {
+  TRY_RESULT(query, check_tg_url_host(url, "time"));
+  DateFormat result;
+  for (auto parameter : full_split(query, '&')) {
+    Slice key;
+    Slice value;
+    std::tie(key, value) = split(parameter, '=');
+    if (key == Slice("unix")) {
+      auto r_date = to_integer_safe<int32>(value);
+      if (r_date.is_error() || r_date.ok() <= 0) {
+        return Status::Error(400, "Invalid Unix time specified");
+      }
+      result.date_ = r_date.ok();
+    }
+    if (key == Slice("format")) {
+      result.format_ = value.str();
+    }
+  }
+  if (result.date_ == 0) {
+    return Status::Error(400, "URL must have the corresponding Unix time");
+  }
+  return std::move(result);
 }
 
 Result<DialogBoostLinkInfo> LinkManager::get_dialog_boost_link_info(Slice url) {
