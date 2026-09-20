@@ -10,6 +10,7 @@
 #include "td/telegram/DialogId.h"
 #include "td/telegram/DialogParticipant.h"
 #include "td/telegram/files/FileId.h"
+#include "td/telegram/MessageContentDupType.h"
 #include "td/telegram/RichMessageMedia.h"
 #include "td/telegram/td_api.h"
 #include "td/telegram/telegram_api.h"
@@ -65,6 +66,10 @@ class RichMessage {
   bool is_full() const {
     return is_full_;
   }
+
+  vector<FileId> get_any_file_ids() const;
+
+  vector<FileId> get_cover_any_file_ids() const;
 
   void append_file_ids(const Td *td, vector<FileId> &file_ids) const;
 

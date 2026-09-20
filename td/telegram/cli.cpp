@@ -264,9 +264,13 @@ class CliClient final : public Actor {
     User &new_user = *new_user_ptr;
     new_user.first_name = user.first_name_;
     new_user.last_name = user.last_name_;
+    new_user.username = string();
     if (user.usernames_ != nullptr) {
       for (auto &username : user.usernames_->active_usernames_) {
         username_to_user_id_[to_lower(username)] = user.id_;
+      }
+      if (!user.usernames_->active_usernames_.empty()) {
+        new_user.username = user.usernames_->active_usernames_[0];
       }
     }
   }
@@ -298,6 +302,7 @@ class CliClient final : public Actor {
       }
     }
     if (supergroup.is_channel_) {
+      CHECK(supergroup.id_ != 0);
       channel_ids_.insert(supergroup.id_);
     }
   }
@@ -1516,8 +1521,8 @@ class CliClient final : public Actor {
     string price;
 
     operator td_api::object_ptr<td_api::SuggestedPostPrice>() const {
-      if (price[0] == 't') {
-        return td_api::make_object<td_api::suggestedPostPriceTon>(to_integer<int64>(price.substr(1)));
+      if (price[0] == 'g') {
+        return td_api::make_object<td_api::suggestedPostPriceGram>(to_integer<int64>(price.substr(1)));
       }
       if (price[0] == 's') {
         return td_api::make_object<td_api::suggestedPostPriceStar>(to_integer<int64>(price.substr(1)));
@@ -1534,8 +1539,8 @@ class CliClient final : public Actor {
     string price;
 
     operator td_api::object_ptr<td_api::GiftResalePrice>() const {
-      if (price[0] == 't') {
-        return td_api::make_object<td_api::giftResalePriceTon>(to_integer<int64>(price.substr(1)));
+      if (price[0] == 'g') {
+        return td_api::make_object<td_api::giftResalePriceGram>(to_integer<int64>(price.substr(1)));
       }
       if (price[0] == 's') {
         return td_api::make_object<td_api::giftResalePriceStar>(to_integer<int64>(price.substr(1)));
@@ -2944,6 +2949,12 @@ class CliClient final : public Actor {
 
   void send_message(int64 chat_id, td_api::object_ptr<td_api::InputMessageContent> &&input_message_content,
                     bool disable_notification = false, bool from_background = false) {
+    if (ephemeral_message_receiver_id_ != 0) {
+      send_request(td_api::make_object<td_api::sendEphemeralMessage>(
+          chat_id, get_message_topic_id(), ephemeral_message_receiver_id_, 0, get_input_message_reply_to(), 123,
+          only_preview_, nullptr, std::move(input_message_content)));
+      return;
+    }
     if (!business_connection_id_.empty()) {
       send_request(td_api::make_object<td_api::sendBusinessMessage>(
           business_connection_id_, chat_id, get_input_message_reply_to(), disable_notification, rand_bool(),
@@ -5200,6 +5211,12 @@ class CliClient final : public Actor {
       string to_language_code;
       get_args(args, to_language_code, text);
       send_request(td_api::make_object<td_api::translateText>(as_formatted_text(text), to_language_code, as_tone(op)));
+    } else if (op == "trm" || op == "trmf" || op == "trmc" || op == "trmn") {
+      string message;
+      string to_language_code;
+      get_args(args, to_language_code, message);
+      send_request(td_api::make_object<td_api::translateRichMessage>(as_input_rich_message(message), to_language_code,
+                                                                     as_tone(op)));
     } else if (op == "tmt" || op == "tmtf" || op == "tmtc" || op == "tmtn") {
       ChatId chat_id;
       MessageId message_id;
@@ -5207,6 +5224,13 @@ class CliClient final : public Actor {
       get_args(args, chat_id, message_id, to_language_code);
       send_request(
           td_api::make_object<td_api::translateMessageText>(chat_id, message_id, to_language_code, as_tone(op)));
+    } else if (op == "tmrm" || op == "tmrmf" || op == "tmrmc" || op == "tmrmn") {
+      ChatId chat_id;
+      MessageId message_id;
+      string to_language_code;
+      get_args(args, chat_id, message_id, to_language_code);
+      send_request(
+          td_api::make_object<td_api::translateMessageRichMessage>(chat_id, message_id, to_language_code, as_tone(op)));
     } else if (op == "sum") {
       ChatId chat_id;
       MessageId message_id;
@@ -5222,10 +5246,29 @@ class CliClient final : public Actor {
       get_args(args, to_language_code, style_name, emojify, text);
       send_request(td_api::make_object<td_api::composeTextWithAi>(as_formatted_text(text), to_language_code, style_name,
                                                                   emojify));
+    } else if (op == "crmwa" || op == "crmwac") {
+      string to_language_code;
+      string style_name;
+      bool emojify;
+      string message;
+      get_args(args, to_language_code, style_name, emojify, message);
+      send_request(td_api::make_object<td_api::composeRichMessageWithAi>(
+          as_input_rich_message(message), to_language_code, style_name, op == "crmwac" ? "Make text uppercase" : "",
+          emojify));
+    } else if (op == "cnrmwa") {
+      string language_code;
+      bool emojify;
+      string prompt;
+      get_args(args, language_code, emojify, prompt);
+      send_request(td_api::make_object<td_api::createRichMessageWithAi>(prompt, language_code, emojify));
     } else if (op == "ftwa") {
       string text;
       get_args(args, text);
       send_request(td_api::make_object<td_api::fixTextWithAi>(as_formatted_text(text)));
+    } else if (op == "frmwa") {
+      string message;
+      get_args(args, message);
+      send_request(td_api::make_object<td_api::fixRichMessageWithAi>(as_input_rich_message(message)));
     } else if (op == "rs") {
       ChatId chat_id;
       MessageId message_id;
@@ -6319,6 +6362,10 @@ class CliClient final : public Actor {
       string url;
       get_args(args, bot_user_id, url);
       send_request(td_api::make_object<td_api::getWebAppUrl>(bot_user_id, url, as_web_app_open_parameters()));
+    } else if (op == "ggbwau") {
+      int64 query_id;
+      get_args(args, query_id);
+      send_request(td_api::make_object<td_api::getGuardBotWebAppUrl>(query_id, as_web_app_open_parameters()));
     } else if (op == "swad") {
       UserId bot_user_id;
       string button_text;
@@ -6426,6 +6473,8 @@ class CliClient final : public Actor {
       saved_messages_topic_id_ = as_chat_id(args);
     } else if (op == "sqrs") {
       quick_reply_shortcut_name_ = args;
+    } else if (op == "smer") {
+      get_args(args, ephemeral_message_receiver_id_);
     } else if (op == "smas") {
       added_sticker_file_ids_ = as_file_ids(args);
     } else if (op == "smc") {
@@ -6925,11 +6974,11 @@ class CliClient final : public Actor {
     } else if (op == "stake") {
       ChatId chat_id;
       string state_hash;
-      int64 stake_toncoin_amount;
+      int64 stake_gram_amount;
       bool clear_draft;
-      get_args(args, chat_id, state_hash, stake_toncoin_amount, clear_draft);
+      get_args(args, chat_id, state_hash, stake_gram_amount, clear_draft);
       send_message(chat_id,
-                   td_api::make_object<td_api::inputMessageStakeDice>(state_hash, stake_toncoin_amount, clear_draft));
+                   td_api::make_object<td_api::inputMessageStakeDice>(state_hash, stake_gram_amount, clear_draft));
     } else if (op == "sd" || op == "sdf") {
       ChatId chat_id;
       string document;
@@ -8607,14 +8656,14 @@ class CliClient final : public Actor {
       string owner_id;
       get_args(args, owner_id);
       send_request(td_api::make_object<td_api::getStarAdAccountUrl>(as_message_sender(owner_id)));
-    } else if (op == "gtrs") {
+    } else if (op == "ggrs") {
       bool is_dark;
       get_args(args, is_dark);
-      send_request(td_api::make_object<td_api::getTonRevenueStatistics>(is_dark));
-    } else if (op == "gtwu") {
+      send_request(td_api::make_object<td_api::getGramRevenueStatistics>(is_dark));
+    } else if (op == "ggwu") {
       string password;
       get_args(args, password);
-      send_request(td_api::make_object<td_api::getTonWithdrawalUrl>(password));
+      send_request(td_api::make_object<td_api::getGramWithdrawalUrl>(password));
     } else {
       op_not_found_count++;
     }
@@ -8988,6 +9037,7 @@ class CliClient final : public Actor {
   GiftCollectionId gift_collection_id_;
   int64 saved_messages_topic_id_ = 0;
   string quick_reply_shortcut_name_;
+  int64 ephemeral_message_receiver_id_ = 0;
   vector<int32> added_sticker_file_ids_;
   string caption_;
   string rich_message_media_;

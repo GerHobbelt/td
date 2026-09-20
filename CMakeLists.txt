@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.10 FATAL_ERROR)
 
-project(TDLib VERSION 1.8.65 LANGUAGES CXX C)
+project(TDLib VERSION 1.8.66 LANGUAGES CXX C)
 
 if (NOT DEFINED CMAKE_MODULE_PATH)
   set(CMAKE_MODULE_PATH "")
@@ -394,6 +394,7 @@ set(TDLIB_SOURCE_PART1
   td/telegram/ChatTheme.cpp
   td/telegram/ClientActor.cpp
   td/telegram/CommonDialogManager.cpp
+  td/telegram/CommunityManager.cpp
   td/telegram/ConfigManager.cpp
   td/telegram/ConnectionState.cpp
   td/telegram/ConnectionStateManager.cpp
@@ -494,6 +495,7 @@ set(TDLIB_SOURCE_PART1
   td/telegram/JoinChatBotResult.cpp
   td/telegram/JsonValue.cpp
   td/telegram/KeyboardButtonStyle.cpp
+  td/telegram/LabeledPricePart.cpp
   td/telegram/LanguagePackManager.cpp
   td/telegram/LinkManager.cpp
   td/telegram/Location.cpp
@@ -772,6 +774,8 @@ set(TDLIB_SOURCE_PART2
   td/telegram/ChatTheme.h
   td/telegram/ClientActor.h
   td/telegram/CommonDialogManager.h
+  td/telegram/CommunityId.h
+  td/telegram/CommunityManager.h
   td/telegram/ConfigManager.h
   td/telegram/ConnectionState.h
   td/telegram/ConnectionStateManager.h
@@ -824,6 +828,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/EmojiGroupType.h
   td/telegram/EmojiStatus.h
   td/telegram/EncryptedFile.h
+  td/telegram/EphemeralMessageId.h
   td/telegram/FactCheck.h
   td/telegram/FileReferenceManager.h
   td/telegram/files/FileBitmask.h

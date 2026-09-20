@@ -83,7 +83,7 @@ RichMessage::RichMessage(Td *td, telegram_api::object_ptr<telegram_api::richMess
                                 voice_notes);
   is_rtl_ = rich_message->rtl_;
   is_full_ = !rich_message->part_;
-  // media_ = get_page_blocks_rich_message_media(blocks_);
+  media_ = get_page_blocks_rich_message_media(blocks_);
 }
 
 Result<RichMessage> RichMessage::get_rich_message(Td *td, DialogId dialog_id,
@@ -143,7 +143,16 @@ Result<RichMessage> RichMessage::get_rich_message(Td *td, DialogId dialog_id,
   // rich_message.blocks_ = std::move(blocks);
   rich_message.is_rtl_ = message->is_rtl_;
   rich_message.is_full_ = true;
+  rich_message.media_ = get_page_blocks_rich_message_media(rich_message.blocks_);
   return std::move(rich_message);
+}
+
+vector<FileId> RichMessage::get_any_file_ids() const {
+  return transform(get_individual_message_content_refs(), get_message_content_any_file_id);
+}
+
+vector<FileId> RichMessage::get_cover_any_file_ids() const {
+  return transform(get_individual_message_content_refs(), get_message_content_cover_any_file_id);
 }
 
 void RichMessage::append_file_ids(const Td *td, vector<FileId> &file_ids) const {
@@ -234,11 +243,15 @@ telegram_api::object_ptr<telegram_api::InputRichMessage> RichMessage::get_input_
     case InputType::None: {
       int32 flags = 0;
       vector<telegram_api::object_ptr<telegram_api::PageBlock>> blocks;
-      vector<telegram_api::object_ptr<telegram_api::InputPhoto>> photos;
-      vector<telegram_api::object_ptr<telegram_api::InputDocument>> documents;
+      GetInputPageBlockContext context;
+      context.td_ = td;
+      context.media_ = &media_;
       for (const auto &block : blocks_) {
-        blocks.push_back(block->get_input_page_block(td, photos, documents));
+        blocks.push_back(block->get_input_page_block(context));
       }
+      CHECK(context.media_pos_ == media_.size());
+      auto photos = std::move(context.photos_);
+      auto documents = std::move(context.documents_);
       if (with_input_media) {
         photos.clear();
         documents.clear();
@@ -327,13 +340,9 @@ RichMessage RichMessage::clone(Td *td, DialogId dialog_id, const MessageContentD
           transform(media_, [&](const RichMessageMedia &media) { return media.clone(td, dialog_id, type); });
     } else {
       LOG(ERROR) << "Have no Td to clone RichMessage media";
+      result.media_ = get_page_blocks_rich_message_media(result.blocks_);
     }
   }
-  if (input_type_ == InputType::None && media_.empty() && type != MessageContentDupType::ServerCopy &&
-      type != MessageContentDupType::Forward) {
-    result.media_ = get_page_blocks_rich_message_media(blocks_);
-  }
-
   result.source_ = source_;
   return result;
 }

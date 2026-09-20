@@ -21,6 +21,7 @@
 #include "td/telegram/DialogParticipant.h"
 #include "td/telegram/DialogSource.h"
 #include "td/telegram/EncryptedFile.h"
+#include "td/telegram/EphemeralMessageId.h"
 #include "td/telegram/files/FileId.h"
 #include "td/telegram/files/FileSourceId.h"
 #include "td/telegram/files/FileUploadId.h"
@@ -263,6 +264,9 @@ class MessagesManager final : public Actor {
 
   bool on_update_message_id(int64 random_id, MessageId new_message_id, const char *source);
 
+  void on_update_ephemeral_message_id(int64 random_id, EphemeralMessageId ephemeral_message_id,
+                                      UserId receiver_user_id);
+
   void on_update_dialog_draft_message(DialogId dialog_id, MessageId top_thread_message_id,
                                       telegram_api::object_ptr<telegram_api::DraftMessage> &&draft_message,
                                       int32 try_count = 0);
@@ -312,6 +316,17 @@ class MessagesManager final : public Actor {
                                                           bool force);
 
   void on_update_dialog_message_ttl(DialogId dialog_id, MessageTtl message_ttl);
+
+  MessageId get_message_id_of_ephemeral_message_id(DialogId dialog_id, EphemeralMessageId ephemeral_message_id);
+
+  EphemeralMessageId get_ephemeral_message_id_of_message_id(MessageFullId message_full_id);
+
+  void on_new_ephemeral_message(telegram_api::object_ptr<telegram_api::ephemeralMessage> &&message);
+
+  MessageFullId on_edited_ephemeral_message(telegram_api::object_ptr<telegram_api::ephemeralMessage> &&message,
+                                            bool force = false);
+
+  void on_delete_ephemeral_messages(DialogId dialog_id, vector<EphemeralMessageId> ephemeral_message_ids);
 
   void on_update_service_notification(tl_object_ptr<telegram_api::updateServiceNotification> &&update,
                                       bool skip_new_entities, Promise<Unit> &&promise);
@@ -484,6 +499,12 @@ class MessagesManager final : public Actor {
   void process_suggested_post(MessageFullId message_full_id, bool is_rejected, int32 schedule_date,
                               const string &comment, Promise<Unit> &&promise);
 
+  Result<td_api::object_ptr<td_api::message>> send_ephemeral_message(
+      DialogId dialog_id, const td_api::object_ptr<td_api::MessageTopic> &topic_id, UserId receiver_user_id,
+      int64 callback_query_id, td_api::object_ptr<td_api::InputMessageReplyTo> &&reply_to, int32 sending_id,
+      bool only_preview, tl_object_ptr<td_api::ReplyMarkup> &&reply_markup,
+      tl_object_ptr<td_api::InputMessageContent> &&input_message_content) TD_WARN_UNUSED_RESULT;
+
   Result<MessageId> add_local_message(
       DialogId dialog_id, td_api::object_ptr<td_api::MessageSender> &&sender,
       td_api::object_ptr<td_api::InputMessageReplyTo> &&reply_to, bool disable_notification,
@@ -631,6 +652,9 @@ class MessagesManager final : public Actor {
 
   void translate_message_text(MessageFullId message_full_id, const string &to_language_code, const string &tone,
                               Promise<td_api::object_ptr<td_api::formattedText>> &&promise);
+
+  void translate_message_rich_message(MessageFullId message_full_id, const string &to_language_code, const string &tone,
+                                      Promise<td_api::object_ptr<td_api::richMessage>> &&promise);
 
   bool is_message_edited_recently(MessageFullId message_full_id, int32 seconds);
 
@@ -1032,6 +1056,8 @@ class MessagesManager final : public Actor {
     MessageId message_id;
     UserId sender_user_id;
     DialogId sender_dialog_id;
+    UserId receiver_user_id;
+    EphemeralMessageId ephemeral_message_id;
     SavedMessagesTopicId saved_messages_topic_id;
     int32 date = 0;
     int32 schedule_repeat_period = 0;
@@ -1086,6 +1112,8 @@ class MessagesManager final : public Actor {
     MessageId message_id;
     UserId sender_user_id;
     DialogId sender_dialog_id;
+    UserId receiver_user_id;
+    EphemeralMessageId ephemeral_message_id;
     SavedMessagesTopicId saved_messages_topic_id;
     int32 date = 0;
     int32 edit_date = 0;
@@ -1109,6 +1137,7 @@ class MessagesManager final : public Actor {
     MessageId initial_top_thread_message_id;                 // for send_message
     MessageInputReplyTo input_reply_to;                      // for send_message
     int64 reply_to_random_id = 0;                            // for send_message
+    int64 send_callback_query_id = 0;                        // for send_message
     string send_emoji;                                       // for send_message
     int32 new_video_start_timestamp = 0;                     // for send_message
     mutable vector<FileUploadId> file_upload_ids;            // for send_message
@@ -1404,11 +1433,14 @@ class MessagesManager final : public Actor {
     MessageId pending_read_channel_inbox_max_message_id;       // for channels only
     FlatHashMap<int64, MessageId> random_id_to_message_id;     // for secret chats and yet unsent messages only
 
+    FlatHashMap<EphemeralMessageId, MessageId, EphemeralMessageIdHash> ephemeral_message_ids;
+
     MessageId last_assigned_message_id;  // identifier of the last local or yet unsent message, assigned after
                                          // application start, used to guarantee that all assigned message identifiers
                                          // are different
 
     WaitFreeHashSet<MessageId, MessageIdHash> deleted_message_ids;
+    WaitFreeHashSet<EphemeralMessageId, EphemeralMessageIdHash> deleted_ephemeral_message_ids;
 
     string client_data;
 
@@ -1647,6 +1679,8 @@ class MessagesManager final : public Actor {
   static constexpr int32 AUTH_NOTIFICATION_ID_CACHE_TIME = 7 * 86400;
   static constexpr size_t MAX_SAVED_AUTH_NOTIFICATION_IDS = 100;
 
+  static constexpr size_t MAX_DIALOG_EPHEMERAL_MESSAGES = 100;  // some reasonable limit
+
   static constexpr int32 MAX_RESEND_DELAY = 86400;  // seconds, some reasonable limit
 
   static constexpr bool DROP_SEND_MESSAGE_UPDATES = false;
@@ -1691,6 +1725,9 @@ class MessagesManager final : public Actor {
 
   static MessageInfo parse_telegram_api_message(Td *td, tl_object_ptr<telegram_api::Message> message_ptr,
                                                 bool is_scheduled, bool is_business_message, const char *source);
+
+  static MessageInfo parse_ephemeral_message(Td *td, telegram_api::object_ptr<telegram_api::ephemeralMessage> message,
+                                             const char *source);
 
   static std::pair<DialogId, unique_ptr<Message>> create_message(Td *td, MessageInfo &&message_info,
                                                                  bool is_guest_message, const char *source);
@@ -1766,7 +1803,7 @@ class MessagesManager final : public Actor {
 
   MessageInputReplyTo create_message_input_reply_to(Dialog *d, const MessageTopic &message_topic,
                                                     td_api::object_ptr<td_api::InputMessageReplyTo> &&reply_to,
-                                                    bool for_draft);
+                                                    bool for_draft, bool for_ephemeral_message = false);
 
   static const MessageInputReplyTo *get_message_input_reply_to(const Message *m);
 
@@ -1781,8 +1818,8 @@ class MessagesManager final : public Actor {
 
   void delete_messages_from_updates(const vector<MessageId> &message_ids, bool is_permanent);
 
-  void delete_dialog_messages(Dialog *d, const vector<MessageId> &message_ids, bool force_update_for_not_found_messages,
-                              const char *source);
+  void do_delete_dialog_messages(Dialog *d, const vector<MessageId> &message_ids,
+                                 bool force_update_for_not_found_messages, const char *source);
 
   void update_dialog_pinned_messages_from_updates(DialogId dialog_id, const vector<MessageId> &message_ids,
                                                   bool is_pin);
@@ -2022,7 +2059,8 @@ class MessagesManager final : public Actor {
 
   void delete_all_dialog_messages(Dialog *d, bool remove_from_dialog_list, bool is_permanently_deleted);
 
-  void delete_sent_message_on_server(DialogId dialog_id, MessageId message_id, MessageId old_message_id);
+  void delete_sent_message_on_server(DialogId dialog_id, MessageId message_id, EphemeralMessageId ephemeral_message_id,
+                                     UserId receiver_user_id, MessageId old_message_id);
 
   static vector<MessageId> find_dialog_messages(const Dialog *d, const std::function<bool(const Message *)> &condition);
 
@@ -3145,6 +3183,8 @@ class MessagesManager final : public Actor {
 
   bool is_deleted_secret_chat(const Dialog *d) const;
 
+  static bool is_ephemeral_message(const Message *m);
+
   static bool is_message_forward(const Message *m);
 
   static int32 get_message_schedule_date(const Message *m);
@@ -3232,6 +3272,8 @@ class MessagesManager final : public Actor {
   FlatHashMap<int64, MessageFullId> being_sent_messages_;  // message_random_id -> message
 
   MessageHashMap<MessageId> update_message_ids_;  // new_message_id -> temporary_id
+  FlatHashMap<DialogId, FlatHashMap<EphemeralMessageId, MessageId, EphemeralMessageIdHash>, DialogIdHash>
+      update_ephemeral_message_ids_;
 
   FlatHashMap<MessageFullId, MessageId, MessageFullIdHash> messages_to_restore_;  // new_message_id -> temporary_id
 

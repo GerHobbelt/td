@@ -11,6 +11,7 @@
 #include "td/telegram/BusinessBotRights.h"
 #include "td/telegram/ChatManager.h"
 #include "td/telegram/DialogManager.h"
+#include "td/telegram/EphemeralMessageId.h"
 #include "td/telegram/files/FileManager.h"
 #include "td/telegram/files/FileType.h"
 #include "td/telegram/Global.h"
@@ -31,7 +32,6 @@
 #include "td/telegram/MessageTopic.h"
 #include "td/telegram/misc.h"
 #include "td/telegram/ReplyMarkup.h"
-#include "td/telegram/RichMessage.h"
 #include "td/telegram/SavedMessagesTopicId.h"
 #include "td/telegram/ServerMessageId.h"
 #include "td/telegram/StarAmount.h"
@@ -132,6 +132,7 @@ struct BusinessConnectionManager::PendingMessage {
   bool disable_notification_ = false;
   bool invert_media_ = false;
   bool disable_web_page_preview_ = false;
+  bool is_in_album_ = false;
 
   void init_file_upload_ids(Td *td) {
     CHECK(file_upload_id_ == FileUploadId());
@@ -1180,6 +1181,7 @@ MessageInputReplyTo BusinessConnectionManager::create_business_message_input_rep
         reply_to_message->poll_option_id_.clear();
       }
       return MessageInputReplyTo{message_id,
+                                 {},
                                  DialogId(),
                                  MessageQuote(td_, std::move(reply_to_message->quote_)),
                                  max(0, reply_to_message->checklist_task_id_),
@@ -1188,6 +1190,20 @@ MessageInputReplyTo BusinessConnectionManager::create_business_message_input_rep
     }
     case td_api::inputMessageReplyToExternalMessage::ID:
       return {};
+    case td_api::inputMessageReplyToEphemeralMessage::ID: {
+      auto reply_to_message = td_api::move_object_as<td_api::inputMessageReplyToEphemeralMessage>(reply_to);
+      auto ephemeral_message_id = EphemeralMessageId(reply_to_message->ephemeral_message_id_);
+      if (!ephemeral_message_id.is_valid()) {
+        return {};
+      }
+      return MessageInputReplyTo{MessageId(),
+                                 ephemeral_message_id,
+                                 DialogId(),
+                                 MessageQuote(),
+                                 0,
+                                 string(),
+                                 "business inputMessageReplyToEphemeralMessage"};
+    }
     default:
       UNREACHABLE();
       return {};
@@ -1210,7 +1226,7 @@ Result<InputMessageContent> BusinessConnectionManager::process_input_message_con
 unique_ptr<BusinessConnectionManager::PendingMessage> BusinessConnectionManager::create_business_message_to_send(
     BusinessConnectionId business_connection_id, DialogId dialog_id, MessageInputReplyTo &&input_reply_to,
     bool disable_notification, bool protect_content, MessageEffectId effect_id, unique_ptr<ReplyMarkup> &&reply_markup,
-    InputMessageContent &&input_content) const {
+    InputMessageContent &&input_content, bool is_in_album) const {
   auto content = dup_message_content(td_, td_->dialog_manager_->get_my_dialog_id(), input_content.content.get(),
                                      MessageContentDupType::Send, MessageCopyOptions());
   auto message = make_unique<PendingMessage>();
@@ -1227,6 +1243,7 @@ unique_ptr<BusinessConnectionManager::PendingMessage> BusinessConnectionManager:
   message->ttl_ = input_content.ttl;
   message->send_emoji_ = std::move(input_content.emoji);
   message->random_id_ = Random::secure_int64();
+  message->is_in_album_ = is_in_album;
   message->init_file_upload_ids(td_);
   return message;
 }
@@ -1243,9 +1260,9 @@ void BusinessConnectionManager::send_message(BusinessConnectionId business_conne
   TRY_RESULT_PROMISE(promise, message_reply_markup,
                      get_reply_markup(std::move(reply_markup), DialogType::User, false, true, false));
 
-  auto message = create_business_message_to_send(std::move(business_connection_id), dialog_id,
-                                                 std::move(input_reply_to), disable_notification, protect_content,
-                                                 effect_id, std::move(message_reply_markup), std::move(input_content));
+  auto message = create_business_message_to_send(
+      std::move(business_connection_id), dialog_id, std::move(input_reply_to), disable_notification, protect_content,
+      effect_id, std::move(message_reply_markup), std::move(input_content), false);
 
   do_send_message(std::move(message), std::move(promise));
 }
@@ -1503,7 +1520,7 @@ void BusinessConnectionManager::do_upload_media(BeingUploadedMedia &&being_uploa
                                    file_upload_id, thumbnail_file_upload_id, message->ttl_, message->send_emoji_, true)
                                    .media_);
   CHECK(input_media != nullptr);
-  if (is_uploaded_input_media(input_media)) {
+  if (is_uploaded_input_media(input_media, message->is_in_album_)) {
     UploadMediaResult result;
     result.message_ = std::move(being_uploaded_media.message_);
     result.input_media_ = std::move(input_media);
@@ -1601,7 +1618,7 @@ void BusinessConnectionManager::do_send_message_album(int64 request_id, Business
     auto &message_content = message_contents[media_pos];
     auto message =
         create_business_message_to_send(business_connection_id, dialog_id, input_reply_to.clone(), disable_notification,
-                                        protect_content, effect_id, nullptr, std::move(message_content));
+                                        protect_content, effect_id, nullptr, std::move(message_content), true);
     auto input_media = std::move(get_message_content_input_media(message->content_.get(), td_, message->ttl_,
                                                                  message->send_emoji_, td_->auth_manager_->is_bot(), -1)
                                      .media_);
@@ -1741,14 +1758,13 @@ void BusinessConnectionManager::finish_upload_message_internal_media(int64 reque
       return promise.set_error(r_upload_result.move_as_error());
     }
   }
-  vector<telegram_api::object_ptr<telegram_api::InputMedia>> input_media;
+  vector<telegram_api::object_ptr<telegram_api::InputMedia>> input_medias;
   for (auto &r_upload_result : upload_results) {
     auto upload_result = r_upload_result.move_as_ok();
-    input_media.push_back(std::move(upload_result.input_media_));
+    input_medias.push_back(std::move(upload_result.input_media_));
   }
-  complete_send_media(std::move(message),
-                      get_message_content_multi_input_media(message->content_.get(), td_, std::move(input_media)),
-                      std::move(promise));
+  auto input_media = get_message_content_multi_input_media(message->content_.get(), td_, std::move(input_medias));
+  complete_send_media(std::move(message), std::move(input_media), std::move(promise));
 }
 
 void BusinessConnectionManager::on_fail_send_message(unique_ptr<PendingMessage> &&message, const Status &error) {
@@ -1788,7 +1804,7 @@ void BusinessConnectionManager::edit_business_message_text(
                        get_input_message_content(DialogId(), std::move(input_message_content), td_, true));
     auto message =
         create_business_message_to_send(business_connection_id, dialog_id, MessageInputReplyTo(), false, false,
-                                        MessageEffectId(), std::move(new_reply_markup), std::move(content));
+                                        MessageEffectId(), std::move(new_reply_markup), std::move(content), false);
     message->message_id_ = message_id;
 
     return do_send_message(std::move(message), std::move(promise));
@@ -1864,7 +1880,8 @@ void BusinessConnectionManager::edit_business_message_media(
                      get_inline_reply_markup(std::move(reply_markup), td_->auth_manager_->is_bot(), true));
 
   auto message = create_business_message_to_send(business_connection_id, dialog_id, MessageInputReplyTo(), false, false,
-                                                 MessageEffectId(), std::move(new_reply_markup), std::move(content));
+                                                 MessageEffectId(), std::move(new_reply_markup), std::move(content),
+                                                 new_message_content_type != td_api::inputMessageAnimation::ID);
   message->message_id_ = message_id;
 
   do_send_message(std::move(message), std::move(promise));
