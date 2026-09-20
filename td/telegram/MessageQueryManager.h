@@ -25,6 +25,7 @@
 #include "td/telegram/SavedMessagesTopicId.h"
 #include "td/telegram/td_api.h"
 #include "td/telegram/telegram_api.h"
+#include "td/telegram/UserId.h"
 
 #include "td/actor/actor.h"
 #include "td/actor/MultiTimeout.h"
@@ -202,6 +203,13 @@ class MessageQueryManager final : public Actor {
                                            Promise<Unit> &&promise);
 
   void delete_topic_history(DialogId dialog_id, ForumTopicId forum_topic_id, Promise<Unit> &&promise);
+
+  void delete_reactions_by_sender(DialogId dialog_id, DialogId sender_dialog_id, Promise<Unit> &&promise);
+
+  void delete_reaction_by_sender(DialogId dialog_id, MessageId message_id, DialogId sender_dialog_id,
+                                 Promise<Unit> &&promise);
+
+  void get_personal_chat_history(UserId user_id, int32 limit, Promise<td_api::object_ptr<td_api::messages>> &&promise);
 
   void read_all_dialog_mentions_on_server(DialogId dialog_id, uint64 log_event_id, Promise<Unit> &&promise);
 

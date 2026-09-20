@@ -194,7 +194,7 @@ class BusinessConnectionManager::SendBusinessMessageQuery final : public Td::Res
             message_->noforwards_, false, message_->invert_media_, false, std::move(input_peer), std::move(reply_to),
             message_text->text, message_->random_id_,
             get_input_reply_markup(td_->user_manager_.get(), message_->reply_markup_), std::move(entities), 0, 0,
-            nullptr, nullptr, message_->effect_id_.get(), 0, nullptr),
+            nullptr, nullptr, message_->effect_id_.get(), 0, nullptr, nullptr),
         td_->business_connection_manager_->get_business_connection_dc_id(message_->business_connection_id_),
         {{message_->dialog_id_}}));
   }
@@ -451,7 +451,7 @@ class BusinessConnectionManager::EditBusinessMessageQuery final : public Td::Res
         telegram_api::messages_editMessage(flags, disable_web_page_preview, invert_media, std::move(input_peer),
                                            server_message_id, text == nullptr ? string() : text->text,
                                            std::move(input_media), std::move(input_reply_markup), std::move(entities),
-                                           0, 0, 0),
+                                           0, 0, 0, nullptr),
         td_->business_connection_manager_->get_business_connection_dc_id(business_connection_id_), {{dialog_id}}));
   }
 
@@ -507,7 +507,8 @@ class BusinessConnectionManager::StopBusinessPollQuery final : public Td::Result
         business_connection_id.get_invoke_prefix(),
         telegram_api::messages_editMessage(flags, false, false, std::move(input_peer), server_message_id, string(),
                                            std::move(input_media), std::move(input_reply_markup),
-                                           vector<telegram_api::object_ptr<telegram_api::MessageEntity>>(), 0, 0, 0),
+                                           vector<telegram_api::object_ptr<telegram_api::MessageEntity>>(), 0, 0, 0,
+                                           nullptr),
         td_->business_connection_manager_->get_business_connection_dc_id(business_connection_id), {{dialog_id}}));
   }
 
@@ -1287,7 +1288,7 @@ void BusinessConnectionManager::do_send_message(unique_ptr<PendingMessage> &&mes
       fake_message->content_ = std::move(message_contents[media_pos]);
       fake_message->init_file_upload_ids(td_);
       auto input_media = get_message_content_input_media(fake_message->content_.get(), td_, MessageSelfDestructType(),
-                                                         string(), td_->auth_manager_->is_bot());
+                                                         string(), td_->auth_manager_->is_bot(), -1);
       auto file_id = fake_message->file_upload_id_.get_file_id();
       if (input_media != nullptr || !file_id.is_valid()) {
         if (!file_id.is_valid() || td_->file_manager_->get_file_view(file_id).has_full_remote_location()) {
@@ -1307,14 +1308,13 @@ void BusinessConnectionManager::do_send_message(unique_ptr<PendingMessage> &&mes
     return;
   }
 
-  auto input_media =
-      get_message_content_input_media(content, td_, message->ttl_, message->send_emoji_, td_->auth_manager_->is_bot());
+  auto input_media = get_message_content_input_media(content, td_, message->ttl_, message->send_emoji_,
+                                                     td_->auth_manager_->is_bot(), -1);
   if (input_media != nullptr) {
     td_->create_handler<SendBusinessMediaQuery>(std::move(promise))->send(std::move(message), std::move(input_media));
     return;
   }
-  if (content_type == MessageContentType::Game || content_type == MessageContentType::Poll ||
-      content_type == MessageContentType::Story) {
+  if (content_type == MessageContentType::Game || content_type == MessageContentType::Story) {
     return promise.set_error(400, "Message has no file");
   }
   upload_media(std::move(message), PromiseCreator::lambda([actor_id = actor_id(this), promise = std::move(promise)](
@@ -1481,31 +1481,18 @@ void BusinessConnectionManager::complete_upload_media(unique_ptr<PendingMessage>
   bool need_update = false;
 
   unique_ptr<MessageContent> &old_content = message->content_;
-  auto old_content_type = old_content->get_type();
-  auto new_content_type = new_content->get_type();
-
-  auto old_file_id = message->file_upload_id_.get_file_id();
-  if (old_content_type != new_content_type) {
-    need_update = true;
-
-    td_->file_manager_->try_merge_documents(get_message_content_any_file_id(new_content.get()), old_file_id);
-  } else {
-    merge_message_contents(td_, old_content.get(), new_content.get(), false, DialogId(), true, is_content_changed,
-                           need_update);
-    compare_message_contents(td_, old_content.get(), new_content.get(), is_content_changed, need_update);
-  }
+  merge_and_compare_message_contents(td_, old_content.get(), new_content.get(), false, DialogId(), true,
+                                     {message->file_upload_id_}, MessageSelfDestructType(), 0.0, nullptr,
+                                     is_content_changed, need_update);
   send_closure_later(G()->file_manager(), &FileManager::cancel_upload, message->file_upload_id_);
   message->file_upload_id_ = {};
 
   if (is_content_changed || need_update) {
     old_content = std::move(new_content);
-    update_message_content_file_id_remote(old_content.get(), old_file_id);
-  } else {
-    update_message_content_file_id_remote(old_content.get(), get_message_content_any_file_id(new_content.get()));
   }
 
   auto input_media =
-      get_message_content_input_media(message->content_.get(), td_, message->ttl_, message->send_emoji_, true);
+      get_message_content_input_media(message->content_.get(), td_, message->ttl_, message->send_emoji_, true, -1);
   if (input_media == nullptr) {
     return promise.set_error(400, "Failed to upload file");
   }
@@ -1573,7 +1560,7 @@ void BusinessConnectionManager::do_send_message_album(int64 request_id, Business
         create_business_message_to_send(business_connection_id, dialog_id, input_reply_to.clone(), disable_notification,
                                         protect_content, effect_id, nullptr, std::move(message_content));
     auto input_media = get_message_content_input_media(message->content_.get(), td_, message->ttl_,
-                                                       message->send_emoji_, td_->auth_manager_->is_bot());
+                                                       message->send_emoji_, td_->auth_manager_->is_bot(), -1);
     if (input_media != nullptr) {
       auto file_id = message->file_upload_id_.get_file_id();
       CHECK(file_id.is_valid());
@@ -1668,8 +1655,13 @@ void BusinessConnectionManager::process_sent_business_message_album(
   auto messages = td_api::make_object<td_api::businessMessages>();
   for (auto &update_ptr : updates->updates_) {
     auto update = telegram_api::move_object_as<telegram_api::updateBotNewBusinessMessage>(update_ptr);
-    messages->messages_.push_back(td_->messages_manager_->get_business_message_object(
-        std::move(update->message_), std::move(update->reply_to_message_)));
+    auto message_object = td_->messages_manager_->get_business_message_object(std::move(update->message_),
+                                                                              std::move(update->reply_to_message_));
+    if (message_object == nullptr) {
+      LOG(ERROR) << "Failed to create send business album message";
+      return promise.set_error(500, "Receive invalid business connection messages");
+    }
+    messages->messages_.push_back(std::move(message_object));
   }
   promise.set_value(std::move(messages));
 }
@@ -1705,8 +1697,9 @@ void BusinessConnectionManager::on_upload_message_internal_media(int64 request_i
     auto upload_result = r_upload_result.move_as_ok();
     input_media.push_back(std::move(upload_result.input_media_));
   }
+  auto full_input_media = get_message_content_multi_input_media(message->content_.get(), td_, std::move(input_media));
   td_->create_handler<SendBusinessMediaQuery>(std::move(promise))
-      ->send(std::move(message), get_message_content_input_media(message->content_.get(), td_, std::move(input_media)));
+      ->send(std::move(message), std::move(full_input_media));
 }
 
 void BusinessConnectionManager::on_fail_send_message(unique_ptr<PendingMessage> &&message, const Status &error) {

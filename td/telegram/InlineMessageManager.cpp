@@ -116,7 +116,7 @@ class EditInlineMessageQuery final : public Td::ResultHandler {
         telegram_api::messages_editInlineBotMessage(flags, disable_web_page_preview, invert_media,
                                                     std::move(input_bot_inline_message_id),
                                                     text == nullptr ? string() : text->text, std::move(input_media),
-                                                    std::move(input_reply_markup), std::move(entities)),
+                                                    std::move(input_reply_markup), std::move(entities), nullptr),
         {}, dc_id));
   }
 
@@ -299,7 +299,7 @@ void InlineMessageManager::edit_inline_message_media(
   TRY_RESULT_PROMISE(promise, input_bot_inline_message_id, get_input_bot_inline_message_id(inline_message_id));
 
   auto input_media =
-      get_message_content_input_media(content.content.get(), td_, MessageSelfDestructType(), string(), true);
+      get_message_content_input_media(content.content.get(), td_, MessageSelfDestructType(), string(), true, -1);
   if (input_media == nullptr) {
     return promise.set_error(400, "Invalid message content specified");
   }

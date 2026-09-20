@@ -7,6 +7,7 @@
 #pragma once
 
 #include "td/telegram/AiComposeTone.h"
+#include "td/telegram/CustomEmojiId.h"
 #include "td/telegram/MessageEntity.h"
 #include "td/telegram/MessageFullId.h"
 #include "td/telegram/td_api.h"

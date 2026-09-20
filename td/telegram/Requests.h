@@ -580,6 +580,10 @@ class Requests {
 
   void on_request(uint64 id, const td_api::removeMessageReaction &request);
 
+  void on_request(uint64 id, const td_api::deleteAllRecentMessageReactionsFromSender &request);
+
+  void on_request(uint64 id, const td_api::deleteMessageReactionsFromSender &request);
+
   void on_request(uint64 id, const td_api::setMessageReactions &request);
 
   void on_request(uint64 id, td_api::getMessageAddedReactions &request);
@@ -1276,6 +1280,8 @@ class Requests {
 
   void on_request(uint64 id, const td_api::setUserEmojiStatus &request);
 
+  void on_request(uint64 id, const td_api::getPersonalChatHistory &request);
+
   void on_request(uint64 id, td_api::searchUserByPhoneNumber &request);
 
   void on_request(uint64 id, const td_api::sharePhoneNumber &request);
@@ -1417,6 +1423,8 @@ class Requests {
   void on_request(uint64 id, const td_api::getBusinessConnectedBot &request);
 
   void on_request(uint64 id, td_api::setBusinessConnectedBot &request);
+
+  void on_request(uint64 id, const td_api::confirmBusinessConnectedBot &request);
 
   void on_request(uint64 id, const td_api::deleteBusinessConnectedBot &request);
 

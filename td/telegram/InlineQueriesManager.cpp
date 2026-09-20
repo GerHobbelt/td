@@ -421,10 +421,10 @@ class SendWebViewDataQuery final : public Td::ResultHandler {
 };
 
 class SendWebViewResultMessageQuery final : public Td::ResultHandler {
-  Promise<td_api::object_ptr<td_api::sentWebAppMessage>> promise_;
+  Promise<td_api::object_ptr<td_api::inlineMessageId>> promise_;
 
  public:
-  explicit SendWebViewResultMessageQuery(Promise<td_api::object_ptr<td_api::sentWebAppMessage>> &&promise)
+  explicit SendWebViewResultMessageQuery(Promise<td_api::object_ptr<td_api::inlineMessageId>> &&promise)
       : promise_(std::move(promise)) {
   }
 
@@ -441,7 +441,7 @@ class SendWebViewResultMessageQuery final : public Td::ResultHandler {
 
     auto ptr = result_ptr.move_as_ok();
     LOG(INFO) << "Receive result for SendWebViewResultMessageQuery: " << to_string(ptr);
-    promise_.set_value(td_api::make_object<td_api::sentWebAppMessage>(
+    promise_.set_value(td_api::make_object<td_api::inlineMessageId>(
         InlineQueriesManager::get_inline_message_id(std::move(ptr->msg_id_))));
   }
 
@@ -586,7 +586,7 @@ Result<tl_object_ptr<telegram_api::InputBotInlineMessage>> InlineQueriesManager:
                InputInvoice::process_input_message_invoice(std::move(input_message_content), td_, DialogId()));
     return input_invoice.get_input_bot_inline_message_media_invoice(std::move(input_reply_markup), td_);
   }
-  if (constructor_id == td_api::inputMessageLocation::ID) {
+  if (constructor_id == td_api::inputMessageLocation::ID || constructor_id == td_api::inputMessageLiveLocation::ID) {
     TRY_RESULT(location, process_input_message_location(std::move(input_message_content)));
     int32 flags = 0;
     if (input_reply_markup != nullptr) {
@@ -842,9 +842,9 @@ void InlineQueriesManager::send_web_view_data(UserId bot_user_id, string &&butto
       ->send(std::move(input_user), random_id, button_text, data);
 }
 
-void InlineQueriesManager::answer_web_view_query(
-    const string &web_view_query_id, td_api::object_ptr<td_api::InputInlineQueryResult> &&input_result,
-    Promise<td_api::object_ptr<td_api::sentWebAppMessage>> &&promise) const {
+void InlineQueriesManager::answer_web_view_query(const string &web_view_query_id,
+                                                 td_api::object_ptr<td_api::InputInlineQueryResult> &&input_result,
+                                                 Promise<td_api::object_ptr<td_api::inlineMessageId>> &&promise) const {
   CHECK(td_->auth_manager_->is_bot());
 
   TRY_RESULT_PROMISE(promise, result, get_input_bot_inline_result(std::move(input_result), nullptr, nullptr));

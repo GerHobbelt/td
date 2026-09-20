@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.10 FATAL_ERROR)
 
-project(TDLib VERSION 1.8.63 LANGUAGES CXX C)
+project(TDLib VERSION 1.8.64 LANGUAGES CXX C)
 
 if (NOT DEFINED CMAKE_MODULE_PATH)
   set(CMAKE_MODULE_PATH "")
@@ -457,10 +457,12 @@ set(TDLIB_SOURCE_PART1
   td/telegram/files/FileStatsWorker.cpp
   td/telegram/files/FileType.cpp
   td/telegram/files/FileUploader.cpp
+  td/telegram/files/FileUploadId.cpp
   td/telegram/files/FileUploadManager.cpp
   td/telegram/files/PartsManager.cpp
   td/telegram/files/ResourceManager.cpp
   td/telegram/files/ResourceState.cpp
+  td/telegram/FormattedDate.cpp
   td/telegram/ForumTopic.cpp
   td/telegram/ForumTopicEditedData.cpp
   td/telegram/ForumTopicIcon.cpp
@@ -681,6 +683,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/TranscriptionManager.cpp
   td/telegram/TranslationManager.cpp
   td/telegram/UpdatesManager.cpp
+  td/telegram/UserId.cpp
   td/telegram/UserManager.cpp
   td/telegram/Usernames.cpp
   td/telegram/UserPrivacySetting.cpp
@@ -844,6 +847,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/files/ResourceManager.h
   td/telegram/files/ResourceState.h
   td/telegram/FolderId.h
+  td/telegram/FormattedDate.h
   td/telegram/ForumTopic.h
   td/telegram/ForumTopicEditedData.h
   td/telegram/ForumTopicFullId.h
@@ -1170,6 +1174,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/files/FileLocation.hpp
   td/telegram/files/FileManager.hpp
   td/telegram/files/FileSourceId.hpp
+  td/telegram/FormattedDate.hpp
   td/telegram/ForumTopic.hpp
   td/telegram/ForumTopicEditedData.hpp
   td/telegram/ForumTopicIcon.hpp

@@ -71,8 +71,6 @@ class ChatManager final : public Actor {
   ChatManager &operator=(ChatManager &&) = delete;
   ~ChatManager() final;
 
-  static ChatId get_chat_id(const tl_object_ptr<telegram_api::Chat> &chat);
-  static ChannelId get_channel_id(const tl_object_ptr<telegram_api::Chat> &chat);
   static DialogId get_dialog_id(const tl_object_ptr<telegram_api::Chat> &chat);
 
   vector<ChannelId> get_channel_ids(vector<tl_object_ptr<telegram_api::Chat>> &&chats, const char *source);
@@ -429,9 +427,7 @@ class ChatManager final : public Actor {
     ChannelId migrated_to_channel_id;
 
     DialogParticipantStatus status = DialogParticipantStatus::Banned(0, string());
-    RestrictedRights default_permissions{
-        false, false, false, false, false, false, false, false, false, false,
-        false, false, false, false, false, false, false, false, false, ChannelType::Unknown};
+    RestrictedRights default_permissions = RestrictedRights::restrict_all();
 
     static constexpr uint32 CACHE_VERSION = 5;
     uint32 cache_version = 0;
@@ -510,9 +506,7 @@ class ChatManager final : public Actor {
     Usernames usernames;
     vector<RestrictionReason> restriction_reasons;
     DialogParticipantStatus status = DialogParticipantStatus::Banned(0, string());
-    RestrictedRights default_permissions{
-        false, false, false, false, false, false, false, false, false, false,
-        false, false, false, false, false, false, false, false, false, ChannelType::Unknown};
+    RestrictedRights default_permissions = RestrictedRights::restrict_all();
     int32 date = 0;
     int32 participant_count = 0;
     int32 boost_level = 0;
@@ -679,6 +673,10 @@ class ChatManager final : public Actor {
   static constexpr int32 MAX_ACTIVE_STORY_ID_RELOAD_TIME = 3600;  // some reasonable limit
 
   static constexpr int32 CHANNEL_FULL_EXPIRE_TIME = 60;
+
+  static ChatId get_chat_id(const tl_object_ptr<telegram_api::Chat> &chat);
+
+  static ChannelId get_channel_id(const tl_object_ptr<telegram_api::Chat> &chat);
 
   static bool have_input_peer_chat(const Chat *c, AccessRights access_rights);
 

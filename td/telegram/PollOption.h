@@ -16,6 +16,7 @@
 #include "td/telegram/UserId.h"
 
 #include "td/utils/common.h"
+#include "td/utils/Status.h"
 
 #include <utility>
 

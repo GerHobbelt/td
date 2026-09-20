@@ -211,9 +211,10 @@ OptionManager::OptionManager(Td *td)
   set_default_integer_option("has_protected_content_disable_request_duration", is_test_dc ? 300 : 86400);
   set_default_integer_option("poll_open_period_max", 730 * 3600);
   set_default_integer_option("owned_bot_count_max", 20);
-  set_default_integer_option("text_composition_style_example_count", 7);
+  set_default_integer_option("text_composition_style_example_count", 3);
   set_default_integer_option("text_composition_style_title_length_max", 12);
   set_default_integer_option("text_composition_style_prompt_length_max", 1024);
+  set_default_integer_option("poll_country_count_max", 12);
 
   if (options.isset("my_phone_number") || !options.isset("my_id")) {
     update_premium_options();
@@ -561,7 +562,7 @@ td_api::object_ptr<td_api::Update> OptionManager::get_internal_option_update(Sli
   }
   if (name == "whitelisted_bots") {
     return td_api::make_object<td_api::updateTrustedMiniAppBots>(
-        transform(full_split(get_option_string(name), ','), to_integer<int64>));
+        transform(full_split(get_option_string(name), ','), [](const auto &str) { return to_integer<int64>(str); }));
   }
   return nullptr;
 }
@@ -671,7 +672,7 @@ void OptionManager::on_option_updated(Slice name) {
       break;
     case 'm':
       if (name == "my_phone_number") {
-        send_closure(G()->config_manager(), &ConfigManager::reget_config, Promise<Unit>());
+        send_closure(G()->config_manager(), &ConfigManager::reload_config, Promise<Unit>());
       }
       break;
     case 'n':
@@ -792,7 +793,7 @@ td_api::object_ptr<td_api::OptionValue> OptionManager::get_option_synchronously(
       break;
     case 'v':
       if (name == "version") {
-        return td_api::make_object<td_api::optionValueString>("1.8.63");
+        return td_api::make_object<td_api::optionValueString>("1.8.64");
       }
       break;
   }

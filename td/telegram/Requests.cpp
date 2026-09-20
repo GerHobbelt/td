@@ -2029,34 +2029,30 @@ Promise<SentEmailCode> Requests::create_sent_email_code_request_promise(uint64 i
 
 #define CREATE_REQUEST_PROMISE() auto promise = create_request_promise<std::decay_t<decltype(request)>::ReturnType>(id)
 
-#define CREATE_OK_REQUEST_PROMISE()                                                                                    \
-  static_assert(std::is_same<std::decay_t<decltype(request)>::ReturnType, td_api::object_ptr<td_api::ok>>::value, ""); \
+#define CREATE_OK_REQUEST_PROMISE()                                                                                \
+  static_assert(std::is_same<std::decay_t<decltype(request)>::ReturnType, td_api::object_ptr<td_api::ok>>::value); \
   auto promise = create_ok_request_promise(id)
 
-#define CREATE_TEXT_REQUEST_PROMISE()                                                                               \
-  static_assert(std::is_same<std::decay_t<decltype(request)>::ReturnType, td_api::object_ptr<td_api::text>>::value, \
-                "");                                                                                                \
+#define CREATE_TEXT_REQUEST_PROMISE()                                                                                \
+  static_assert(std::is_same<std::decay_t<decltype(request)>::ReturnType, td_api::object_ptr<td_api::text>>::value); \
   auto promise = create_text_request_promise(id)
 
-#define CREATE_DATA_REQUEST_PROMISE()                                                                               \
-  static_assert(std::is_same<std::decay_t<decltype(request)>::ReturnType, td_api::object_ptr<td_api::data>>::value, \
-                "");                                                                                                \
+#define CREATE_DATA_REQUEST_PROMISE()                                                                                \
+  static_assert(std::is_same<std::decay_t<decltype(request)>::ReturnType, td_api::object_ptr<td_api::data>>::value); \
   auto promise = create_data_request_promise(id)
 
-#define CREATE_HTTP_URL_REQUEST_PROMISE()                                                                              \
-  static_assert(std::is_same<std::decay_t<decltype(request)>::ReturnType, td_api::object_ptr<td_api::httpUrl>>::value, \
-                "");                                                                                                   \
+#define CREATE_HTTP_URL_REQUEST_PROMISE()                                                                     \
+  static_assert(                                                                                              \
+      std::is_same<std::decay_t<decltype(request)>::ReturnType, td_api::object_ptr<td_api::httpUrl>>::value); \
   auto promise = create_http_url_request_promise(id)
 
-#define CREATE_COUNT_REQUEST_PROMISE()                                                                               \
-  static_assert(std::is_same<std::decay_t<decltype(request)>::ReturnType, td_api::object_ptr<td_api::count>>::value, \
-                "");                                                                                                 \
+#define CREATE_COUNT_REQUEST_PROMISE()                                                                                \
+  static_assert(std::is_same<std::decay_t<decltype(request)>::ReturnType, td_api::object_ptr<td_api::count>>::value); \
   auto promise = create_count_request_promise(id)
 
-#define CREATE_SENT_EMAIL_CODE_REQUEST_PROMISE()                                                     \
-  static_assert(std::is_same<std::decay_t<decltype(request)>::ReturnType,                            \
-                             td_api::object_ptr<td_api::emailAddressAuthenticationCodeInfo>>::value, \
-                "");                                                                                 \
+#define CREATE_SENT_EMAIL_CODE_REQUEST_PROMISE()                                                      \
+  static_assert(std::is_same<std::decay_t<decltype(request)>::ReturnType,                             \
+                             td_api::object_ptr<td_api::emailAddressAuthenticationCodeInfo>>::value); \
   auto promise = create_sent_email_code_request_promise(id)
 
 void Requests::on_request(uint64 id, const td_api::setTdlibParameters &request) {
@@ -2080,13 +2076,14 @@ void Requests::on_request(uint64 id, td_api::setAuthenticationPhoneNumber &reque
 
 void Requests::on_request(uint64 id, td_api::checkAuthenticationPremiumPurchase &request) {
   CLEAN_INPUT_STRING(request.currency_);
-  send_closure(td_->auth_manager_actor_, &AuthManager::check_premium_purchase, id, std::move(request.currency_),
-               request.amount_);
+  send_closure(td_->auth_manager_actor_, &AuthManager::check_premium_purchase, id, request.premium_day_count_,
+               std::move(request.currency_), request.amount_);
 }
 
 void Requests::on_request(uint64 id, td_api::setAuthenticationPremiumPurchaseTransaction &request) {
   send_closure(td_->auth_manager_actor_, &AuthManager::set_premium_purchase_transaction, id,
-               std::move(request.transaction_), request.is_restore_, std::move(request.currency_), request.amount_);
+               std::move(request.transaction_), request.is_restore_, request.premium_day_count_,
+               std::move(request.currency_), request.amount_);
 }
 
 void Requests::on_request(uint64 id, td_api::sendAuthenticationFirebaseSms &request) {
@@ -3877,6 +3874,20 @@ void Requests::on_request(uint64 id, const td_api::removeMessageReaction &reques
   CREATE_OK_REQUEST_PROMISE();
   td_->messages_manager_->remove_message_reaction({DialogId(request.chat_id_), MessageId(request.message_id_)},
                                                   ReactionType(request.reaction_type_), std::move(promise));
+}
+
+void Requests::on_request(uint64 id, const td_api::deleteAllRecentMessageReactionsFromSender &request) {
+  CREATE_OK_REQUEST_PROMISE();
+  TRY_RESULT_PROMISE(promise, sender_dialog_id, get_message_sender_dialog_id(td_, request.sender_id_, false, false));
+  td_->message_query_manager_->delete_reactions_by_sender(DialogId(request.chat_id_), sender_dialog_id,
+                                                          std::move(promise));
+}
+
+void Requests::on_request(uint64 id, const td_api::deleteMessageReactionsFromSender &request) {
+  CREATE_OK_REQUEST_PROMISE();
+  TRY_RESULT_PROMISE(promise, sender_dialog_id, get_message_sender_dialog_id(td_, request.sender_id_, false, false));
+  td_->message_query_manager_->delete_reaction_by_sender(DialogId(request.chat_id_), MessageId(request.message_id_),
+                                                         sender_dialog_id, std::move(promise));
 }
 
 void Requests::on_request(uint64 id, const td_api::setMessageReactions &request) {
@@ -6488,6 +6499,12 @@ void Requests::on_request(uint64 id, const td_api::setUserEmojiStatus &request) 
                                             EmojiStatus::get_emoji_status(request.emoji_status_), std::move(promise));
 }
 
+void Requests::on_request(uint64 id, const td_api::getPersonalChatHistory &request) {
+  CHECK_IS_BOT();
+  CREATE_REQUEST_PROMISE();
+  td_->message_query_manager_->get_personal_chat_history(UserId(request.user_id_), request.limit_, std::move(promise));
+}
+
 void Requests::on_request(uint64 id, td_api::searchUserByPhoneNumber &request) {
   CHECK_IS_USER();
   CLEAN_INPUT_STRING(request.phone_number_);
@@ -6960,6 +6977,12 @@ void Requests::on_request(uint64 id, td_api::setBusinessConnectedBot &request) {
   CHECK_IS_USER();
   CREATE_OK_REQUEST_PROMISE();
   td_->business_manager_->set_business_connected_bot(std::move(request.bot_), std::move(promise));
+}
+
+void Requests::on_request(uint64 id, const td_api::confirmBusinessConnectedBot &request) {
+  CHECK_IS_USER();
+  CREATE_OK_REQUEST_PROMISE();
+  td_->business_manager_->confirm_business_connected_bot(UserId(request.bot_user_id_), std::move(promise));
 }
 
 void Requests::on_request(uint64 id, const td_api::deleteBusinessConnectedBot &request) {
@@ -9018,18 +9041,20 @@ void Requests::on_request(uint64 id, td_api::saveApplicationLogEvent &request) {
 }
 
 void Requests::on_request(uint64 id, td_api::addProxy &request) {
+  CLEAN_INPUT_STRING(request.comment_);
   CREATE_REQUEST_PROMISE();
   send_closure(G()->connection_creator(), &ConnectionCreator::add_proxy, -1, std::move(request.proxy_), request.enable_,
-               std::move(promise));
+               request.comment_, std::move(promise));
 }
 
 void Requests::on_request(uint64 id, td_api::editProxy &request) {
   if (request.proxy_id_ < 0) {
     return send_error_raw(id, 400, "Proxy identifier invalid");
   }
+  CLEAN_INPUT_STRING(request.comment_);
   CREATE_REQUEST_PROMISE();
   send_closure(G()->connection_creator(), &ConnectionCreator::add_proxy, request.proxy_id_, std::move(request.proxy_),
-               request.enable_, std::move(promise));
+               request.enable_, request.comment_, std::move(promise));
 }
 
 void Requests::on_request(uint64 id, const td_api::enableProxy &request) {

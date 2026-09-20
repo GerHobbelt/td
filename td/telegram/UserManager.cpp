@@ -549,14 +549,11 @@ class UploadProfilePhotoQuery final : public Td::ResultHandler {
     only_suggest_ = only_suggest;
 
     static_assert(static_cast<int32>(telegram_api::photos_uploadProfilePhoto::VIDEO_MASK) ==
-                      static_cast<int32>(telegram_api::photos_uploadContactProfilePhoto::VIDEO_MASK),
-                  "");
+                  static_cast<int32>(telegram_api::photos_uploadContactProfilePhoto::VIDEO_MASK));
     static_assert(static_cast<int32>(telegram_api::photos_uploadProfilePhoto::VIDEO_START_TS_MASK) ==
-                      static_cast<int32>(telegram_api::photos_uploadContactProfilePhoto::VIDEO_START_TS_MASK),
-                  "");
+                  static_cast<int32>(telegram_api::photos_uploadContactProfilePhoto::VIDEO_START_TS_MASK));
     static_assert(static_cast<int32>(telegram_api::photos_uploadProfilePhoto::FILE_MASK) ==
-                      static_cast<int32>(telegram_api::photos_uploadContactProfilePhoto::FILE_MASK),
-                  "");
+                  static_cast<int32>(telegram_api::photos_uploadContactProfilePhoto::FILE_MASK));
 
     int32 flags = 0;
     telegram_api::object_ptr<telegram_api::InputFile> photo_input_file;
@@ -636,8 +633,7 @@ class UploadProfilePhotoQuery final : public Td::ResultHandler {
 
   void on_result(BufferSlice packet) final {
     static_assert(std::is_same<telegram_api::photos_uploadProfilePhoto::ReturnType,
-                               telegram_api::photos_uploadContactProfilePhoto::ReturnType>::value,
-                  "");
+                               telegram_api::photos_uploadContactProfilePhoto::ReturnType>::value);
     auto result_ptr = fetch_result<telegram_api::photos_uploadProfilePhoto>(packet);
     if (result_ptr.is_error()) {
       return on_error(result_ptr.move_as_error());
@@ -1768,9 +1764,7 @@ class GetSupportUserQuery final : public Td::ResultHandler {
     auto ptr = result_ptr.move_as_ok();
     LOG(INFO) << "Receive result for GetSupportUserQuery: " << to_string(ptr);
 
-    auto user_id = UserManager::get_user_id(ptr->user_);
-    td_->user_manager_->on_get_user(std::move(ptr->user_), "GetSupportUserQuery");
-
+    auto user_id = td_->user_manager_->on_get_user(std::move(ptr->user_), "GetSupportUserQuery");
     promise_.set_value(std::move(user_id));
   }
 
@@ -2947,13 +2941,8 @@ vector<UserId> UserManager::get_user_ids(vector<telegram_api::object_ptr<telegra
                                          const char *source) {
   vector<UserId> user_ids;
   for (auto &user : users) {
-    auto user_id = get_user_id(user);
-    if (!user_id.is_valid()) {
-      LOG(ERROR) << "Receive invalid " << user_id << " from " << source << " in " << to_string(user);
-      continue;
-    }
-    on_get_user(std::move(user), source);
-    if (have_min_user(user_id)) {
+    auto user_id = on_get_user(std::move(user), source);
+    if (user_id.is_valid()) {
       user_ids.push_back(user_id);
     }
   }
@@ -3112,7 +3101,7 @@ void UserManager::set_my_online_status(bool is_online, bool send_update, bool is
   }
 }
 
-void UserManager::on_get_user(telegram_api::object_ptr<telegram_api::User> &&user_ptr, const char *source) {
+UserId UserManager::on_get_user(telegram_api::object_ptr<telegram_api::User> &&user_ptr, const char *source) {
   LOG(DEBUG) << "Receive from " << source << ' ' << to_string(user_ptr);
   CHECK(user_ptr != nullptr);
   int32 constructor_id = user_ptr->get_id();
@@ -3121,7 +3110,7 @@ void UserManager::on_get_user(telegram_api::object_ptr<telegram_api::User> &&use
     UserId user_id(user->id_);
     if (!user_id.is_valid()) {
       LOG(ERROR) << "Receive invalid " << user_id << " from " << source;
-      return;
+      return UserId();
     }
     LOG(INFO) << "Receive empty " << user_id << " from " << source;
 
@@ -3130,7 +3119,7 @@ void UserManager::on_get_user(telegram_api::object_ptr<telegram_api::User> &&use
       // userEmpty should be received only through getUsers for nonexistent users
       LOG(ERROR) << "Have no information about " << user_id << ", but received userEmpty from " << source;
     }
-    return;
+    return user_id;
   }
 
   CHECK(constructor_id == telegram_api::user::ID);
@@ -3138,7 +3127,7 @@ void UserManager::on_get_user(telegram_api::object_ptr<telegram_api::User> &&use
   UserId user_id(user->id_);
   if (!user_id.is_valid()) {
     LOG(ERROR) << "Receive invalid " << user_id;
-    return;
+    return UserId();
   }
 
   LOG(INFO) << "Receive " << user_id << " from " << source;
@@ -3184,7 +3173,7 @@ void UserManager::on_get_user(telegram_api::object_ptr<telegram_api::User> &&use
     }
   } else if (is_deleted && !is_received && user_id == get_my_id()) {
     LOG(INFO) << "Ignore self as frozen min-user";
-    return;
+    return user_id;
   }
 
   if (have_access_hash) {  // access_hash must be updated before photo
@@ -3430,6 +3419,7 @@ void UserManager::on_get_user(telegram_api::object_ptr<telegram_api::User> &&use
   }
   u->is_received_from_server = true;
   update_user(u, user_id);
+  return user_id;
 }
 
 void UserManager::on_get_users(vector<telegram_api::object_ptr<telegram_api::User>> &&users, const char *source) {
@@ -5054,7 +5044,7 @@ UserManager::User *UserManager::get_user_force(UserId user_id, const char *sourc
     auto user = telegram_api::make_object<telegram_api::user>(
         flags, false, false, false, false, is_bot, false, is_private_bot, is_verified, false, false, false, is_support,
         false, need_apply_min_photo, false, false, false, false, 0, false, false, false, false, false, false, false,
-        false, false, false, false, user_id.get(), 1, first_name, string(), username, phone_number,
+        false, false, false, false, false, user_id.get(), 1, first_name, string(), username, phone_number,
         std::move(profile_photo), nullptr, bot_info_version, Auto(), string(), string(), nullptr,
         vector<telegram_api::object_ptr<telegram_api::username>>(), nullptr, nullptr, nullptr, 0, 0, 0);
     on_get_user(std::move(user), "get_user_force");
@@ -5180,6 +5170,17 @@ Result<telegram_api::object_ptr<telegram_api::InputUser>> UserManager::get_input
   return telegram_api::make_object<telegram_api::inputUser>(user_id.get(), u->access_hash);
 }
 
+Result<vector<telegram_api::object_ptr<telegram_api::InputUser>>> UserManager::get_input_users(
+    const vector<UserId> &user_ids) const {
+  vector<telegram_api::object_ptr<telegram_api::InputUser>> input_users;
+  input_users.reserve(user_ids.size());
+  for (auto user_id : user_ids) {
+    TRY_RESULT(input_user, get_input_user(user_id));
+    input_users.push_back(std::move(input_user));
+  }
+  return std::move(input_users);
+}
+
 telegram_api::object_ptr<telegram_api::InputUser> UserManager::get_input_user_force(UserId user_id) const {
   auto r_input_user = get_input_user(user_id);
   if (r_input_user.is_error()) {
@@ -5187,6 +5188,19 @@ telegram_api::object_ptr<telegram_api::InputUser> UserManager::get_input_user_fo
     return telegram_api::make_object<telegram_api::inputUser>(user_id.get(), 0);
   }
   return r_input_user.move_as_ok();
+}
+
+vector<telegram_api::object_ptr<telegram_api::InputUser>> UserManager::get_input_users_force(
+    const vector<UserId> &user_ids) const {
+  vector<telegram_api::object_ptr<telegram_api::InputUser>> input_users;
+  input_users.reserve(user_ids.size());
+  for (auto user_id : user_ids) {
+    auto r_input_user = get_input_user(user_id);
+    if (r_input_user.is_ok()) {
+      input_users.push_back(r_input_user.move_as_ok());
+    }
+  }
+  return input_users;
 }
 
 bool UserManager::have_input_peer_user(UserId user_id, AccessRights access_rights) const {
@@ -5535,8 +5549,7 @@ RestrictedRights UserManager::get_user_default_permissions(UserId user_id) const
   auto u = get_user(user_id);
   if ((u == nullptr && user_id != get_my_id()) || user_id == get_replies_bot_user_id() ||
       user_id == get_verification_codes_bot_user_id()) {
-    return RestrictedRights(false, false, false, false, false, false, false, false, false, false, false, false, false,
-                            false, false, u != nullptr, false, false, false, ChannelType::Unknown);
+    return RestrictedRights::restrict_all();
   }
   return RestrictedRights(true, true, true, true, true, true, true, true, true, true, true, true, true, false, false,
                           true, false, false, true, ChannelType::Unknown);
@@ -5545,8 +5558,7 @@ RestrictedRights UserManager::get_user_default_permissions(UserId user_id) const
 RestrictedRights UserManager::get_secret_chat_default_permissions(SecretChatId secret_chat_id) const {
   auto c = get_secret_chat(secret_chat_id);
   if (c == nullptr) {
-    return RestrictedRights(false, false, false, false, false, false, false, false, false, false, false, false, false,
-                            false, false, false, false, false, false, ChannelType::Unknown);
+    return RestrictedRights::restrict_all();
   }
   return RestrictedRights(true, true, true, true, true, true, true, true, true, true, true, true, true, false, false,
                           false, false, false, false, ChannelType::Unknown);
@@ -8243,14 +8255,12 @@ void UserManager::remove_contacts(const vector<UserId> &user_ids, Promise<Unit> 
     return;
   }
 
-  vector<UserId> to_delete_user_ids;
   vector<telegram_api::object_ptr<telegram_api::InputUser>> input_users;
   for (auto &user_id : user_ids) {
     const User *u = get_user(user_id);
     if (u != nullptr && u->is_contact) {
       auto r_input_user = get_input_user(user_id);
       if (r_input_user.is_ok()) {
-        to_delete_user_ids.push_back(user_id);
         input_users.push_back(r_input_user.move_as_ok());
       }
     }
@@ -8957,7 +8967,7 @@ void UserManager::on_get_user_full(telegram_api::object_ptr<telegram_api::userFu
   auto can_view_revenue = user->can_view_revenue_;
   auto bot_verification = BotVerification::get_bot_verification(std::move(user->bot_verification_));
   auto gift_settings = StarGiftSettings(user->display_gifts_button_, std::move(user->disallowed_gifts_));
-  if (u->is_deleted) {
+  if (u->is_deleted || u->is_bot) {
     gift_settings = StarGiftSettings::allow_nothing();
   }
   auto star_rating = StarRating::get_star_rating(std::move(user->stars_rating_));

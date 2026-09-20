@@ -110,6 +110,14 @@ class PollManager final : public Actor {
   vector<unique_ptr<MessageContent>> get_individual_message_contents(PollId poll_id,
                                                                      const MessageContent *attached_media) const;
 
+  vector<MessageContent *> get_individual_message_content_refs(PollId poll_id, MessageContent *attached_media);
+
+  vector<const MessageContent *> get_individual_message_content_refs(PollId poll_id,
+                                                                     const MessageContent *attached_media) const;
+
+  unique_ptr<MessageContent> &get_individual_message_content(PollId poll_id, unique_ptr<MessageContent> &attached_media,
+                                                             int32 media_pos);
+
   PollId dup_poll(DialogId dialog_id, PollId poll_id);
 
   bool has_input_media(PollId poll_id) const;
@@ -126,7 +134,9 @@ class PollManager final : public Actor {
 
   void on_get_poll_vote(PollId poll_id, DialogId dialog_id, vector<BufferSlice> &&options, vector<int32> positions);
 
-  td_api::object_ptr<td_api::poll> get_poll_object(PollId poll_id, DialogId dialog_id, MessageId message_id) const;
+  td_api::object_ptr<td_api::poll> get_poll_object(PollId poll_id, DialogId dialog_id, MessageId message_id,
+                                                   DialogId initial_dialog_id, int32 initial_date,
+                                                   bool is_real_message_content) const;
 
   void on_binlog_events(vector<BinlogEvent> &&events);
 
@@ -236,11 +246,15 @@ class PollManager final : public Actor {
   bool can_delete_poll_option(const Poll *poll, const PollOption *option, MessageId message_id, bool is_forward,
                               bool is_outgoing);
 
+  bool is_poll_vote_subscribers_only_limited(const Poll *poll, DialogId initial_dialog_id, int32 initial_date) const;
+
   td_api::object_ptr<td_api::PollVoteRestrictionReason> get_poll_vote_restriction_reason_object(
-      PollId poll_id, const Poll *poll, DialogId dialog_id, MessageId message_id) const;
+      PollId poll_id, const Poll *poll, DialogId dialog_id, MessageId message_id, DialogId initial_dialog_id,
+      int32 initial_date, bool is_real_message_content) const;
 
   td_api::object_ptr<td_api::poll> get_poll_object(PollId poll_id, const Poll *poll, DialogId dialog_id,
-                                                   MessageId message_id) const;
+                                                   MessageId message_id, DialogId initial_dialog_id, int32 initial_date,
+                                                   bool is_real_message_content) const;
 
   void on_get_poll_results(PollId poll_id, uint64 generation, Result<tl_object_ptr<telegram_api::Updates>> result);
 
@@ -271,7 +285,7 @@ class PollManager final : public Actor {
 
   void forget_local_poll(PollId poll_id);
 
-  bool can_get_poll_voters(PollId poll_id, const Poll *poll) const;
+  bool can_get_poll_voters(PollId poll_id, const Poll *poll, DialogId initial_dialog_id, int32 initial_date) const;
 
   MultiTimeout update_poll_timeout_{"UpdatePollTimeout"};
   MultiTimeout close_poll_timeout_{"ClosePollTimeout"};

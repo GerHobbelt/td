@@ -64,7 +64,6 @@ class AdministratorRights {
   AdministratorRights(const td_api::object_ptr<td_api::chatAdministratorRights> &administrator_rights,
                       ChannelType channel_type);
 
-  // increase Chat cache version when a new right is added
   AdministratorRights(bool is_anonymous, bool can_manage_dialog, bool can_change_info, bool can_post_messages,
                       bool can_edit_messages, bool can_delete_messages, bool can_invite_users,
                       bool can_restrict_members, bool can_pin_messages, bool can_manage_topics,
@@ -214,13 +213,14 @@ class RestrictedRights {
 
   RestrictedRights(const td_api::object_ptr<td_api::chatPermissions> &rights, ChannelType channel_type);
 
-  // increase Chat cache version when a new right is added
   RestrictedRights(bool can_send_messages, bool can_send_audios, bool can_send_documents, bool can_send_photos,
                    bool can_send_videos, bool can_send_video_notes, bool can_send_voice_notes, bool can_send_stickers,
                    bool can_send_animations, bool can_send_games, bool can_use_inline_bots,
                    bool can_add_web_page_previews, bool can_send_polls, bool can_change_info_and_settings,
                    bool can_invite_users, bool can_pin_messages, bool can_manage_topics, bool can_edit_rank,
                    bool can_send_reactions, ChannelType channel_type);
+
+  static RestrictedRights restrict_all();
 
   td_api::object_ptr<td_api::chatPermissions> get_chat_permissions_object() const;
 
@@ -379,10 +379,10 @@ class DialogParticipantStatus {
   static DialogParticipantStatus Banned(int32 banned_until_date, string &&rank);
 
   // legacy rights
-  static DialogParticipantStatus GroupAdministrator(bool is_creator, string &&rank);
+  static DialogParticipantStatus GroupAdministrator(bool is_current_user_creator, string &&rank);
 
   // legacy rights
-  static DialogParticipantStatus ChannelAdministrator(bool is_creator, bool is_megagroup);
+  static DialogParticipantStatus ChannelAdministrator(bool is_current_user_creator, bool is_megagroup);
 
   // forcely returns an administrator
   DialogParticipantStatus(bool can_be_edited, tl_object_ptr<telegram_api::chatAdminRights> &&admin_rights, string rank,
@@ -695,7 +695,7 @@ struct DialogParticipant {
   DialogParticipant(DialogId dialog_id, UserId inviter_user_id, int32 joined_date, DialogParticipantStatus status);
 
   DialogParticipant(tl_object_ptr<telegram_api::ChatParticipant> &&participant_ptr, int32 chat_creation_date,
-                    bool is_creator);
+                    bool is_current_user_creator);
 
   DialogParticipant(tl_object_ptr<telegram_api::ChannelParticipant> &&participant_ptr, ChannelType channel_type);
 

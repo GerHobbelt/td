@@ -685,7 +685,8 @@ class ToggleChannelJoinRequestQuery final : public Td::ResultHandler {
     auto input_channel = td_->chat_manager_->get_input_channel(channel_id);
     CHECK(input_channel != nullptr);
     send_query(G()->net_query_creator().create(
-        telegram_api::channels_toggleJoinRequest(std::move(input_channel), join_request), {{channel_id}}));
+        telegram_api::channels_toggleJoinRequest(0, false, std::move(input_channel), join_request, nullptr),
+        {{channel_id}}));
   }
 
   void on_result(BufferSlice packet) final {
@@ -1899,6 +1900,9 @@ void ChatManager::Chat::parse(ParserT &parser) {
   if (use_new_rights) {
     parse(status, parser);
     parse(default_permissions, parser);
+    if (status.is_administrator() && !status.is_creator()) {
+      status = DialogParticipantStatus::GroupAdministrator(false, string(status.get_rank()));
+    }
   } else {
     if (can_edit != (is_creator || is_administrator || everyone_is_administrator)) {
       LOG(ERROR) << "Have wrong can_edit flag";
@@ -2995,8 +2999,7 @@ string ChatManager::get_channel_title(ChannelId channel_id, bool is_recursive) c
 RestrictedRights ChatManager::get_chat_default_permissions(ChatId chat_id) const {
   auto c = get_chat(chat_id);
   if (c == nullptr) {
-    return RestrictedRights(false, false, false, false, false, false, false, false, false, false, false, false, false,
-                            false, false, false, false, false, false, ChannelType::Unknown);
+    return RestrictedRights::restrict_all();
   }
   return c->default_permissions;
 }
@@ -3004,8 +3007,7 @@ RestrictedRights ChatManager::get_chat_default_permissions(ChatId chat_id) const
 RestrictedRights ChatManager::get_channel_default_permissions(ChannelId channel_id) const {
   auto c = get_channel(channel_id);
   if (c == nullptr) {
-    return RestrictedRights(false, false, false, false, false, false, false, false, false, false, false, false, false,
-                            false, false, false, false, false, false, ChannelType::Unknown);
+    return RestrictedRights::restrict_all();
   }
   return c->default_permissions;
 }
@@ -3875,10 +3877,7 @@ bool ChatManager::can_get_channel_story_statistics(ChannelId channel_id) const {
 bool ChatManager::can_convert_channel_to_gigagroup(ChannelId channel_id) const {
   const Channel *c = get_channel(channel_id);
   return c == nullptr || get_channel_type(c) != ChannelType::Megagroup || !get_channel_status(c).is_creator() ||
-         c->is_gigagroup ||
-         c->default_permissions != RestrictedRights(false, false, false, false, false, false, false, false, false,
-                                                    false, false, false, false, false, false, false, false, false,
-                                                    false, ChannelType::Unknown);
+         c->is_gigagroup || c->default_permissions != RestrictedRights::restrict_all();
 }
 
 void ChatManager::report_channel_spam(ChannelId channel_id, const vector<MessageId> &message_ids,
@@ -4017,16 +4016,11 @@ vector<ChannelId> ChatManager::get_channel_ids(vector<tl_object_ptr<telegram_api
 vector<DialogId> ChatManager::get_dialog_ids(vector<tl_object_ptr<telegram_api::Chat>> &&chats, const char *source) {
   vector<DialogId> dialog_ids;
   for (auto &chat : chats) {
-    auto channel_id = get_channel_id(chat);
-    if (!channel_id.is_valid()) {
-      auto chat_id = get_chat_id(chat);
-      if (!chat_id.is_valid()) {
-        LOG(ERROR) << "Receive invalid chat from " << source << " in " << to_string(chat);
-      } else {
-        dialog_ids.push_back(DialogId(chat_id));
-      }
+    auto dialog_id = get_dialog_id(chat);
+    if (!dialog_id.is_valid()) {
+      LOG(ERROR) << "Receive invalid chat from " << source << " in " << to_string(chat);
     } else {
-      dialog_ids.push_back(DialogId(channel_id));
+      dialog_ids.push_back(dialog_id);
     }
     on_get_chat(std::move(chat), source);
   }
@@ -5400,9 +5394,7 @@ void ChatManager::update_channel(Channel *c, ChannelId channel_id, bool from_bin
   }
   if (c->is_default_permissions_changed) {
     td_->messages_manager_->on_dialog_default_permissions_updated(DialogId(channel_id));
-    if (c->default_permissions != RestrictedRights(false, false, false, false, false, false, false, false, false, false,
-                                                   false, false, false, false, false, false, false, false, false,
-                                                   ChannelType::Unknown)) {
+    if (c->default_permissions != RestrictedRights::restrict_all()) {
       td_->suggested_action_manager_->remove_dialog_suggested_action(
           SuggestedAction{SuggestedAction::Type::ConvertToGigagroup, DialogId(channel_id)});
     }
@@ -8220,12 +8212,7 @@ void ChatManager::create_new_chat(const vector<UserId> &user_ids, const string &
     return promise.set_error(400, "Title must be non-empty");
   }
 
-  vector<telegram_api::object_ptr<telegram_api::InputUser>> input_users;
-  for (auto user_id : user_ids) {
-    TRY_RESULT_PROMISE(promise, input_user, td_->user_manager_->get_input_user(user_id));
-    input_users.push_back(std::move(input_user));
-  }
-
+  TRY_RESULT_PROMISE(promise, input_users, td_->user_manager_->get_input_users(user_ids));
   td_->create_handler<CreateChatQuery>(std::move(promise))->send(std::move(input_users), new_title, message_ttl);
 }
 

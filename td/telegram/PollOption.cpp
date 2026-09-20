@@ -67,7 +67,9 @@ Result<PollOption> PollOption::get_poll_option(Td *td, DialogId dialog_id,
   if (utf8_length(text.text) > MAX_POLL_OPTION_LENGTH) {
     return Status::Error(400, PSLICE() << "Poll options length must not exceed " << MAX_POLL_OPTION_LENGTH);
   }
-  return PollOption(std::move(text), nullptr);
+  TRY_RESULT(media, get_input_poll_media(dialog_id, std::move(input_poll_option->media_), td, true));
+
+  return PollOption(std::move(text), std::move(media));
 }
 
 Result<vector<PollOption>> PollOption::get_poll_options(
@@ -109,17 +111,10 @@ td_api::object_ptr<td_api::pollOption> PollOption::get_poll_option_object(Td *td
                     ? nullptr
                     : get_min_message_sender_object(td, added_by_dialog_id_, "pollOption");
   bool is_added = author != nullptr;
-  vector<td_api::object_ptr<td_api::MessageSender>> recent_voter_ids;
-  for (auto dialog_id : recent_voter_dialog_ids_) {
-    auto recent_voter_id = get_min_message_sender_object(td, dialog_id, "pollOption recent voter");
-    if (recent_voter_id != nullptr) {
-      recent_voter_ids.push_back(std::move(recent_voter_id));
-    }
-  }
-  td_api::object_ptr<td_api::MessageContent> media;
+  auto recent_voter_ids = get_min_message_senders_object(td, recent_voter_dialog_ids_, "pollOption recent voter");
+  td_api::object_ptr<td_api::PollMedia> media;
   if (media_ != nullptr) {
-    media = get_message_content_object(media_.get(), td, DialogId(), MessageId(), false, false, DialogId(), 0, false,
-                                       true, -1, false, true);
+    media = get_poll_media_object(media_.get(), td);
   }
   return td_api::make_object<td_api::pollOption>(data_, get_formatted_text_object(nullptr, text_, true, -1),
                                                  std::move(media), voter_count_, 0, std::move(recent_voter_ids),
@@ -157,7 +152,13 @@ void PollOption::add_dependencies(Dependencies &dependencies, UserId my_user_id,
 
 bool operator==(const PollOption &lhs, const PollOption &rhs) {
   // don't compare voter_count_, recent_voter_dialog_ids_, and is_chosen_
-  // don't need to compare media_, because it can't change without data_ change
+  if (lhs.media_ == nullptr) {
+    if (rhs.media_ != nullptr) {
+      return false;
+    }
+  } else if (rhs.media_ == nullptr || rhs.media_->get_type() != lhs.media_->get_type()) {
+    return false;
+  }
   return lhs.text_ == rhs.text_ && lhs.data_ == rhs.data_ && lhs.added_by_dialog_id_ == rhs.added_by_dialog_id_ &&
          lhs.added_date_ == rhs.added_date_;
 }

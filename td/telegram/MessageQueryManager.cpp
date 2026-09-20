@@ -321,8 +321,7 @@ class EditMessageFactCheckQuery final : public Td::ResultHandler {
 
   void on_result(BufferSlice packet) final {
     static_assert(std::is_same<telegram_api::messages_deleteFactCheck::ReturnType,
-                               telegram_api::messages_editFactCheck::ReturnType>::value,
-                  "");
+                               telegram_api::messages_editFactCheck::ReturnType>::value);
     auto result_ptr = fetch_result<telegram_api::messages_editFactCheck>(packet);
     if (result_ptr.is_error()) {
       return on_error(result_ptr.move_as_error());
@@ -1653,6 +1652,122 @@ class DeleteTopicHistoryQuery final : public Td::ResultHandler {
   }
 };
 
+class DeleteParticipantReactionsQuery final : public Td::ResultHandler {
+  Promise<Unit> promise_;
+  DialogId dialog_id_;
+  DialogId sender_dialog_id_;
+
+ public:
+  explicit DeleteParticipantReactionsQuery(Promise<Unit> &&promise) : promise_(std::move(promise)) {
+  }
+
+  void send(DialogId dialog_id, DialogId sender_dialog_id) {
+    dialog_id_ = dialog_id;
+    sender_dialog_id_ = sender_dialog_id;
+
+    auto input_peer = td_->dialog_manager_->get_input_peer(dialog_id, AccessRights::Write);
+    CHECK(input_peer != nullptr);
+    auto sender_input_peer = td_->dialog_manager_->get_input_peer(sender_dialog_id, AccessRights::Know);
+    CHECK(sender_input_peer != nullptr);
+
+    send_query(G()->net_query_creator().create(
+        telegram_api::messages_deleteParticipantReactions(std::move(input_peer), std::move(sender_input_peer))));
+  }
+
+  void on_result(BufferSlice packet) final {
+    auto result_ptr = fetch_result<telegram_api::messages_deleteParticipantReactions>(packet);
+    if (result_ptr.is_error()) {
+      return on_error(result_ptr.move_as_error());
+    }
+
+    promise_.set_value(Unit());
+  }
+
+  void on_error(Status status) final {
+    if (sender_dialog_id_.get_type() != DialogType::Channel) {
+      td_->dialog_manager_->on_get_dialog_error(dialog_id_, status, "DeleteParticipantReactionsQuery");
+    }
+    promise_.set_error(std::move(status));
+  }
+};
+
+class DeleteParticipantReactionQuery final : public Td::ResultHandler {
+  Promise<Unit> promise_;
+  DialogId dialog_id_;
+  DialogId sender_dialog_id_;
+
+ public:
+  explicit DeleteParticipantReactionQuery(Promise<Unit> &&promise) : promise_(std::move(promise)) {
+  }
+
+  void send(DialogId dialog_id, MessageId message_id, DialogId sender_dialog_id) {
+    dialog_id_ = dialog_id;
+    sender_dialog_id_ = sender_dialog_id;
+
+    auto input_peer = td_->dialog_manager_->get_input_peer(dialog_id, AccessRights::Write);
+    CHECK(input_peer != nullptr);
+    auto sender_input_peer = td_->dialog_manager_->get_input_peer(sender_dialog_id, AccessRights::Know);
+    CHECK(sender_input_peer != nullptr);
+
+    send_query(G()->net_query_creator().create(telegram_api::messages_deleteParticipantReaction(
+        std::move(input_peer), message_id.get_server_message_id().get(), std::move(sender_input_peer))));
+  }
+
+  void on_result(BufferSlice packet) final {
+    auto result_ptr = fetch_result<telegram_api::messages_deleteParticipantReaction>(packet);
+    if (result_ptr.is_error()) {
+      return on_error(result_ptr.move_as_error());
+    }
+
+    promise_.set_value(Unit());
+  }
+
+  void on_error(Status status) final {
+    if (sender_dialog_id_.get_type() != DialogType::Channel) {
+      td_->dialog_manager_->on_get_dialog_error(dialog_id_, status, "DeleteParticipantReactionQuery");
+    }
+    if (status.message() == "MESSAGE_NOT_MODIFIED") {
+      return promise_.set_value(Unit());
+    }
+    promise_.set_error(std::move(status));
+  }
+};
+
+class GetPersonalChannelHistoryQuery final : public Td::ResultHandler {
+  Promise<td_api::object_ptr<td_api::messages>> promise_;
+
+ public:
+  explicit GetPersonalChannelHistoryQuery(Promise<td_api::object_ptr<td_api::messages>> &&promise)
+      : promise_(std::move(promise)) {
+  }
+
+  void send(telegram_api::object_ptr<telegram_api::InputUser> &&input_user, int32 limit) {
+    send_query(G()->net_query_creator().create(telegram_api::messages_getPersonalChannelHistory(
+        std::move(input_user), limit, std::numeric_limits<int32>::max(), 0, 0)));
+  }
+
+  void on_result(BufferSlice packet) final {
+    auto result_ptr = fetch_result<telegram_api::messages_getPersonalChannelHistory>(packet);
+    if (result_ptr.is_error()) {
+      return on_error(result_ptr.move_as_error());
+    }
+
+    auto messages_info = get_messages_info(td_, DialogId(), result_ptr.move_as_ok(), "GetPersonalChannelHistoryQuery");
+    auto messages = td_api::make_object<td_api::messages>();
+    for (auto &message : messages_info.messages) {
+      auto message_object = td_->messages_manager_->get_guest_message_object(std::move(message), false);
+      if (message_object != nullptr) {
+        messages->messages_.push_back(std::move(message_object));
+      }
+    }
+    promise_.set_value(std::move(messages));
+  }
+
+  void on_error(Status status) final {
+    promise_.set_error(std::move(status));
+  }
+};
+
 class ReadMentionsQuery final : public Td::ResultHandler {
   Promise<AffectedHistory> promise_;
   DialogId dialog_id_;
@@ -2482,8 +2597,7 @@ void MessageQueryManager::on_get_recent_locations(DialogId dialog_id, int32 limi
   auto result =
       td_->messages_manager_->get_messages_object(total_count, dialog_id, message_ids, true, "on_get_recent_locations");
   td::remove_if(result->messages_, [&](const auto &message) {
-    if (message->content_->get_id() != td_api::messageLocation::ID ||
-        static_cast<const td_api::messageLocation *>(message->content_.get())->live_period_ <= 0) {
+    if (message->content_->get_id() != td_api::messageLiveLocation::ID) {
       result->total_count_--;
       return true;
     }
@@ -3494,6 +3608,46 @@ void MessageQueryManager::delete_topic_history_on_server(DialogId dialog_id, For
     td->create_handler<DeleteTopicHistoryQuery>(std::move(query_promise))->send(dialog_id, forum_topic_id);
   };
   run_affected_history_query_until_complete(dialog_id, std::move(query), true, std::move(promise));
+}
+
+void MessageQueryManager::delete_reactions_by_sender(DialogId dialog_id, DialogId sender_dialog_id,
+                                                     Promise<Unit> &&promise) {
+  TRY_STATUS_PROMISE(promise, td_->dialog_manager_->check_dialog_access(dialog_id, true, AccessRights::Write,
+                                                                        "delete_reactions_by_sender"));
+  if (!td_->dialog_manager_->have_input_peer(sender_dialog_id, false, AccessRights::Know)) {
+    return promise.set_error(400, "Reaction sender not found");
+  }
+
+  // td_->messages_manager_->delete_local_reactions_by_sender(dialog_id, sender_dialog_id);
+
+  td_->create_handler<DeleteParticipantReactionsQuery>(std::move(promise))->send(dialog_id, sender_dialog_id);
+}
+
+void MessageQueryManager::delete_reaction_by_sender(DialogId dialog_id, MessageId message_id, DialogId sender_dialog_id,
+                                                    Promise<Unit> &&promise) {
+  TRY_STATUS_PROMISE(promise, td_->dialog_manager_->check_dialog_access(dialog_id, true, AccessRights::Write,
+                                                                        "delete_reactions_by_sender"));
+  if (!td_->dialog_manager_->have_input_peer(sender_dialog_id, false, AccessRights::Know)) {
+    return promise.set_error(400, "Reaction sender not found");
+  }
+  if (!message_id.is_server()) {
+    return promise.set_error(400, "Invalid message identifier specified");
+  }
+
+  // td_->messages_manager_->delete_reaction_by_sender(dialog_id, message_id, sender_dialog_id);
+
+  td_->create_handler<DeleteParticipantReactionQuery>(std::move(promise))
+      ->send(dialog_id, message_id, sender_dialog_id);
+}
+
+void MessageQueryManager::get_personal_chat_history(UserId user_id, int32 limit,
+                                                    Promise<td_api::object_ptr<td_api::messages>> &&promise) {
+  TRY_RESULT_PROMISE(promise, input_user, td_->user_manager_->get_input_user(user_id));
+  if (limit <= 0) {
+    return promise.set_error(400, "Limit must be positive");
+  }
+
+  td_->create_handler<GetPersonalChannelHistoryQuery>(std::move(promise))->send(std::move(input_user), limit);
 }
 
 void MessageQueryManager::read_all_topic_mentions_on_server(DialogId dialog_id, ForumTopicId forum_topic_id,

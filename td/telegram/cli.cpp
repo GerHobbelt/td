@@ -289,11 +289,16 @@ class CliClient final : public Actor {
   }
 
   FlatHashMap<string, int64> username_to_supergroup_id_;
+  FlatHashSet<int64> channel_ids_;
+
   void register_supergroup(const td_api::supergroup &supergroup) {
     if (supergroup.usernames_ != nullptr) {
       for (auto &username : supergroup.usernames_->active_usernames_) {
         username_to_supergroup_id_[to_lower(username)] = supergroup.id_;
       }
+    }
+    if (supergroup.is_channel_) {
+      channel_ids_.insert(supergroup.id_);
     }
   }
 
@@ -959,7 +964,7 @@ class CliClient final : public Actor {
 
   template <class T>
   static vector<T> to_integers(Slice integers) {
-    return transform(transform(autosplit(integers), trim<Slice>), to_integer<T>);
+    return transform(autosplit(integers), [](const auto &slice) { return to_integer<T>(trim(slice)); });
   }
 
   static void get_args(string &args, string &arg) {
@@ -2097,9 +2102,11 @@ class CliClient final : public Actor {
       send_request(td_api::make_object<td_api::getNetworkStatistics>());
       send_request(td_api::make_object<td_api::getCountryCode>());
       send_request(td_api::make_object<td_api::addProxy>(
-          td_api::make_object<td_api::proxy>("1.1.1.1", 1111, td_api::make_object<td_api::proxyTypeSocks5>()), true));
+          td_api::make_object<td_api::proxy>("1.1.1.1", 1111, td_api::make_object<td_api::proxyTypeSocks5>()), true,
+          "1111"));
       send_request(td_api::make_object<td_api::addProxy>(
-          td_api::make_object<td_api::proxy>("1.1.1.1", 1112, td_api::make_object<td_api::proxyTypeSocks5>()), false));
+          td_api::make_object<td_api::proxy>("1.1.1.1", 1112, td_api::make_object<td_api::proxyTypeSocks5>()), false,
+          "1112"));
       send_request(td_api::make_object<td_api::pingProxy>(nullptr));
 
       auto bad_request = td_api::make_object<td_api::setTdlibParameters>();
@@ -2412,6 +2419,8 @@ class CliClient final : public Actor {
       return td_api::make_object<td_api::topChatCategoryChannels>();
     } else if (category == "inline") {
       return td_api::make_object<td_api::topChatCategoryInlineBots>();
+    } else if (category == "guest") {
+      return td_api::make_object<td_api::topChatCategoryGuestBots>();
     } else if (category == "app") {
       return td_api::make_object<td_api::topChatCategoryWebAppBots>();
     } else if (category == "call") {
@@ -2909,10 +2918,12 @@ class CliClient final : public Actor {
       send_request(
           td_api::make_object<td_api::setAuthenticationPhoneNumber>(args, as_phone_number_authentication_settings()));
     } else if (op == "capp") {
+      int32 premium_day_count;
       string currency;
       int64 amount;
-      get_args(args, currency, amount);
-      send_request(td_api::make_object<td_api::checkAuthenticationPremiumPurchase>(currency, amount));
+      get_args(args, premium_day_count, currency, amount);
+      send_request(
+          td_api::make_object<td_api::checkAuthenticationPremiumPurchase>(premium_day_count, currency, amount));
     } else if (op == "sae" || op == "saea") {
       send_request(td_api::make_object<td_api::setAuthenticationEmailAddress>(args));
     } else if (op == "rac") {
@@ -3729,6 +3740,19 @@ class CliClient final : public Actor {
       string reaction;
       get_args(args, chat_id, message_id, reaction);
       send_request(td_api::make_object<td_api::removeMessageReaction>(chat_id, message_id, as_reaction_type(reaction)));
+    } else if (op == "darmrfs") {
+      ChatId chat_id;
+      string sender_id;
+      get_args(args, chat_id, sender_id);
+      send_request(td_api::make_object<td_api::deleteAllRecentMessageReactionsFromSender>(
+          chat_id, as_message_sender(sender_id)));
+    } else if (op == "dmrfs") {
+      ChatId chat_id;
+      MessageId message_id;
+      string sender_id;
+      get_args(args, chat_id, message_id, sender_id);
+      send_request(td_api::make_object<td_api::deleteMessageReactionsFromSender>(chat_id, message_id,
+                                                                                 as_message_sender(sender_id)));
     } else if (op == "reactbot" || op == "reactbotbig") {
       ChatId chat_id;
       MessageId message_id;
@@ -6806,8 +6830,8 @@ class CliClient final : public Actor {
       string longitude;
       string accuracy;
       get_args(args, chat_id, latitude, longitude, accuracy);
-      send_message(chat_id, td_api::make_object<td_api::inputMessageLocation>(
-                                as_location(latitude, longitude, accuracy), 0, 0, 0));
+      send_message(chat_id,
+                   td_api::make_object<td_api::inputMessageLocation>(as_location(latitude, longitude, accuracy)));
     } else if (op == "sll") {
       ChatId chat_id;
       int32 period;
@@ -6817,14 +6841,14 @@ class CliClient final : public Actor {
       int32 heading;
       int32 proximity_alert_radius;
       get_args(args, chat_id, period, latitude, longitude, accuracy, heading, proximity_alert_radius);
-      send_message(chat_id, td_api::make_object<td_api::inputMessageLocation>(
+      send_message(chat_id, td_api::make_object<td_api::inputMessageLiveLocation>(
                                 as_location(latitude, longitude, accuracy), period, heading, proximity_alert_radius));
     } else if (op == "spoll" || op == "spollp" || op == "squiz") {
       ChatId chat_id;
       string question;
       get_args(args, chat_id, question, args);
       auto options = transform(autosplit_str(args), [](const string &option) {
-        return td_api::make_object<td_api::inputPollOption>(as_formatted_text(option));
+        return td_api::make_object<td_api::inputPollOption>(as_formatted_text(option), nullptr);
       });
       td_api::object_ptr<td_api::InputPollType> poll_type;
       if (op == "squiz") {
@@ -6834,18 +6858,19 @@ class CliClient final : public Actor {
           correct_option_ids.push_back(narrow_cast<int32>(options.size() - 1));
         }
         poll_type = td_api::make_object<td_api::inputPollTypeQuiz>(std::move(correct_option_ids),
-                                                                   as_formatted_text("_te*st*_"));
+                                                                   as_formatted_text("_te*st*_"), nullptr);
       } else {
-        poll_type = td_api::make_object<td_api::inputPollTypeRegular>(rand_bool());
+        poll_type = td_api::make_object<td_api::inputPollTypeRegular>(rand_bool() && op == "spollp");
       }
+      auto can_restrict = channel_ids_.count(chat_id) > 0;
       vector<string> country_codes;
-      if (rand_bool()) {
+      if (rand_bool() && can_restrict) {
         country_codes.push_back("US");
       }
       send_message(chat_id, td_api::make_object<td_api::inputMessagePoll>(
-                                as_formatted_text(question), std::move(options), get_caption(), op != "spollp",
-                                rand_bool(), rand_bool(), rand_bool(), std::move(country_codes), rand_bool(),
-                                rand_bool(), std::move(poll_type), 0, 0, false));
+                                as_formatted_text(question), std::move(options), get_caption(), nullptr, op != "spollp",
+                                rand_bool(), rand_bool(), rand_bool() && can_restrict, std::move(country_codes),
+                                rand_bool(), rand_bool(), std::move(poll_type), 0, 0, false));
     } else if (op == "schl") {
       ChatId chat_id;
       InputChecklist checklist;
@@ -7264,7 +7289,7 @@ class CliClient final : public Actor {
       string text;
       get_args(args, chat_id, message_id, text);
       send_request(td_api::make_object<td_api::addPollOption>(
-          chat_id, message_id, td_api::make_object<td_api::inputPollOption>(as_formatted_text(text))));
+          chat_id, message_id, td_api::make_object<td_api::inputPollOption>(as_formatted_text(text), nullptr)));
     } else if (op == "dpo") {
       ChatId chat_id;
       MessageId message_id;
@@ -7915,6 +7940,10 @@ class CliClient final : public Actor {
       ChatId chat_id;
       get_args(args, chat_id);
       send_request(td_api::make_object<td_api::removeBusinessConnectedBotFromChat>(chat_id));
+    } else if (op == "cbcb") {
+      UserId bot_user_id;
+      get_args(args, bot_user_id);
+      send_request(td_api::make_object<td_api::confirmBusinessConnectedBot>(bot_user_id));
     } else if (op == "dbcb") {
       UserId bot_user_id;
       get_args(args, bot_user_id);
@@ -8363,7 +8392,7 @@ class CliClient final : public Actor {
       ReactionNotificationSource poll_votes;
       int64 sound_id;
       bool show_preview;
-      get_args(args, message_reactions, story_reactions, sound_id, show_preview);
+      get_args(args, message_reactions, story_reactions, poll_votes, sound_id, show_preview);
       send_request(td_api::make_object<td_api::setReactionNotificationSettings>(
           td_api::make_object<td_api::reactionNotificationSettings>(message_reactions, story_reactions, poll_votes,
                                                                     sound_id, show_preview)));
@@ -8567,14 +8596,18 @@ class CliClient final : public Actor {
         }
       }
       auto proxy = td_api::make_object<td_api::proxy>(server, port, std::move(type));
+      string comment;
+      if (rand_bool()) {
+        comment = to_string(Random::fast(0, 10));
+      }
       if (op[0] == 'e') {
-        send_request(td_api::make_object<td_api::editProxy>(as_proxy_id(proxy_id), std::move(proxy), enable));
+        send_request(td_api::make_object<td_api::editProxy>(as_proxy_id(proxy_id), std::move(proxy), enable, comment));
       } else if (op == "pproxy" || op == "pproxyp") {
         send_request(td_api::make_object<td_api::pingProxy>(std::move(proxy)));
       } else if (op == "tproxy") {
         send_request(td_api::make_object<td_api::testProxy>(std::move(proxy), 2, 10.0));
       } else {
-        send_request(td_api::make_object<td_api::addProxy>(std::move(proxy), enable));
+        send_request(td_api::make_object<td_api::addProxy>(std::move(proxy), enable, comment));
       }
     } else if (op == "ping") {
       send_request(td_api::make_object<td_api::pingProxy>());

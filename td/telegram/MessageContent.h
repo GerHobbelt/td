@@ -130,6 +130,10 @@ bool extract_input_invert_media(const td_api::object_ptr<td_api::InputMessageCon
 Result<InputMessageContent> get_input_message_content(
     DialogId dialog_id, tl_object_ptr<td_api::InputMessageContent> &&input_message_content, Td *td, bool is_premium);
 
+Result<unique_ptr<MessageContent>> get_input_poll_media(DialogId dialog_id,
+                                                        td_api::object_ptr<td_api::InputPollMedia> &&input_poll_media,
+                                                        Td *td, bool for_option);
+
 Status check_message_group_message_contents(const vector<InputMessageContent> &message_contents);
 
 bool can_message_content_have_input_media(const Td *td, const MessageContent *content, bool is_server);
@@ -138,7 +142,7 @@ SecretInputMedia get_message_content_secret_input_media(
     const MessageContent *content, Td *td, telegram_api::object_ptr<telegram_api::InputEncryptedFile> input_file,
     BufferSlice thumbnail, int32 layer);
 
-telegram_api::object_ptr<telegram_api::InputMedia> get_message_content_input_media(
+telegram_api::object_ptr<telegram_api::InputMedia> get_message_content_multi_input_media(
     const MessageContent *content, Td *td, vector<telegram_api::object_ptr<telegram_api::InputMedia>> &&input_media);
 
 telegram_api::object_ptr<telegram_api::InputMedia> get_message_content_input_media(
@@ -150,7 +154,7 @@ telegram_api::object_ptr<telegram_api::InputMedia> get_message_content_input_med
 telegram_api::object_ptr<telegram_api::InputMedia> get_message_content_input_media(const MessageContent *content,
                                                                                    Td *td, MessageSelfDestructType ttl,
                                                                                    const string &emoji, bool force,
-                                                                                   int32 media_pos = -1);
+                                                                                   int32 media_pos);
 
 telegram_api::object_ptr<telegram_api::InputMedia> get_message_content_input_media_web_page(
     const Td *td, const MessageContent *content);
@@ -238,7 +242,7 @@ bool merge_message_content_file_id(Td *td, MessageContent *message_content, File
 void compare_message_contents(Td *td, const MessageContent *lhs_content, const MessageContent *rhs_content,
                               bool &is_content_changed, bool &need_update);
 
-void merge_and_compare_message_contents(Td *td, const MessageContent *old_content, MessageContent *new_content,
+void merge_and_compare_message_contents(Td *td, MessageContent *old_content, MessageContent *new_content,
                                         bool need_message_changed_warning, DialogId dialog_id, bool need_merge_files,
                                         const vector<FileUploadId> &old_file_upload_ids, MessageSelfDestructType ttl,
                                         double ttl_expires_at, bool *is_content_secret, bool &is_content_changed,
@@ -297,15 +301,20 @@ unique_ptr<MessageContent> get_action_message_content(Td *td, tl_object_ptr<tele
                                                       bool is_business_message);
 
 td_api::object_ptr<td_api::MessageContent> get_message_content_object(
-    const MessageContent *content, Td *td, DialogId dialog_id, MessageId message_id, bool is_outgoing, bool is_forward,
-    DialogId sender_dialog_id, int32 message_date, bool is_content_secret, bool skip_bot_commands,
-    int32 max_media_timestamp, bool invert_media, bool disable_web_page_preview);
+    const MessageContent *content, Td *td, DialogId dialog_id, MessageId message_id, DialogId initial_dialog_id,
+    bool is_real_message_content, bool is_outgoing, bool is_forward, DialogId sender_dialog_id, int32 message_date,
+    int32 initial_date, bool is_content_secret, bool skip_bot_commands, int32 max_media_timestamp, bool invert_media,
+    bool disable_web_page_preview);
+
+td_api::object_ptr<td_api::PollMedia> get_poll_media_object(const MessageContent *content, Td *td);
 
 td_api::object_ptr<td_api::upgradeGiftResult> get_message_content_upgrade_gift_result_object(
     const MessageContent *content, Td *td, DialogId dialog_id, MessageId message_id);
 
 td_api::object_ptr<td_api::CraftGiftResult> get_message_content_craft_gift_result_object(const MessageContent *content,
                                                                                          Td *td, MessageId message_id);
+
+bool get_message_content_has_bot_commands(const MessageContent *content);
 
 FormattedText *get_message_content_text_mutable(MessageContent *content);
 
@@ -325,15 +334,11 @@ vector<MessageCover> get_message_content_need_to_upload_covers(Td *td, const Mes
 
 FileId get_message_content_any_file_id(const MessageContent *content);
 
-vector<FileId> get_message_content_any_file_ids(const MessageContent *content);
+vector<FileId> get_message_content_any_file_ids(const Td *td, const MessageContent *content);
 
 FileId get_message_content_cover_any_file_id(const MessageContent *content);
 
-vector<FileId> get_message_content_cover_any_file_ids(const MessageContent *content);
-
-void update_message_content_file_id_remote(MessageContent *content, FileId file_id);
-
-void update_message_content_file_id_remotes(MessageContent *content, const vector<FileId> &file_ids);
+vector<FileId> get_message_content_cover_any_file_ids(const Td *td, const MessageContent *content);
 
 FileId get_message_content_thumbnail_file_id(const MessageContent *content, const Td *td);
 

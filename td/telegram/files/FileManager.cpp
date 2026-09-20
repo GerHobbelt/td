@@ -4470,7 +4470,7 @@ string FileManager::extract_file_reference(const telegram_api::InputMedia *input
     case telegram_api::inputMediaPhoto::ID:
       return extract_file_reference(static_cast<const telegram_api::inputMediaPhoto *>(input_media)->id_);
     case telegram_api::inputMediaPaidMedia::ID:
-      // case telegram_api::inputMediaPoll::ID:
+    case telegram_api::inputMediaPoll::ID:
       UNREACHABLE();
       return string();
     case telegram_api::inputMediaUploadedDocument::ID: {
@@ -4529,7 +4529,7 @@ string FileManager::extract_cover_file_reference(const telegram_api::InputMedia 
     case telegram_api::inputMediaUploadedPhoto::ID:
       return extract_file_reference(static_cast<const telegram_api::inputMediaUploadedPhoto *>(input_media)->video_);
     case telegram_api::inputMediaPaidMedia::ID:
-      // case telegram_api::inputMediaPoll::ID:
+    case telegram_api::inputMediaPoll::ID:
       UNREACHABLE();
       return string();
     default:
