@@ -18,6 +18,7 @@
 #include "td/telegram/logevent/LogEvent.h"
 #include "td/telegram/MessageContentType.h"
 #include "td/telegram/MessageCopyOptions.h"
+#include "td/telegram/MessageCover.h"
 #include "td/telegram/MessageEntity.h"
 #include "td/telegram/MessageFullId.h"
 #include "td/telegram/MessageId.h"
@@ -108,7 +109,7 @@ unique_ptr<MessageContent> create_text_message_content(string text, vector<Messa
                                                        bool force_large_media, bool skip_confitmation,
                                                        string &&web_page_url);
 
-unique_ptr<MessageContent> create_photo_message_content(Photo photo);
+unique_ptr<MessageContent> create_photo_message_content(Photo photo, FileId video_file_id);
 
 unique_ptr<MessageContent> create_video_message_content(FileId file_id, Photo cover, int32 start_timestamp);
 
@@ -191,6 +192,18 @@ int32 get_message_content_live_location_period(const MessageContent *content);
 bool get_message_content_poll_is_anonymous(const Td *td, const MessageContent *content);
 
 bool get_message_content_poll_is_closed(const Td *td, const MessageContent *content);
+
+bool get_message_content_poll_has_open_answers(const Td *td, const MessageContent *content);
+
+bool get_message_content_poll_has_unread_votes(const Td *td, const MessageContent *content);
+
+void remove_message_content_poll_has_unread_votes(Td *td, const MessageContent *content);
+
+void get_message_content_poll_option_properties(Td *td, const MessageContent *content, const string &option_id,
+                                                DialogId dialog_id, MessageId message_id, bool can_be_replied,
+                                                bool can_be_replied_in_another_chat, bool can_get_link, bool is_forward,
+                                                bool is_outgoing,
+                                                Promise<td_api::object_ptr<td_api::pollOptionProperties>> &&promise);
 
 bool get_message_content_to_do_list_others_can_append(const MessageContent *content);
 
@@ -302,9 +315,9 @@ int32 get_message_content_duration(const MessageContent *content, const Td *td);
 
 int32 get_message_content_media_duration(const MessageContent *content, const Td *td);
 
-const Photo *get_message_content_cover(const MessageContent *content);
+bool has_message_content_cover(const MessageContent *content);
 
-vector<const Photo *> get_message_content_need_to_upload_covers(Td *td, const MessageContent *content);
+vector<MessageCover> get_message_content_need_to_upload_covers(Td *td, const MessageContent *content);
 
 FileId get_message_content_any_file_id(const MessageContent *content);
 

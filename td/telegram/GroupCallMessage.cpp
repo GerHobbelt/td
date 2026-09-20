@@ -17,6 +17,7 @@
 #include "td/telegram/UserManager.h"
 #include "td/telegram/Version.h"
 
+#include "td/utils/algorithm.h"
 #include "td/utils/JsonBuilder.h"
 #include "td/utils/logging.h"
 #include "td/utils/Random.h"
@@ -38,7 +39,8 @@ static Result<MessageEntity> parse_message_entity(JsonValue &value) {
   if (type == "messageEntityUnknown" || type == "messageEntityMention" || type == "messageEntityHashtag" ||
       type == "messageEntityCashtag" || type == "messageEntityPhone" || type == "messageEntityBotCommand" ||
       type == "messageEntityBankCard" || type == "messageEntityUrl" || type == "messageEntityEmail" ||
-      type == "messageEntityMentionName" || min_layer > MTPROTO_LAYER) {
+      type == "messageEntityMentionName" || type == "messageEntityFormattedDate" || type == "messageEntityDiffInsert" ||
+      type == "messageEntityDiffReplace" || type == "messageEntityDiffDelete" || min_layer > MTPROTO_LAYER) {
     return Status::Error("Skip");
   }
   if (type == "messageEntityPre") {
