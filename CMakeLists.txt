@@ -490,6 +490,7 @@ set(TDLIB_SOURCE_PART1
   td/telegram/InputGroupCallId.cpp
   td/telegram/InputInvoice.cpp
   td/telegram/InputMessageText.cpp
+  td/telegram/JoinChatBotResult.cpp
   td/telegram/JsonValue.cpp
   td/telegram/KeyboardButtonStyle.cpp
   td/telegram/LanguagePackManager.cpp
@@ -604,6 +605,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/RequestedDialogType.cpp
   td/telegram/Requests.cpp
   td/telegram/RestrictionReason.cpp
+  td/telegram/RichMessage.cpp
   td/telegram/SavedMessagesManager.cpp
   td/telegram/SavedMessagesTopicId.cpp
   td/telegram/ScopeNotificationSettings.cpp
@@ -697,6 +699,9 @@ set(TDLIB_SOURCE_PART2
   td/telegram/WebApp.cpp
   td/telegram/WebAppManager.cpp
   td/telegram/WebAppOpenParameters.cpp
+  td/telegram/WebBrowserManager.cpp
+  td/telegram/WebBrowserSettings.cpp
+  td/telegram/WebDomainException.cpp
   td/telegram/WebPageBlock.cpp
   td/telegram/WebPagesManager.cpp
 
@@ -879,6 +884,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/InputGroupCallId.h
   td/telegram/InputInvoice.h
   td/telegram/InputMessageText.h
+  td/telegram/JoinChatBotResult.h
   td/telegram/JsonValue.h
   td/telegram/KeyboardButtonStyle.h
   td/telegram/LabeledPricePart.h
@@ -1022,6 +1028,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/RequestedDialogType.h
   td/telegram/Requests.h
   td/telegram/RestrictionReason.h
+  td/telegram/RichMessage.h
   td/telegram/SavedMessagesManager.h
   td/telegram/SavedMessagesTopicId.h
   td/telegram/ScheduledServerMessageId.h
@@ -1130,6 +1137,9 @@ set(TDLIB_SOURCE_PART2
   td/telegram/WebApp.h
   td/telegram/WebAppManager.h
   td/telegram/WebAppOpenParameters.h
+  td/telegram/WebBrowserManager.h
+  td/telegram/WebBrowserSettings.h
+  td/telegram/WebDomainException.h
   td/telegram/WebPageBlock.h
   td/telegram/WebPageId.h
   td/telegram/WebPagesManager.h
@@ -1218,6 +1228,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/RepliedMessageInfo.hpp
   td/telegram/ReplyMarkup.hpp
   td/telegram/RequestedDialogType.hpp
+  td/telegram/RichMessage.hpp
   td/telegram/ScopeNotificationSettings.hpp
   td/telegram/SecureValue.hpp
   td/telegram/SendCodeHelper.hpp
@@ -1253,6 +1264,8 @@ set(TDLIB_SOURCE_PART2
   td/telegram/VideosManager.hpp
   td/telegram/VoiceNotesManager.hpp
   td/telegram/WebApp.hpp
+  td/telegram/WebBrowserSettings.hpp
+  td/telegram/WebDomainException.hpp
 
   ${TL_TD_AUTO_SOURCE}
 

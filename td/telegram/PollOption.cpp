@@ -37,8 +37,8 @@ PollOption::PollOption(Td *td, telegram_api::object_ptr<telegram_api::PollAnswer
   text_ = get_formatted_text(nullptr, std::move(poll_answer->text_), true, true, "PollOption");
   keep_only_custom_emoji(text_);
   if (poll_answer->media_ != nullptr) {
-    media_ = get_message_content(td, FormattedText(), std::move(poll_answer->media_), DialogId(), 0, false, UserId(),
-                                 nullptr, nullptr, "pollAnswer");
+    media_ = get_message_content(td, FormattedText(), nullptr, std::move(poll_answer->media_), DialogId(), 0, false,
+                                 UserId(), nullptr, nullptr, "pollAnswer");
     if (!is_allowed_poll_option_content(media_->get_type())) {
       LOG(ERROR) << "Receive " << media_->get_type() << " in a poll option";
       media_ = nullptr;
@@ -87,6 +87,15 @@ Result<vector<PollOption>> PollOption::get_poll_options(
     options.push_back(std::move(option));
   }
   return std::move(options);
+}
+
+WebPageId PollOption::get_web_page_id() const {
+  return get_message_content_web_page_id(media_.get());
+}
+
+void PollOption::remove_web_page() {
+  CHECK(media_ != nullptr);
+  remove_message_content_web_page(media_.get());
 }
 
 PollOption PollOption::dup_option(Td *td, DialogId dialog_id) const {

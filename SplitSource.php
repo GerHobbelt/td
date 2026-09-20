@@ -427,6 +427,7 @@ function split_file($file, $chunks, $undo) {
             'referral_program_manager[_(-](?![.]get[(][)])|ReferralProgramManager' => 'ReferralProgramManager',
             'ReferralProgramParameters' => 'ReferralProgramParameters',
             'RequestActor|RequestOnceActor' => 'RequestActor',
+            'RichMessage' => 'RichMessage',
             'saved_messages_manager[_(-](?![.]get[(][)])|SavedMessagesManager' => 'SavedMessagesManager',
             'ScopeNotificationSettings|[a-z_]*_scope_notification_settings' => 'ScopeNotificationSettings',
             'SearchPostsFlood' => 'SearchPostsFlood',
@@ -496,6 +497,9 @@ function split_file($file, $chunks, $undo) {
             'voice_notes_manager[_(-](?![.]get[(][)])|VoiceNotesManager' => 'VoiceNotesManager',
             'web_app_manager[_(-](?![.]get[(][)])|WebAppManager' => 'WebAppManager',
             'WebAppOpenParameters' => 'WebAppOpenParameters',
+            'web_browser_manager[_(-](?![.]get[(][)])|WebBrowserManager' => 'WebBrowserManager',
+            'WebBrowserSettings' => 'WebBrowserSettings',
+            'WebDomainException' => 'WebDomainException',
             'WebPageId(Hash)?' => 'WebPageId',
             'web_pages_manager[_(-](?![.]get[(][)])|WebPagesManager' => 'WebPagesManager');
 

@@ -107,6 +107,8 @@ class PollManager final : public Actor {
 
   void stop_local_poll(PollId poll_id);
 
+  void delete_pending_web_page(PollId poll_id, WebPageId web_page_id);
+
   vector<unique_ptr<MessageContent>> get_individual_message_contents(PollId poll_id,
                                                                      const MessageContent *attached_media) const;
 
@@ -117,6 +119,8 @@ class PollManager final : public Actor {
 
   unique_ptr<MessageContent> &get_individual_message_content(PollId poll_id, unique_ptr<MessageContent> &attached_media,
                                                              int32 media_pos);
+
+  void notify_on_poll_update(PollId poll_id);
 
   PollId dup_poll(DialogId dialog_id, PollId poll_id);
 
@@ -221,8 +225,6 @@ class PollManager final : public Actor {
 
   void schedule_poll_unload(PollId poll_id);
 
-  void notify_on_poll_update(PollId poll_id);
-
   void notify_on_poll_has_unread_votes_update(PollId poll_id, bool has_unread_votes);
 
   static string get_poll_database_key(PollId poll_id);
@@ -286,6 +288,8 @@ class PollManager final : public Actor {
   void forget_local_poll(PollId poll_id);
 
   bool can_get_poll_voters(PollId poll_id, const Poll *poll, DialogId initial_dialog_id, int32 initial_date) const;
+
+  static vector<WebPageId> get_poll_web_page_ids(const Poll *poll);
 
   MultiTimeout update_poll_timeout_{"UpdatePollTimeout"};
   MultiTimeout close_poll_timeout_{"ClosePollTimeout"};

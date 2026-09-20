@@ -188,6 +188,7 @@ class ChatManager final : public Actor {
   void on_update_channel_default_permissions(ChannelId channel_id, RestrictedRights default_permissions);
   void on_update_channel_administrator_count(ChannelId channel_id, int32 administrator_count);
   void on_update_channel_bot_commands(ChannelId channel_id, BotCommands &&bot_commands);
+  void on_update_channel_guard_bot_user_id(ChannelId channel_id, UserId guard_bot_user_id);
   void on_update_channel_permanent_invite_link(ChannelId channel_id, const DialogInviteLink &invite_link);
 
   void speculative_add_channel_participants(ChannelId channel_id, const vector<UserId> &added_user_ids,
@@ -266,7 +267,8 @@ class ChatManager final : public Actor {
 
   void toggle_channel_join_to_send(ChannelId channel_id, bool joint_to_send, Promise<Unit> &&promise);
 
-  void toggle_channel_join_request(ChannelId channel_id, bool join_request, Promise<Unit> &&promise);
+  void toggle_channel_join_request(ChannelId channel_id, bool join_request, UserId guard_bot_user_id,
+                                   bool apply_to_invite_links, Promise<Unit> &&promise);
 
   void toggle_channel_is_all_history_available(ChannelId channel_id, bool is_all_history_available,
                                                Promise<Unit> &&promise);
@@ -602,6 +604,7 @@ class ChatManager final : public Actor {
 
     vector<BotCommands> bot_commands;
     unique_ptr<BotVerification> bot_verification;
+    UserId guard_bot_user_id;
 
     uint32 speculative_version = 1;
     uint32 repair_request_version = 0;
@@ -786,6 +789,7 @@ class ChatManager final : public Actor {
                                                               int32 slow_mode_next_send_date);
   static void on_update_channel_full_bot_user_ids(ChannelFull *channel_full, ChannelId channel_id,
                                                   vector<UserId> &&bot_user_ids);
+  void on_update_channel_full_guard_bot_user_id(ChannelFull *channel_full, UserId guard_bot_user_id) const;
 
   void on_set_channel_main_profile_tab(ChannelId channel_id, ProfileTab main_profile_tab, Promise<Unit> &&promise);
 

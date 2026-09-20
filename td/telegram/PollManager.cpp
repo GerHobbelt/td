@@ -33,6 +33,7 @@
 #include "td/telegram/UpdatesManager.h"
 #include "td/telegram/UserId.h"
 #include "td/telegram/UserManager.h"
+#include "td/telegram/WebPagesManager.h"
 
 #include "td/db/binlog/BinlogEvent.h"
 #include "td/db/binlog/BinlogHelper.h"
@@ -536,6 +537,7 @@ void PollManager::on_load_poll_from_database(PollId poll_id, string value) {
         }
       }
     }
+    td_->web_pages_manager_->register_poll_web_pages(poll_id, get_poll_web_page_ids(poll.get()));
     polls_[poll_id] = std::move(poll);
   }
 }
@@ -1718,6 +1720,21 @@ void PollManager::stop_local_poll(PollId poll_id) {
   notify_on_poll_update(poll_id);
 }
 
+void PollManager::delete_pending_web_page(PollId poll_id, WebPageId web_page_id) {
+  auto poll = get_poll_editable(poll_id);
+  CHECK(poll != nullptr);
+  for (auto &option : poll->options_) {
+    if (option.get_web_page_id() == web_page_id) {
+      option.remove_web_page();
+    }
+  }
+  td_->web_pages_manager_->register_poll_web_pages(poll_id, get_poll_web_page_ids(poll));
+
+  // no need to notify about poll update, because the web pages were pending
+  // notify_on_poll_update(poll_id);
+  save_poll(poll, poll_id);
+}
+
 double PollManager::get_polling_timeout() const {
   double result = td_->online_manager_->is_online() ? 60 : 30 * 60;
   return result * Random::fast(70, 100) * 0.01;
@@ -1812,6 +1829,7 @@ void PollManager::on_unload_poll_timeout(PollId poll_id) {
   poll_voters_.erase(poll_id);
   loaded_from_database_polls_.erase(poll_id);
   unload_poll_timeout_.cancel_timeout(poll_id.get());
+  td_->web_pages_manager_->register_poll_web_pages(poll_id, {});
 }
 
 void PollManager::forget_local_poll(PollId poll_id) {
@@ -2104,6 +2122,7 @@ PollId PollManager::on_get_poll(PollId poll_id, tl_object_ptr<telegram_api::poll
         }
         poll_voters_.erase(it);
       }
+      td_->web_pages_manager_->register_poll_web_pages(poll_id, get_poll_web_page_ids(poll));
       is_changed = true;
     }
     auto question = get_formatted_text(nullptr, std::move(poll_server->question_), true, true, "on_get_poll");
@@ -2359,8 +2378,8 @@ PollId PollManager::on_get_poll(PollId poll_id, tl_object_ptr<telegram_api::poll
       unique_ptr<MessageContent> explanation_media;
       if (poll_results->solution_media_ != nullptr) {
         explanation_media =
-            get_message_content(td_, FormattedText(), std::move(poll_results->solution_media_), DialogId(), 0, false,
-                                UserId(), nullptr, nullptr, "pollResults solution");
+            get_message_content(td_, FormattedText(), nullptr, std::move(poll_results->solution_media_), DialogId(), 0,
+                                false, UserId(), nullptr, nullptr, "pollResults solution");
         if (!is_allowed_poll_content(explanation_media->get_type())) {
           LOG(ERROR) << "Receive " << explanation_media->get_type() << " in a poll explanation";
           explanation_media = nullptr;
@@ -2497,6 +2516,18 @@ void PollManager::on_get_poll_vote(PollId poll_id, DialogId dialog_id, vector<Bu
                td_api::make_object<td_api::updatePollAnswer>(
                    poll_id.get(), get_message_sender_object(td_, dialog_id, "on_get_poll_vote"), std::move(option_ids),
                    std::move(positions)));
+}
+
+vector<WebPageId> PollManager::get_poll_web_page_ids(const Poll *poll) {
+  CHECK(poll != nullptr);
+  vector<WebPageId> web_page_ids;
+  for (const auto &option : poll->options_) {
+    auto web_page_id = option.get_web_page_id();
+    if (web_page_id.is_valid() && !td::contains(web_page_ids, web_page_id)) {
+      web_page_ids.push_back(web_page_id);
+    }
+  }
+  return web_page_ids;
 }
 
 void PollManager::on_binlog_events(vector<BinlogEvent> &&events) {

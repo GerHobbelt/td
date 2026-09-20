@@ -159,6 +159,9 @@ telegram_api::object_ptr<telegram_api::InputMedia> get_message_content_input_med
 telegram_api::object_ptr<telegram_api::InputMedia> get_message_content_input_media_web_page(
     const Td *td, const MessageContent *content);
 
+telegram_api::object_ptr<telegram_api::InputRichMessage> get_message_content_input_rich_message(
+    const Td *td, const MessageContent *content);
+
 bool is_uploaded_input_media(telegram_api::object_ptr<telegram_api::InputMedia> &input_media);
 
 void delete_message_content_thumbnail(MessageContent *content, Td *td, int32 media_pos = -1);
@@ -227,6 +230,8 @@ bool get_message_content_to_do_list_others_can_complete(const MessageContent *co
 
 const Venue *get_message_content_venue(const MessageContent *content);
 
+WebPageId get_message_content_web_page_id(const MessageContent *content);
+
 bool has_message_content_web_page(const MessageContent *content);
 
 void remove_message_content_web_page(MessageContent *content);
@@ -274,7 +279,8 @@ unique_ptr<MessageContent> get_secret_message_content(
     MultiPromiseActor &load_data_multipromise, bool is_premium);
 
 unique_ptr<MessageContent> get_message_content(Td *td, FormattedText message_text,
-                                               tl_object_ptr<telegram_api::MessageMedia> &&media_ptr,
+                                               telegram_api::object_ptr<telegram_api::richMessage> &&rich_message,
+                                               telegram_api::object_ptr<telegram_api::MessageMedia> &&media_ptr,
                                                DialogId owner_dialog_id, int32 message_date, bool is_content_read,
                                                UserId via_bot_user_id, MessageSelfDestructType *ttl,
                                                bool *disable_web_page_preview, const char *source);

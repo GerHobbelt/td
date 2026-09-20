@@ -12,6 +12,7 @@
 #include "td/telegram/ChatManager.h"
 #include "td/telegram/DialogInviteLink.h"
 #include "td/telegram/DialogManager.h"
+#include "td/telegram/DialogParticipantManager.h"
 #include "td/telegram/DialogPhoto.h"
 #include "td/telegram/Global.h"
 #include "td/telegram/LinkManager.h"
@@ -60,12 +61,13 @@ class CheckChatInviteQuery final : public Td::ResultHandler {
 };
 
 class ImportChatInviteQuery final : public Td::ResultHandler {
-  Promise<DialogId> promise_;
+  Promise<td_api::object_ptr<td_api::ChatJoinResult>> promise_;
 
   string invite_link_;
 
  public:
-  explicit ImportChatInviteQuery(Promise<DialogId> &&promise) : promise_(std::move(promise)) {
+  explicit ImportChatInviteQuery(Promise<td_api::object_ptr<td_api::ChatJoinResult>> &&promise)
+      : promise_(std::move(promise)) {
   }
 
   void send(const string &invite_link) {
@@ -82,28 +84,45 @@ class ImportChatInviteQuery final : public Td::ResultHandler {
 
     auto join_result_ptr = result_ptr.move_as_ok();
     LOG(INFO) << "Receive result for ImportChatInviteQuery: " << to_string(join_result_ptr);
-    if (join_result_ptr->get_id() != telegram_api::messages_chatInviteJoinResultOk::ID) {
-      return on_error(Status::Error(500, "Unsupported"));
-    }
-    auto join_result = telegram_api::move_object_as<telegram_api::messages_chatInviteJoinResultOk>(join_result_ptr);
-    auto ptr = std::move(join_result->updates_);
+    switch (join_result_ptr->get_id()) {
+      case telegram_api::messages_chatInviteJoinResultOk::ID: {
+        auto join_result = telegram_api::move_object_as<telegram_api::messages_chatInviteJoinResultOk>(join_result_ptr);
+        auto ptr = std::move(join_result->updates_);
 
-    auto dialog_ids = UpdatesManager::get_chat_dialog_ids(ptr.get());
-    if (dialog_ids.size() != 1u) {
-      LOG(ERROR) << "Receive wrong result for ImportChatInviteQuery: " << to_string(ptr);
-      return on_error(Status::Error(500, "Internal Server Error: failed to join chat via invite link"));
-    }
-    auto dialog_id = dialog_ids[0];
+        auto dialog_ids = UpdatesManager::get_chat_dialog_ids(ptr.get());
+        if (dialog_ids.size() != 1u) {
+          LOG(ERROR) << "Receive wrong result for ImportChatInviteQuery: " << to_string(ptr);
+          return on_error(Status::Error(500, "Internal Server Error: failed to join chat via invite link"));
+        }
+        auto dialog_id = dialog_ids[0];
 
-    td_->dialog_invite_link_manager_->invalidate_invite_link_info(invite_link_);
-    td_->updates_manager_->on_get_updates(
-        std::move(ptr), PromiseCreator::lambda([promise = std::move(promise_), dialog_id](Unit) mutable {
-          promise.set_value(std::move(dialog_id));
-        }));
+        td_->dialog_invite_link_manager_->invalidate_invite_link_info(invite_link_);
+        td_->updates_manager_->on_get_updates(
+            std::move(ptr), PromiseCreator::lambda([actor_id = G()->dialog_participant_manager(), dialog_id,
+                                                    promise = std::move(promise_)](Unit) mutable {
+              send_closure(actor_id, &DialogParticipantManager::on_join_dialog, dialog_id, std::move(promise));
+            }));
+        break;
+      }
+      case telegram_api::messages_chatInviteJoinResultWebView::ID: {
+        auto ptr = telegram_api::move_object_as<telegram_api::messages_chatInviteJoinResultWebView>(join_result_ptr);
+        td_->user_manager_->on_get_users(std::move(ptr->users_), "ImportChatInviteQuery");
+        promise_.set_value(td_api::make_object<td_api::chatJoinResultGuardBotApprovalRequired>(
+            td_->user_manager_->get_user_id_object(UserId(ptr->bot_id_), "chatJoinResultGuardBotApprovalRequired"),
+            td_api::make_object<td_api::webAppUrl>(ptr->webview_->url_, ptr->webview_->same_origin_),
+            ptr->webview_->query_id_));
+        break;
+      }
+      default:
+        UNREACHABLE();
+    }
   }
 
   void on_error(Status status) final {
     td_->dialog_invite_link_manager_->invalidate_invite_link_info(invite_link_);
+    if (status.message() == "INVITE_REQUEST_SENT" || status.message() == "JOIN_GUARD_TIMEOUT") {
+      return promise_.set_value(td_api::make_object<td_api::chatJoinResultRequestSent>());
+    }
     promise_.set_error(std::move(status));
   }
 };
@@ -645,7 +664,8 @@ void DialogInviteLinkManager::check_dialog_invite_link(const string &invite_link
   td_->create_handler<CheckChatInviteQuery>(std::move(promise))->send(invite_link);
 }
 
-void DialogInviteLinkManager::import_dialog_invite_link(const string &invite_link, Promise<DialogId> &&promise) {
+void DialogInviteLinkManager::import_dialog_invite_link(const string &invite_link,
+                                                        Promise<td_api::object_ptr<td_api::ChatJoinResult>> &&promise) {
   if (!DialogInviteLink::is_valid_invite_link(invite_link)) {
     return promise.set_error(400, "Wrong invite link");
   }
