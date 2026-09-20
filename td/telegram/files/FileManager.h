@@ -538,7 +538,13 @@ class FileManager final : public Actor {
 
   void cancel_upload(FileUploadId file_upload_id);
 
+  void cancel_uploads(const vector<FileUploadId> &file_upload_ids);
+
   bool delete_partial_remote_location(FileUploadId file_upload_id);
+
+  void delete_partial_remote_location_if_needed(FileUploadId file_upload_id, bool was_uploaded);
+
+  void delete_partial_remote_location_if_needed(const vector<FileUploadId> &file_upload_ids, bool was_uploaded);
 
   void delete_partial_remote_location_if_needed(FileUploadId file_upload_id, const Status &error);
 

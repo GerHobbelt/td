@@ -21,6 +21,7 @@
 #include "td/telegram/DialogParticipant.h"
 #include "td/telegram/DialogSource.h"
 #include "td/telegram/EncryptedFile.h"
+#include "td/telegram/EphemeralMessageFullId.h"
 #include "td/telegram/EphemeralMessageId.h"
 #include "td/telegram/files/FileId.h"
 #include "td/telegram/files/FileSourceId.h"
@@ -301,6 +302,8 @@ class MessagesManager final : public Actor {
                                               vector<int64> pending_requesters);
 
   void on_update_dialog_has_scheduled_server_messages(DialogId dialog_id, bool has_scheduled_server_messages);
+
+  void on_update_dialog_has_welcome_messages(DialogId dialog_id, bool has_welcome_messages);
 
   void on_update_dialog_folder_id(DialogId dialog_id, FolderId folder_id);
 
@@ -905,7 +908,7 @@ class MessagesManager final : public Actor {
 
   void remove_dialog_action_bar(DialogId dialog_id, Promise<Unit> &&promise);
 
-  void reget_dialog_action_bar(DialogId dialog_id, const char *source, bool is_repair = true);
+  void reload_dialog_action_bar(DialogId dialog_id, const char *source, bool is_repair = true);
 
   void hide_all_business_bot_manager_bars();
 
@@ -940,8 +943,8 @@ class MessagesManager final : public Actor {
                                        uint64 edit_generation,
                                        telegram_api::object_ptr<telegram_api::MessageMedia> &&media);
 
-  void on_upload_message_media_file_parts_missing(DialogId dialog_id, MessageId message_id, int32 media_pos,
-                                                  uint64 edit_generation, vector<int> &&bad_parts);
+  void on_upload_message_media_file_error(DialogId dialog_id, MessageId message_id, int32 media_pos,
+                                          uint64 edit_generation, vector<int> &&bad_parts);
 
   void on_upload_message_media_fail(DialogId dialog_id, MessageId message_id, int32 media_pos, uint64 edit_generation,
                                     Status error);
@@ -1402,6 +1405,7 @@ class MessagesManager final : public Actor {
     bool is_has_scheduled_database_messages_checked = false;
     bool has_loaded_scheduled_messages_from_database = false;
     bool sent_scheduled_messages = false;
+    bool has_welcome_messages = false;
     bool had_last_yet_unsent_message = false;  // whether the dialog was stored to database without last message
     bool has_active_group_call = false;
     bool is_group_call_empty = false;
@@ -2504,6 +2508,8 @@ class MessagesManager final : public Actor {
 
   void send_update_chat_has_scheduled_messages(Dialog *d, bool from_deletion);
 
+  void send_update_chat_has_welcome_messages(Dialog *d);
+
   void repair_dialog_action_bar(Dialog *d, const char *source);
 
   void hide_dialog_action_bar(Dialog *d);
@@ -2987,8 +2993,7 @@ class MessagesManager final : public Actor {
                                   unique_ptr<DraftMessage> &&draft_message);
 
   bool update_dialog_draft_message(Dialog *d, unique_ptr<DraftMessage> &&draft_message, bool from_update,
-                                   bool need_update_dialog_pos, bool need_delete_files = true,
-                                   bool from_database = false);
+                                   bool need_update_dialog_pos, bool need_delete_files, bool from_database);
 
   void clear_dialog_draft_by_sent_message(Dialog *d, const Message *m, bool need_update_dialog_pos);
 
@@ -3272,8 +3277,7 @@ class MessagesManager final : public Actor {
   FlatHashMap<int64, MessageFullId> being_sent_messages_;  // message_random_id -> message
 
   MessageHashMap<MessageId> update_message_ids_;  // new_message_id -> temporary_id
-  FlatHashMap<DialogId, FlatHashMap<EphemeralMessageId, MessageId, EphemeralMessageIdHash>, DialogIdHash>
-      update_ephemeral_message_ids_;
+  FlatHashMap<EphemeralMessageFullId, MessageId, EphemeralMessageFullIdHash> update_ephemeral_message_ids_;
 
   FlatHashMap<MessageFullId, MessageId, MessageFullIdHash> messages_to_restore_;  // new_message_id -> temporary_id
 

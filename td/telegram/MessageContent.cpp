@@ -1759,8 +1759,8 @@ class MessagePollAppendAnswer final : public MessageContent {
   string data;
 
   MessagePollAppendAnswer() = default;
-  MessagePollAppendAnswer(MessageId poll_message_id, FormattedText &&text, const string &data)
-      : poll_message_id(poll_message_id), text(std::move(text)), data(data) {
+  MessagePollAppendAnswer(MessageId poll_message_id, const FormattedText &text, const string &data)
+      : poll_message_id(poll_message_id), text(text), data(data) {
   }
 
   MessageContentType get_type() const final {
@@ -1775,8 +1775,8 @@ class MessagePollDeleteAnswer final : public MessageContent {
   string data;
 
   MessagePollDeleteAnswer() = default;
-  MessagePollDeleteAnswer(MessageId poll_message_id, FormattedText &&text, const string &data)
-      : poll_message_id(poll_message_id), text(std::move(text)), data(data) {
+  MessagePollDeleteAnswer(MessageId poll_message_id, const FormattedText &text, const string &data)
+      : poll_message_id(poll_message_id), text(text), data(data) {
   }
 
   MessageContentType get_type() const final {
@@ -4615,12 +4615,20 @@ unique_ptr<MessageContent> create_text_message_content(string text, vector<Messa
                                       force_small_media, force_large_media, skip_confirmation, std::move(web_page_url));
 }
 
+unique_ptr<MessageContent> create_rich_message_content(RichMessage &&rich_message) {
+  return make_unique<MessageRichText>(std::move(rich_message));
+}
+
 unique_ptr<MessageContent> create_animation_message_content(FileId animation_file_id) {
   return make_unique<MessageAnimation>(animation_file_id, FormattedText(), false);
 }
 
 unique_ptr<MessageContent> create_audio_message_content(FileId audio_file_id) {
   return make_unique<MessageAudio>(audio_file_id, FormattedText());
+}
+
+unique_ptr<MessageContent> create_document_message_content(FileId document_file_id) {
+  return make_unique<MessageDocument>(document_file_id, FormattedText());
 }
 
 unique_ptr<MessageContent> create_photo_message_content(Photo photo, FileId video_file_id) {
@@ -7426,9 +7434,9 @@ static bool need_message_entities_changed_warning(const vector<MessageEntity> &o
   return false;
 }
 
-void merge_message_contents(Td *td, const MessageContent *old_content, MessageContent *new_content,
-                            bool need_message_changed_warning, DialogId dialog_id, bool need_merge_files,
-                            bool &is_content_changed, bool &need_update) {
+static void merge_message_contents(Td *td, const MessageContent *old_content, MessageContent *new_content,
+                                   bool need_message_changed_warning, DialogId dialog_id, bool need_merge_files,
+                                   bool &is_content_changed, bool &need_update) {
   CHECK(old_content != nullptr);
   CHECK(new_content != nullptr);
   MessageContentType content_type = new_content->get_type();
@@ -7891,6 +7899,13 @@ bool merge_message_content_file_id(Td *td, MessageContent *message_content, File
       break;
   }
   return false;
+}
+
+bool are_message_contents_same(Td *td, const MessageContent *lhs_content, const MessageContent *rhs_content) {
+  bool is_content_changed = false;
+  bool need_update = false;
+  compare_message_contents(td, lhs_content, rhs_content, is_content_changed, need_update);
+  return !is_content_changed && !need_update;
 }
 
 void compare_message_contents(Td *td, const MessageContent *old_content, const MessageContent *new_content,
@@ -8896,7 +8911,7 @@ void register_message_content(Td *td, const MessageContent *content, MessageFull
       if (text->web_page_id.is_valid()) {
         td->web_pages_manager_->register_web_page(text->web_page_id, message_full_id, source);
       } else if (can_be_animated_emoji(text->text)) {
-        td->stickers_manager_->register_emoji(text->text.text, get_custom_emoji_id(text->text), message_full_id, {},
+        td->stickers_manager_->register_emoji(text->text.text, get_custom_emoji_id(text->text), message_full_id, {}, {},
                                               source);
       }
       return;
@@ -8974,7 +8989,8 @@ void register_message_content(Td *td, const MessageContent *content, MessageFull
       }
       return;
     }
-    // don't forget to update reregister_message_content, register_reply_message_content, register_quick_reply_message_content
+    // don't forget to update reregister_message_content, register_reply_message_content,
+    // register_quick_reply_message_content, register_ephemeral_message_content
     default:
       return;
   }
@@ -9109,7 +9125,7 @@ void unregister_message_content(Td *td, const MessageContent *content, MessageFu
         td->web_pages_manager_->unregister_web_page(text->web_page_id, message_full_id, source);
       } else if (can_be_animated_emoji(text->text)) {
         td->stickers_manager_->unregister_emoji(text->text.text, get_custom_emoji_id(text->text), message_full_id, {},
-                                                source);
+                                                {}, source);
       }
       return;
     }
@@ -9205,7 +9221,7 @@ void register_quick_reply_message_content(Td *td, const MessageContent *content,
       if (text->web_page_id.is_valid()) {
         td->web_pages_manager_->register_quick_reply_web_page(text->web_page_id, message_full_id, source);
       } else if (can_be_animated_emoji(text->text)) {
-        td->stickers_manager_->register_emoji(text->text.text, get_custom_emoji_id(text->text), {}, message_full_id,
+        td->stickers_manager_->register_emoji(text->text.text, get_custom_emoji_id(text->text), {}, message_full_id, {},
                                               source);
       }
       return;
@@ -9234,7 +9250,7 @@ void unregister_quick_reply_message_content(Td *td, const MessageContent *conten
         td->web_pages_manager_->unregister_quick_reply_web_page(text->web_page_id, message_full_id, source);
       } else if (can_be_animated_emoji(text->text)) {
         td->stickers_manager_->unregister_emoji(text->text.text, get_custom_emoji_id(text->text), {}, message_full_id,
-                                                source);
+                                                {}, source);
       }
       return;
     }
@@ -9247,6 +9263,44 @@ void unregister_quick_reply_message_content(Td *td, const MessageContent *conten
     case MessageContentType::Story:
       return td->story_manager_->unregister_story(static_cast<const MessageStory *>(content)->story_full_id, {},
                                                   message_full_id, source);
+    default:
+      return;
+  }
+}
+
+void register_welcome_message_content(Td *td, const MessageContent *content, EphemeralMessageFullId message_full_id,
+                                      const char *source) {
+  CHECK(content != nullptr);
+  switch (content->get_type()) {
+    case MessageContentType::Text: {
+      auto text = static_cast<const MessageText *>(content);
+      if (text->web_page_id.is_valid()) {
+        td->web_pages_manager_->register_welcome_message_web_page(text->web_page_id, message_full_id, source);
+      } else if (can_be_animated_emoji(text->text)) {
+        td->stickers_manager_->register_emoji(text->text.text, get_custom_emoji_id(text->text), {}, {}, message_full_id,
+                                              source);
+      }
+      return;
+    }
+    default:
+      return;
+  }
+}
+
+void unregister_welcome_message_content(Td *td, const MessageContent *content, EphemeralMessageFullId message_full_id,
+                                        const char *source) {
+  CHECK(content != nullptr);
+  switch (content->get_type()) {
+    case MessageContentType::Text: {
+      auto text = static_cast<const MessageText *>(content);
+      if (text->web_page_id.is_valid()) {
+        td->web_pages_manager_->unregister_welcome_message_web_page(text->web_page_id, message_full_id, source);
+      } else if (can_be_animated_emoji(text->text)) {
+        td->stickers_manager_->unregister_emoji(text->text.text, get_custom_emoji_id(text->text), {}, {},
+                                                message_full_id, source);
+      }
+      return;
+    }
     default:
       return;
   }
@@ -10354,6 +10408,7 @@ unique_ptr<MessageContent> get_action_message_content(Td *td, tl_object_ptr<tele
       case telegram_api::messageActionNewCreatorPending::ID:
       case telegram_api::messageActionChangeCreator::ID:
       case telegram_api::messageActionChangeCommunity::ID:
+      case telegram_api::messageActionChatJoinedViaCommunity::ID:
         LOG(ERROR) << "Receive business " << to_string(action_ptr);
         break;
       case telegram_api::messageActionHistoryClear::ID:
@@ -11157,7 +11212,7 @@ unique_ptr<MessageContent> get_action_message_content(Td *td, tl_object_ptr<tele
       }
       vector<std::pair<ChannelId, MinChannel>> min_channels;
       PollOption option(td, std::move(action->answer_), min_channels);
-      return td::make_unique<MessagePollAppendAnswer>(reply_to_message_id, std::move(option.text_), option.get_data());
+      return td::make_unique<MessagePollAppendAnswer>(reply_to_message_id, option.get_text(), option.get_data());
     }
     case telegram_api::messageActionPollDeleteAnswer::ID: {
       auto action = telegram_api::move_object_as<telegram_api::messageActionPollDeleteAnswer>(action_ptr);
@@ -11168,7 +11223,7 @@ unique_ptr<MessageContent> get_action_message_content(Td *td, tl_object_ptr<tele
       }
       vector<std::pair<ChannelId, MinChannel>> min_channels;
       PollOption option(td, std::move(action->answer_), min_channels);
-      return td::make_unique<MessagePollDeleteAnswer>(reply_to_message_id, std::move(option.text_), option.get_data());
+      return td::make_unique<MessagePollDeleteAnswer>(reply_to_message_id, option.get_text(), option.get_data());
     }
     case telegram_api::messageActionManagedBotCreated::ID: {
       auto action = telegram_api::move_object_as<telegram_api::messageActionManagedBotCreated>(action_ptr);
@@ -11187,6 +11242,8 @@ unique_ptr<MessageContent> get_action_message_content(Td *td, tl_object_ptr<tele
       }
       return td::make_unique<MessageChangeCommunity>(community_id);
     }
+    case telegram_api::messageActionChatJoinedViaCommunity::ID:
+      return make_unique<MessageUnsupported>();
     default:
       UNREACHABLE();
   }
@@ -11862,7 +11919,7 @@ td_api::object_ptr<td_api::MessageContent> get_message_content_object(
       } else {
         LOG(ERROR) << "Receive gifted TON in " << message_id << " in " << dialog_id << " from " << source;
       }
-      return td_api::make_object<td_api::messageGiftedTon>(
+      return td_api::make_object<td_api::messageGiftedGrams>(
           gifter_user_id, receiver_user_id, m->crypto_amount, m->transaction_id,
           td->stickers_manager_->get_ton_gift_sticker_object(m->crypto_amount));
     }

@@ -7,6 +7,7 @@
 #pragma once
 
 #include "td/telegram/DialogId.h"
+#include "td/telegram/KeyboardButton.h"
 #include "td/telegram/KeyboardButtonStyle.h"
 #include "td/telegram/RequestedDialogType.h"
 #include "td/telegram/td_api.h"
@@ -22,25 +23,6 @@ namespace td {
 class Dependencies;
 class UserManager;
 
-struct KeyboardButton {
-  // append only
-  enum class Type : int32 {
-    Text,
-    RequestPhoneNumber,
-    RequestLocation,
-    RequestPoll,
-    RequestPollQuiz,
-    RequestPollRegular,
-    WebView,
-    RequestDialog
-  };
-  Type type;
-  KeyboardButtonStyle style;
-  string text;
-  string url;                                             // WebView only
-  unique_ptr<RequestedDialogType> requested_dialog_type;  // RequestDialog only
-};
-
 struct InlineKeyboardButton {
   // append only
   enum class Type : int32 {
@@ -54,11 +36,12 @@ struct InlineKeyboardButton {
     CallbackWithPassword,
     User,
     WebView,
-    Copy
+    Copy,
+    Disabled
   };
 
-  Type type;
-  int64 id = 0;    // UrlAuth: button_id or (2 * request_write_access - 1) * bot_user_id
+  Type type = Type::Disabled;
+  int64 id = 0;    // UrlAuth: button_id or (2 * request_write_access - 1) * bot_user_id + request_write_access - 1
                    // SwitchInline: mask of allowed target chats; 0 if any
   UserId user_id;  // User only
   KeyboardButtonStyle style;
@@ -73,6 +56,7 @@ struct ReplyMarkup {
   Type type;
 
   bool is_personal = false;  // for ShowKeyboard, RemoveKeyboard, ForceReply
+  bool force_reply = false;  // for ShowKeyboard, InlineKeyboard
 
   bool is_persistent = false;               // for ShowKeyboard
   bool need_resize_keyboard = false;        // for ShowKeyboard
@@ -84,9 +68,9 @@ struct ReplyMarkup {
 
   StringBuilder &print(StringBuilder &string_builder) const;
 
-  tl_object_ptr<telegram_api::ReplyMarkup> get_input_reply_markup(UserManager *user_manager) const;
+  telegram_api::object_ptr<telegram_api::ReplyMarkup> get_input_reply_markup(UserManager *user_manager) const;
 
-  tl_object_ptr<td_api::ReplyMarkup> get_reply_markup_object(UserManager *user_manager) const;
+  td_api::object_ptr<td_api::ReplyMarkup> get_reply_markup_object(UserManager *user_manager) const;
 
   const RequestedDialogType *get_requested_dialog_type(int32 button_id) const;
 };
@@ -95,15 +79,6 @@ bool operator==(const ReplyMarkup &lhs, const ReplyMarkup &rhs);
 bool operator!=(const ReplyMarkup &lhs, const ReplyMarkup &rhs);
 
 StringBuilder &operator<<(StringBuilder &string_builder, const ReplyMarkup &reply_markup);
-
-KeyboardButton get_keyboard_button(tl_object_ptr<telegram_api::KeyboardButton> &&keyboard_button_ptr);
-
-Result<KeyboardButton> get_keyboard_button(td_api::object_ptr<td_api::keyboardButton> &&button,
-                                           bool request_buttons_allowed);
-
-td_api::object_ptr<td_api::keyboardButton> get_keyboard_button_object(const KeyboardButton &keyboard_button);
-
-telegram_api::object_ptr<telegram_api::KeyboardButton> get_input_keyboard_button(const KeyboardButton &keyboard_button);
 
 unique_ptr<ReplyMarkup> get_reply_markup(tl_object_ptr<telegram_api::ReplyMarkup> &&reply_markup_ptr, bool is_bot,
                                          bool only_inline_keyboard, bool message_contains_mention);
@@ -117,11 +92,11 @@ Result<unique_ptr<ReplyMarkup>> get_reply_markup(td_api::object_ptr<td_api::Repl
 
 unique_ptr<ReplyMarkup> dup_reply_markup(const unique_ptr<ReplyMarkup> &reply_markup);
 
-tl_object_ptr<telegram_api::ReplyMarkup> get_input_reply_markup(UserManager *user_manager,
-                                                                const unique_ptr<ReplyMarkup> &reply_markup);
+telegram_api::object_ptr<telegram_api::ReplyMarkup> get_input_reply_markup(UserManager *user_manager,
+                                                                           const unique_ptr<ReplyMarkup> &reply_markup);
 
-tl_object_ptr<td_api::ReplyMarkup> get_reply_markup_object(UserManager *user_manager,
-                                                           const unique_ptr<ReplyMarkup> &reply_markup);
+td_api::object_ptr<td_api::ReplyMarkup> get_reply_markup_object(UserManager *user_manager,
+                                                                const unique_ptr<ReplyMarkup> &reply_markup);
 
 void add_reply_markup_dependencies(Dependencies &dependencies, const ReplyMarkup *reply_markup);
 

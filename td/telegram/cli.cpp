@@ -2949,6 +2949,15 @@ class CliClient final : public Actor {
 
   void send_message(int64 chat_id, td_api::object_ptr<td_api::InputMessageContent> &&input_message_content,
                     bool disable_notification = false, bool from_background = false) {
+    if (send_welcome_message_) {
+      send_request(td_api::make_object<td_api::addChatWelcomeMessage>(chat_id, std::move(input_message_content)));
+      return;
+    }
+    if (edit_welcome_message_id_ != 0) {
+      send_request(td_api::make_object<td_api::editChatWelcomeMessage>(chat_id, edit_welcome_message_id_,
+                                                                       std::move(input_message_content)));
+      return;
+    }
     if (ephemeral_message_receiver_id_ != 0) {
       send_request(td_api::make_object<td_api::sendEphemeralMessage>(
           chat_id, get_message_topic_id(), ephemeral_message_receiver_id_, 0, get_input_message_reply_to(), 123,
@@ -4048,7 +4057,7 @@ class CliClient final : public Actor {
       send_request(td_api::make_object<td_api::searchChatMessages>(search_chat_id_, get_message_topic_id(), "", nullptr,
                                                                    0, 0, 100, as_search_messages_filter("pvi")));
     } else if (op == "Search" || op == "SearchA" || op == "SearchM" || op == "SearchP" || op == "SearchG" ||
-               op == "SearchC") {
+               begins_with(op, "SearchC")) {
       string query;
       string limit;
       string filter;
@@ -4057,19 +4066,19 @@ class CliClient final : public Actor {
       td_api::object_ptr<td_api::ChatList> chat_list;
       if (op == "SearchA") {
         chat_list = td_api::make_object<td_api::chatListArchive>();
-      }
-      if (op == "SearchM") {
+      } else if (op == "SearchM") {
         chat_list = td_api::make_object<td_api::chatListMain>();
       }
       td_api::object_ptr<td_api::SearchMessagesChatTypeFilter> chat_type_filter;
       if (op == "SearchP") {
         chat_type_filter = td_api::make_object<td_api::searchMessagesChatTypeFilterPrivate>();
-      }
-      if (op == "SearchG") {
+      } else if (op == "SearchG") {
         chat_type_filter = td_api::make_object<td_api::searchMessagesChatTypeFilterGroup>();
-      }
-      if (op == "SearchC") {
+      } else if (op == "SearchC") {
         chat_type_filter = td_api::make_object<td_api::searchMessagesChatTypeFilterChannel>();
+      } else if (begins_with(op, "SearchC")) {
+        chat_type_filter =
+            td_api::make_object<td_api::searchMessagesChatTypeFilterCommunity>(to_integer<int64>(op.substr(7)));
       }
       send_request(td_api::make_object<td_api::searchMessages>(std::move(chat_list), query, offset, as_limit(limit),
                                                                as_search_messages_filter(filter),
@@ -5990,20 +5999,24 @@ class CliClient final : public Actor {
       op_not_found_count++;
     }
 
-    if (op == "scdm") {
+    if (op == "scdm" || op == "scdmrm") {
       ChatId chat_id;
       string message;
       get_args(args, chat_id, message);
       td_api::object_ptr<td_api::DraftMessageContent> content;
       auto reply_to = get_input_message_reply_to();
       if (reply_to != nullptr || !message.empty()) {
-        vector<td_api::object_ptr<td_api::textEntity>> entities;
-        if (!message.empty()) {
-          entities.push_back(
-              td_api::make_object<td_api::textEntity>(0, 1, td_api::make_object<td_api::textEntityTypePre>()));
+        if (op == "scdm") {
+          vector<td_api::object_ptr<td_api::textEntity>> entities;
+          if (!message.empty()) {
+            entities.push_back(
+                td_api::make_object<td_api::textEntity>(0, 1, td_api::make_object<td_api::textEntityTypePre>()));
+          }
+          content = td_api::make_object<td_api::draftMessageContentText>(
+              as_formatted_text(message, std::move(entities)), get_link_preview_options());
+        } else {
+          content = td_api::make_object<td_api::draftMessageContentInputRichMessage>(as_input_rich_message(message));
         }
-        content = td_api::make_object<td_api::draftMessageContentText>(as_formatted_text(message, std::move(entities)),
-                                                                       get_link_preview_options());
       }
       set_draft_message(chat_id, std::move(content));
     } else if (op == "scdmvn") {
@@ -6475,6 +6488,10 @@ class CliClient final : public Actor {
       quick_reply_shortcut_name_ = args;
     } else if (op == "smer") {
       get_args(args, ephemeral_message_receiver_id_);
+    } else if (op == "swm") {
+      get_args(args, send_welcome_message_);
+    } else if (op == "ewm") {
+      get_args(args, edit_welcome_message_id_);
     } else if (op == "smas") {
       added_sticker_file_ids_ = as_file_ids(args);
     } else if (op == "smc") {
@@ -6691,6 +6708,15 @@ class CliClient final : public Actor {
           td_api::make_object<td_api::inputMessageVideo>(as_input_video(video), get_caption(),
                                                          show_caption_above_media_, get_message_self_destruct_type(),
                                                          has_spoiler_)));
+    } else if (op == "eqrman") {
+      ShortcutId shortcut_id;
+      MessageId message_id;
+      string animation;
+      get_args(args, shortcut_id, message_id, animation);
+      send_request(td_api::make_object<td_api::editQuickReplyMessage>(
+          shortcut_id, message_id,
+          td_api::make_object<td_api::inputMessageAnimation>(as_input_animation(animation), get_caption(),
+                                                             show_caption_above_media_, has_spoiler_)));
     } else if (op == "eqrmchl") {
       ShortcutId shortcut_id;
       MessageId message_id;
@@ -6740,6 +6766,19 @@ class CliClient final : public Actor {
       get_args(args, chat_id, message_id, date, repeat_period);
       send_request(td_api::make_object<td_api::editMessageSchedulingState>(
           chat_id, message_id, as_message_scheduling_state(date, repeat_period)));
+    } else if (op == "lcwm") {
+      ChatId chat_id;
+      get_args(args, chat_id);
+      send_request(td_api::make_object<td_api::loadChatWelcomeMessages>(chat_id));
+    } else if (op == "dcwm") {
+      ChatId chat_id;
+      int32 welcome_message_id;
+      get_args(args, chat_id, welcome_message_id);
+      send_request(td_api::make_object<td_api::deleteChatWelcomeMessage>(chat_id, welcome_message_id));
+    } else if (op == "dacwm") {
+      ChatId chat_id;
+      get_args(args, chat_id);
+      send_request(td_api::make_object<td_api::deleteAllChatWelcomeMessages>(chat_id));
     } else if (op == "smfc") {
       ChatId chat_id;
       MessageId message_id;
@@ -7450,13 +7489,37 @@ class CliClient final : public Actor {
       get_args(args, chat_id, member_id, banned_until_date, revoke_messages);
       send_request(td_api::make_object<td_api::banChatMember>(chat_id, as_message_sender(member_id), banned_until_date,
                                                               revoke_messages));
-    } else if (op == "apo") {
+    } else if (op == "apo" || op == "apol" || op == "apolo" || op == "apop" || op == "apov" || op == "apoan") {
       ChatId chat_id;
       MessageId message_id;
       string text;
-      get_args(args, chat_id, message_id, text);
+      get_args(args, chat_id, message_id, text, args);
+      td_api::object_ptr<td_api::InputPollMedia> media;
+      if (op == "apol") {
+        string link;
+        get_args(args, link);
+        media = td_api::make_object<td_api::inputPollMediaLink>(link);
+      } else if (op == "apolo") {
+        string latitude;
+        string longitude;
+        get_args(args, latitude, longitude);
+        media = td_api::make_object<td_api::inputPollMediaLocation>(as_location(latitude, longitude, string()));
+      } else if (op == "apop") {
+        string photo;
+        get_args(args, photo);
+        media = td_api::make_object<td_api::inputPollMediaPhoto>(as_input_photo(photo));
+      } else if (op == "apov") {
+        string video;
+        get_args(args, video);
+        media = td_api::make_object<td_api::inputPollMediaVideo>(as_input_video(video));
+      } else if (op == "apoan") {
+        string animation;
+        get_args(args, animation);
+        media = td_api::make_object<td_api::inputPollMediaAnimation>(as_input_animation(animation));
+      }
       send_request(td_api::make_object<td_api::addPollOption>(
-          chat_id, message_id, td_api::make_object<td_api::inputPollOption>(as_formatted_text(text), nullptr)));
+          chat_id, message_id,
+          td_api::make_object<td_api::inputPollOption>(as_formatted_text(text), std::move(media))));
     } else if (op == "dpo") {
       ChatId chat_id;
       MessageId message_id;
@@ -9034,6 +9097,8 @@ class CliClient final : public Actor {
   bool link_preview_force_large_media_ = false;
   bool link_preview_show_above_text_ = false;
   bool show_caption_above_media_ = false;
+  bool send_welcome_message_ = false;
+  int32 edit_welcome_message_id_ = 0;
   GiftCollectionId gift_collection_id_;
   int64 saved_messages_topic_id_ = 0;
   string quick_reply_shortcut_name_;

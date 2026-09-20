@@ -2350,7 +2350,7 @@ class WebPageBlockBlockQuote final : public WebPageBlock {
   }
 
   telegram_api::object_ptr<telegram_api::PageBlock> get_input_page_block(InputContext &context) const final {
-    return telegram_api::make_object<telegram_api::pageBlockBlockquote>(text.get_input_rich_text(context),
+    return telegram_api::make_object<telegram_api::pageBlockBlockquote>(0, false, text.get_input_rich_text(context),
                                                                         credit.get_input_rich_text(context));
   }
 
@@ -3552,7 +3552,7 @@ class WebPageBlockTable final : public WebPageBlock {
           transform(row, [&](const WebPageBlockTableCell &cell) { return cell.get_input_page_table_cell(context); }));
     });
     return telegram_api::make_object<telegram_api::pageBlockTable>(
-        0, is_bordered, is_striped, title.get_input_rich_text(context), std::move(cell_objects));
+        0, is_bordered, is_striped, false, title.get_input_rich_text(context), std::move(cell_objects));
   }
 
   td_api::object_ptr<td_api::PageBlock> get_page_block_object(Context *context) const final {
@@ -4029,6 +4029,104 @@ class WebPageBlockVoiceNote final : public WebPageBlock {
   }
 };
 
+class WebPageBlockDocument final : public WebPageBlock {
+  FileId document_file_id;
+  WebPageBlockCaption caption;
+
+ public:
+  WebPageBlockDocument() = default;
+  WebPageBlockDocument(FileId document_file_id, WebPageBlockCaption &&caption)
+      : document_file_id(document_file_id), caption(std::move(caption)) {
+  }
+
+  Type get_type() const final {
+    return Type::Document;
+  }
+
+  void append_file_ids(const Td *td, vector<FileId> &file_ids) const final {
+    Document(Document::Type::General, document_file_id).append_file_ids(td, file_ids);
+    caption.append_file_ids(td, file_ids);
+  }
+
+  void append_rich_message_media(vector<RichMessageMedia> &media) const final {
+    if (document_file_id.is_valid()) {
+      media.emplace_back(create_document_message_content(document_file_id));
+    }
+  }
+
+  void add_dependencies(Dependencies &dependencies) const final {
+    caption.add_dependencies(dependencies);
+  }
+
+  void for_each_rich_text(bool recurse_text, const std::function<void(const RichText *text)> &callback) const final {
+    caption.for_each_rich_text(recurse_text, callback);
+  }
+
+  bool can_send(const RestrictedRights &rights) const final {
+    return rights.can_send_documents();
+  }
+
+  int32 get_index_mask() const final {
+    int32 index_mask = caption.get_index_mask();
+    if (document_file_id.is_valid()) {
+      return index_mask | message_search_filter_index_mask(MessageSearchFilter::Document);
+    }
+    return index_mask;
+  }
+
+  unique_ptr<WebPageBlock> clone() const final {
+    return td::make_unique<WebPageBlockDocument>(document_file_id, caption.clone());
+  }
+
+  telegram_api::object_ptr<telegram_api::PageBlock> get_input_page_block(InputContext &context) const final {
+    CHECK(context.media_ != nullptr && context.media_pos_ < context.media_->size());
+    auto input_document = (*context.media_)[context.media_pos_++].get_input_document(context.td_);
+    if (input_document != nullptr) {
+      auto id = input_document->id_;
+      context.documents_.push_back(std::move(input_document));
+      return telegram_api::make_object<telegram_api::pageBlockDocument>(id, caption.get_input_page_caption(context));
+    }
+    LOG(INFO) << "Can't create pageBlockDocument for document " << document_file_id;
+    return telegram_api::make_object<telegram_api::pageBlockDivider>();
+  }
+
+  td_api::object_ptr<td_api::PageBlock> get_page_block_object(Context *context) const final {
+    return td_api::make_object<td_api::pageBlockDocument>(
+        context->td_->documents_manager_->get_document_object(document_file_id, PhotoFormat::Jpeg),
+        caption.get_page_block_caption_object(context));
+  }
+
+  friend bool operator==(const WebPageBlockDocument &lhs, const WebPageBlockDocument &rhs) {
+    return lhs.document_file_id == rhs.document_file_id && lhs.caption == rhs.caption;
+  }
+
+  template <class StorerT>
+  void store(StorerT &storer) const {
+    using ::td::store;
+    bool has_document = document_file_id.is_valid();
+    BEGIN_STORE_FLAGS();
+    STORE_FLAG(has_document);
+    END_STORE_FLAGS();
+    if (has_document) {
+      storer.context()->td().get_actor_unsafe()->documents_manager_->store_document(document_file_id, storer);
+    }
+    store(caption, storer);
+  }
+
+  template <class ParserT>
+  void parse(ParserT &parser) {
+    using ::td::parse;
+    bool has_document;
+    BEGIN_PARSE_FLAGS();
+    PARSE_FLAG(has_document);
+    END_PARSE_FLAGS();
+    if (has_document) {
+      document_file_id = parser.context()->td().get_actor_unsafe()->documents_manager_->parse_document(parser);
+    }
+    parse(caption, parser);
+  }
+};
+
 vector<RichText> get_rich_texts(vector<tl_object_ptr<telegram_api::RichText>> &&rich_text_ptrs,
                                 const FlatHashMap<int64, FileId> &documents);
 
@@ -4238,6 +4336,8 @@ RichText get_rich_text(tl_object_ptr<telegram_api::RichText> &&rich_text_ptr,
       result.texts.push_back(get_rich_text(std::move(rich_text->old_text_), documents));
       break;
     }
+    case telegram_api::textButton::ID:
+      break;
     default:
       UNREACHABLE();
   }
@@ -4662,13 +4762,22 @@ unique_ptr<WebPageBlock> get_web_page_block(Td *td, tl_object_ptr<telegram_api::
       return td::make_unique<WebPageBlockThinking>(get_rich_text(std::move(page_block->text_), documents));
     }
     case telegram_api::inputPageBlockMap::ID:
-      return nullptr;
+      break;
     case telegram_api::pageBlockBlockquoteBlocks::ID: {
       auto page_block = telegram_api::move_object_as<telegram_api::pageBlockBlockquoteBlocks>(page_block_ptr);
       return td::make_unique<WebPageBlockBlockQuoteBlocks>(
           get_web_page_blocks(td, std::move(page_block->blocks_), animations, audios, documents, photos, videos,
                               voice_notes),
           get_rich_text(std::move(page_block->caption_), documents));
+    }
+    case telegram_api::pageBlockButtonRow::ID:
+      break;
+    case telegram_api::pageBlockDocument::ID: {
+      auto page_block = telegram_api::move_object_as<telegram_api::pageBlockDocument>(page_block_ptr);
+      auto it = documents.find(page_block->document_id_);
+      auto document_file_id = it != documents.end() ? it->second : FileId();
+      return make_unique<WebPageBlockDocument>(document_file_id,
+                                               get_page_block_caption(std::move(page_block->caption_), documents));
     }
     default:
       UNREACHABLE();
@@ -4797,6 +4906,9 @@ void WebPageBlock::call_impl(Type type, const WebPageBlock *ptr, F &&f) {
       return f(static_cast<const WebPageBlockThinking *>(ptr));
     case Type::BlockQuoteBlocks:
       return f(static_cast<const WebPageBlockBlockQuoteBlocks *>(ptr));
+    case Type::Document:
+      return f(static_cast<const WebPageBlockDocument *>(ptr));
+
     default:
       UNREACHABLE();
   }
@@ -4987,6 +5099,18 @@ Result<vector<unique_ptr<WebPageBlock>>> get_web_page_blocks(
         auto audio_file_id = get_message_content_any_file_id(input_message_content.content.get());
         TRY_RESULT(caption, WebPageBlockCaption::get_web_page_block_caption(td, std::move(block->caption_)));
         result.push_back(td::make_unique<WebPageBlockAudio>(audio_file_id, std::move(caption)));
+        break;
+      }
+      case td_api::inputPageBlockDocument::ID: {
+        auto block = td_api::move_object_as<td_api::inputPageBlockDocument>(input_page_block);
+        TRY_RESULT(input_message_content, get_input_message_content(dialog_id,
+                                                                    td_api::make_object<td_api::inputMessageDocument>(
+                                                                        std::move(block->document_), nullptr),
+                                                                    td, is_premium));
+        CHECK(input_message_content.content->get_type() == MessageContentType::Document);
+        auto document_file_id = get_message_content_any_file_id(input_message_content.content.get());
+        TRY_RESULT(caption, WebPageBlockCaption::get_web_page_block_caption(td, std::move(block->caption_)));
+        result.push_back(td::make_unique<WebPageBlockDocument>(document_file_id, std::move(caption)));
         break;
       }
       case td_api::inputPageBlockPhoto::ID: {

@@ -99,6 +99,7 @@
 #include "td/telegram/WebAppManager.h"
 #include "td/telegram/WebBrowserManager.h"
 #include "td/telegram/WebPagesManager.h"
+#include "td/telegram/WelcomeMessageManager.h"
 
 #include "td/actor/MultiPromise.h"
 #include "td/actor/PromiseFuture.h"
@@ -781,8 +782,8 @@ bool UpdatesManager::is_acceptable_reply_markup(const tl_object_ptr<telegram_api
   }
   for (const auto &row : static_cast<const telegram_api::replyInlineMarkup *>(reply_markup.get())->rows_) {
     for (const auto &button : row->buttons_) {
-      if (button->get_id() == telegram_api::keyboardButtonUserProfile::ID) {
-        auto user_profile_button = static_cast<const telegram_api::keyboardButtonUserProfile *>(button.get());
+      if (button->type_->get_id() == telegram_api::inlineButtonTypeUserProfile::ID) {
+        auto user_profile_button = static_cast<const telegram_api::inlineButtonTypeUserProfile *>(button->type_.get());
         UserId user_id(user_profile_button->user_id_);
         if (!is_acceptable_user(user_id) || td_->user_manager_->get_input_user(user_id).is_error()) {
           return false;
@@ -999,6 +1000,7 @@ bool UpdatesManager::is_acceptable_message(const telegram_api::Message *message_
         case telegram_api::messageActionPollAppendAnswer::ID:
         case telegram_api::messageActionPollDeleteAnswer::ID:
         case telegram_api::messageActionManagedBotCreated::ID:
+        case telegram_api::messageActionChatJoinedViaCommunity::ID:
           break;
         case telegram_api::messageActionChatCreate::ID: {
           auto action = static_cast<const telegram_api::messageActionChatCreate *>(action_ptr);
@@ -3754,20 +3756,30 @@ void UpdatesManager::on_update(tl_object_ptr<telegram_api::updateDeleteMessages>
 }
 
 void UpdatesManager::on_update(tl_object_ptr<telegram_api::updateNewEphemeralMessage> update, Promise<Unit> &&promise) {
-  td_->messages_manager_->on_new_ephemeral_message(std::move(update->message_));
+  if (update->message_->welcome_template_) {
+    td_->welcome_message_manager_->on_new_welcome_message(std::move(update->message_));
+  } else {
+    td_->messages_manager_->on_new_ephemeral_message(std::move(update->message_));
+  }
   promise.set_value(Unit());
 }
 
 void UpdatesManager::on_update(tl_object_ptr<telegram_api::updateEditEphemeralMessage> update,
                                Promise<Unit> &&promise) {
-  td_->messages_manager_->on_edited_ephemeral_message(std::move(update->message_));
+  if (update->message_->welcome_template_) {
+    td_->welcome_message_manager_->on_edited_welcome_message(std::move(update->message_));
+  } else {
+    td_->messages_manager_->on_edited_ephemeral_message(std::move(update->message_));
+  }
   promise.set_value(Unit());
 }
 
 void UpdatesManager::on_update(tl_object_ptr<telegram_api::updateDeleteEphemeralMessages> update,
                                Promise<Unit> &&promise) {
-  td_->messages_manager_->on_delete_ephemeral_messages(DialogId(update->peer_),
-                                                       EphemeralMessageId::get_ephemeral_message_ids(update->ids_));
+  DialogId dialog_id(update->peer_);
+  auto ephemeral_message_ids = EphemeralMessageId::get_ephemeral_message_ids(update->ids_);
+  td_->messages_manager_->on_delete_ephemeral_messages(dialog_id, ephemeral_message_ids);
+  td_->welcome_message_manager_->on_delete_welcome_messages(dialog_id, ephemeral_message_ids);
   promise.set_value(Unit());
 }
 
@@ -4999,7 +5011,7 @@ void UpdatesManager::on_update(tl_object_ptr<telegram_api::updateDeleteQuickRepl
 }
 
 void UpdatesManager::on_update(tl_object_ptr<telegram_api::updateQuickReplyMessage> update, Promise<Unit> &&promise) {
-  td_->quick_reply_manager_->update_quick_reply_message(std::move(update->message_));
+  td_->quick_reply_manager_->on_update_quick_reply_message(std::move(update->message_));
   promise.set_value(Unit());
 }
 

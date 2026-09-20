@@ -354,12 +354,9 @@ class BusinessConnectionManager::UploadBusinessMediaQuery final : public Td::Res
   bool was_thumbnail_uploaded_ = false;
 
   void delete_thumbnail() {
-    if (was_thumbnail_uploaded_) {
-      CHECK(message_->thumbnail_file_upload_id_.is_valid());
-      // always delete partial remote location for the thumbnail, because it can't be reused anyway
-      td_->file_manager_->delete_partial_remote_location(message_->thumbnail_file_upload_id_);
-      message_->thumbnail_file_upload_id_ = {};
-    }
+    td_->file_manager_->delete_partial_remote_location_if_needed(message_->thumbnail_file_upload_id_,
+                                                                 was_thumbnail_uploaded_);
+    message_->thumbnail_file_upload_id_ = {};
   }
 
  public:
@@ -1857,21 +1854,12 @@ void BusinessConnectionManager::edit_business_message_media(
     Promise<td_api::object_ptr<td_api::businessMessage>> &&promise) {
   TRY_STATUS_PROMISE(promise, check_business_connection(business_connection_id, dialog_id));
   TRY_STATUS_PROMISE(promise, check_business_message_id(message_id));
-
-  if (input_message_content == nullptr) {
-    return promise.set_error(400, "Can't edit message without new content");
-  }
-  int32 new_message_content_type = input_message_content->get_id();
-  if (new_message_content_type != td_api::inputMessageAnimation::ID &&
-      new_message_content_type != td_api::inputMessageAudio::ID &&
-      new_message_content_type != td_api::inputMessageDocument::ID &&
-      new_message_content_type != td_api::inputMessagePhoto::ID &&
-      new_message_content_type != td_api::inputMessageVideo::ID) {
-    return promise.set_error(400, "Unsupported input message content type");
-  }
-
   TRY_RESULT_PROMISE(promise, content,
                      get_input_message_content(DialogId(), std::move(input_message_content), td_, true));
+  auto content_type = content.content->get_type();
+  if (!is_editable_media_message_content(content_type)) {
+    return promise.set_error(400, "Unsupported input message content type");
+  }
   if (!content.ttl.is_empty()) {
     return promise.set_error(400, "Can't enable self-destruction for media");
   }
@@ -1881,7 +1869,7 @@ void BusinessConnectionManager::edit_business_message_media(
 
   auto message = create_business_message_to_send(business_connection_id, dialog_id, MessageInputReplyTo(), false, false,
                                                  MessageEffectId(), std::move(new_reply_markup), std::move(content),
-                                                 new_message_content_type != td_api::inputMessageAnimation::ID);
+                                                 content_type != MessageContentType::Animation);
   message->message_id_ = message_id;
 
   do_send_message(std::move(message), std::move(promise));

@@ -185,7 +185,7 @@ termsOfService text:formattedText min_user_age:int32 show_popup:Bool = TermsOfSe
 //@name Name of the passkey
 //@addition_date Point in time (Unix timestamp) when the passkey was added
 //@last_usage_date Point in time (Unix timestamp) when the passkey was used last time; 0 if never
-//@software_icon_custom_emoji_id Identifier of the custom emoji that is used as the icon of the software, which created the passkey; 0 if unknown
+//@software_icon_custom_emoji_id Identifier of the custom emoji that is used as the icon of the software that created the passkey; 0 if unknown
 passkey id:string name:string addition_date:int32 last_usage_date:int32 software_icon_custom_emoji_id:int64 = Passkey;
 
 //@description Contains a list of passkeys @passkeys List of passkeys
@@ -457,7 +457,7 @@ pollOption id:string text:formattedText media:PollMedia voter_count:int32 vote_p
 
 //@description Describes one answer option of a poll to be created
 //@text Option text; 1-100 characters. Only custom emoji entities are allowed to be added and only by Premium users
-//@media Option media; pass null if none; ignored in addPollOption. Must be one of the following types:
+//@media Option media; pass null if none. Must be one of the following types:
 //-inputPollMediaAnimation, inputPollMediaLink, inputPollMediaLocation, inputPollMediaPhoto, inputPollMediaSticker, inputPollMediaVenue, or inputPollMediaVideo without caption
 inputPollOption text:formattedText media:InputPollMedia = InputPollOption;
 
@@ -1378,7 +1378,7 @@ premiumGiftPaymentOptions options:vector<premiumGiftPaymentOption> = PremiumGift
 //@description Describes an option for creating of Telegram Premium giveaway or manual distribution of Telegram Premium among chat members. Use telegramPaymentPurposePremiumGiftCodes or telegramPaymentPurposePremiumGiveaway for out-of-store payments
 //@currency ISO 4217 currency code for Telegram Premium gift code payment
 //@amount The amount to pay, in the smallest units of the currency
-//@winner_count Number of users which will be able to activate the gift codes
+//@winner_count Number of users who will be able to activate the gift codes
 //@month_count Number of months the Telegram Premium subscription will be active
 //@store_product_id Identifier of the store product associated with the option; may be empty if none
 //@store_product_quantity Number of times the store product must be paid
@@ -2300,6 +2300,12 @@ communityMemberStatusBanned = CommunityMemberStatus;
 //@permissions Actions that non-administrator community members are allowed to take in the community
 community id:int53 have_access:Bool name:string photo:chatPhotoInfo date:int32 status:CommunityMemberStatus permissions:communityPermissions = Community;
 
+//@description Describes a chat in a community
+//@chat_id Identifier of the chat in the community
+//@can_view_history True, if message history of the chat can be viewed
+//@is_hidden True, if the chat is hidden in the list of community chats; for community administrators only
+communityChat chat_id:int53 can_view_history:Bool is_hidden:Bool = CommunityChat;
+
 
 //@description Contains description of user rating
 //@level The level of the user; may be negative
@@ -2522,7 +2528,7 @@ chatMembersFilterAdministrators = ChatMembersFilter;
 //@description Returns all chat members, including restricted chat members
 chatMembersFilterMembers = ChatMembersFilter;
 
-//@description Returns users which can be mentioned in the chat @topic_id Identifier of the topic in which the users will be mentioned; pass null if none
+//@description Returns users who can be mentioned in the chat @topic_id Identifier of the topic in which the users will be mentioned; pass null if none
 chatMembersFilterMention topic_id:MessageTopic = ChatMembersFilter;
 
 //@description Returns users under certain restrictions in the chat; can be used only by administrators in a supergroup
@@ -2540,7 +2546,7 @@ chatMembersFilterBots = ChatMembersFilter;
 //@description Returns recently active users in reverse chronological order
 supergroupMembersFilterRecent = SupergroupMembersFilter;
 
-//@description Returns contacts of the user, which are members of the supergroup or channel @query Query to search for
+//@description Returns contacts of the current user who are members of the supergroup or channel @query Query to search for
 supergroupMembersFilterContacts query:string = SupergroupMembersFilter;
 
 //@description Returns the owner and administrators
@@ -2555,7 +2561,7 @@ supergroupMembersFilterRestricted query:string = SupergroupMembersFilter;
 //@description Returns users banned from the supergroup or channel; can be used only by administrators @query Query to search for
 supergroupMembersFilterBanned query:string = SupergroupMembersFilter;
 
-//@description Returns users which can be mentioned in the supergroup @query Query to search for @topic_id Identifier of the topic in which the users will be mentioned; pass null if none
+//@description Returns users who can be mentioned in the supergroup @query Query to search for @topic_id Identifier of the topic in which the users will be mentioned; pass null if none
 supergroupMembersFilterMention query:string topic_id:MessageTopic = SupergroupMembersFilter;
 
 //@description Returns bot members of the supergroup or channel
@@ -2866,7 +2872,7 @@ messageViewers viewers:vector<messageViewer> = MessageViewers;
 //@description The message was originally sent by a known user @sender_user_id Identifier of the user who originally sent the message
 messageOriginUser sender_user_id:int53 = MessageOrigin;
 
-//@description The message was originally sent by a user, which is hidden by their privacy settings @sender_name Name of the sender
+//@description The message was originally sent by a user who is hidden by their privacy settings @sender_name Name of the sender
 messageOriginHiddenUser sender_name:string = MessageOrigin;
 
 //@description The message was originally sent on behalf of a chat
@@ -3376,8 +3382,11 @@ reactionNotificationSettings message_reaction_source:ReactionNotificationSource 
 //@link_preview_options Options to be used for generation of a link preview; may be null if none; pass null to use default link preview options
 draftMessageContentText text:formattedText link_preview_options:linkPreviewOptions = DraftMessageContent;
 
-//@description A rich message draft; not supported in setChatDraftMessage @message The rich message; the message must not have not yet uploaded media
+//@description A rich message draft; not supported in setChatDraftMessage @message The rich message
 draftMessageContentRichMessage message:richMessage = DraftMessageContent;
+
+//@description A rich message draft; only for setChatDraftMessage @message The rich message
+draftMessageContentInputRichMessage message:inputRichMessage = DraftMessageContent;
 
 //@description A video note message draft
 //@file_path Path to the file with the video note
@@ -3570,6 +3579,7 @@ videoChat group_call_id:int32 has_participants:Bool default_participant_id:Messa
 //@is_marked_as_unread True, if the chat is marked as unread
 //@view_as_topics True, if the chat is a forum supergroup that must be shown in the "View as topics" mode, or Saved Messages chat that must be shown in the "View as chats"
 //@has_scheduled_messages True, if the chat has scheduled messages
+//@has_welcome_messages True, if the chat has welcome messages; for chat administrators with can_change_info administrator right only
 //@can_be_deleted_only_for_self True, if the chat messages can be deleted only for the current user while other users will continue to see the messages
 //@can_be_deleted_for_all_users True, if the chat messages can be deleted for all users
 //@can_be_reported True, if the chat can be reported to Telegram moderators through reportChat or reportChatPhoto
@@ -3593,7 +3603,7 @@ videoChat group_call_id:int32 has_participants:Bool default_participant_id:Messa
 //@reply_markup_message_id Identifier of the message from which reply markup needs to be used; 0 if there is no reply markup in the chat
 //@draft_message A draft of a message in the chat; may be null if none
 //@client_data Application-specific data associated with the chat. (For example, the chat scroll position or local chat notification settings can be stored here.) Persistent if the message database is used
-chat id:int53 type:ChatType title:string photo:chatPhotoInfo accent_color_id:int32 background_custom_emoji_id:int64 upgraded_gift_colors:upgradedGiftColors profile_accent_color_id:int32 profile_background_custom_emoji_id:int64 permissions:chatPermissions last_message:message positions:vector<chatPosition> chat_lists:vector<ChatList> message_sender_id:MessageSender block_list:BlockList has_protected_content:Bool is_translatable:Bool is_marked_as_unread:Bool view_as_topics:Bool has_scheduled_messages:Bool can_be_deleted_only_for_self:Bool can_be_deleted_for_all_users:Bool can_be_reported:Bool default_disable_notification:Bool unread_count:int32 last_read_inbox_message_id:int53 last_read_outbox_message_id:int53 unread_mention_count:int32 unread_reaction_count:int32 unread_poll_vote_count:int32 notification_settings:chatNotificationSettings available_reactions:ChatAvailableReactions message_auto_delete_time:int32 emoji_status:emojiStatus background:chatBackground theme:ChatTheme action_bar:ChatActionBar business_bot_manage_bar:businessBotManageBar video_chat:videoChat pending_join_requests:chatJoinRequestsInfo reply_markup_message_id:int53 draft_message:draftMessage client_data:string = Chat;
+chat id:int53 type:ChatType title:string photo:chatPhotoInfo accent_color_id:int32 background_custom_emoji_id:int64 upgraded_gift_colors:upgradedGiftColors profile_accent_color_id:int32 profile_background_custom_emoji_id:int64 permissions:chatPermissions last_message:message positions:vector<chatPosition> chat_lists:vector<ChatList> message_sender_id:MessageSender block_list:BlockList has_protected_content:Bool is_translatable:Bool is_marked_as_unread:Bool view_as_topics:Bool has_scheduled_messages:Bool has_welcome_messages:Bool can_be_deleted_only_for_self:Bool can_be_deleted_for_all_users:Bool can_be_reported:Bool default_disable_notification:Bool unread_count:int32 last_read_inbox_message_id:int53 last_read_outbox_message_id:int53 unread_mention_count:int32 unread_reaction_count:int32 unread_poll_vote_count:int32 notification_settings:chatNotificationSettings available_reactions:ChatAvailableReactions message_auto_delete_time:int32 emoji_status:emojiStatus background:chatBackground theme:ChatTheme action_bar:ChatActionBar business_bot_manage_bar:businessBotManageBar video_chat:videoChat pending_join_requests:chatJoinRequestsInfo reply_markup_message_id:int53 draft_message:draftMessage client_data:string = Chat;
 
 //@description Represents a list of chats @total_count Approximate total number of chats found @chat_ids List of chat identifiers
 chats total_count:int32 chat_ids:vector<int53> = Chats;
@@ -3672,6 +3682,9 @@ buttonStyleDanger = ButtonStyle;
 
 //@description The button has green color
 buttonStyleSuccess = ButtonStyle;
+
+//@description The button must be shown as a link. The style is allowed only for callback inline buttons inside rich messages
+buttonStyleLink = ButtonStyle;
 
 
 //@class KeyboardButtonType @description Describes a keyboard button type
@@ -3766,6 +3779,9 @@ inlineKeyboardButtonTypeUser user_id:int53 = InlineKeyboardButtonType;
 //@description A button that copies specified text to clipboard @text The text to copy to clipboard
 inlineKeyboardButtonTypeCopyText text:string = InlineKeyboardButtonType;
 
+//@description A disabled button
+inlineKeyboardButtonTypeDisabled = InlineKeyboardButtonType;
+
 
 //@class KeyboardButtonSource @description Describes source of a keyboard button
 
@@ -3805,12 +3821,14 @@ replyMarkupForceReply is_personal:Bool input_field_placeholder:string = ReplyMar
 //@resize_keyboard True, if the application needs to resize the keyboard vertically
 //@one_time True, if the application needs to hide the keyboard after use
 //@is_personal True, if the keyboard must automatically be shown to the current user. For outgoing messages, specify true to show the keyboard only for the mentioned users and for the target user of a reply
+//@force_reply True, if the keyboard must force reply to the message with the keyboard
 //@input_field_placeholder If non-empty, the placeholder to be shown in the input field when the keyboard is active; 0-64 characters
-replyMarkupShowKeyboard rows:vector<vector<keyboardButton>> is_persistent:Bool resize_keyboard:Bool one_time:Bool is_personal:Bool input_field_placeholder:string = ReplyMarkup;
+replyMarkupShowKeyboard rows:vector<vector<keyboardButton>> is_persistent:Bool resize_keyboard:Bool one_time:Bool is_personal:Bool force_reply:Bool input_field_placeholder:string = ReplyMarkup;
 
 //@description Contains an inline keyboard layout
 //@rows A list of rows of inline keyboard buttons
-replyMarkupInlineKeyboard rows:vector<vector<inlineKeyboardButton>> = ReplyMarkup;
+//@force_reply True, if a reply to the message must be forced when the message is received
+replyMarkupInlineKeyboard rows:vector<vector<inlineKeyboardButton>> force_reply:Bool = ReplyMarkup;
 
 
 //@class LoginUrlInfo @description Contains information about an inline button of type inlineKeyboardButtonTypeLoginUrl or an external link
@@ -4205,6 +4223,11 @@ pageBlockAnimation animation:animation caption:pageBlockCaption need_autoplay:Bo
 //@audio Audio file; may be null
 //@caption Audio file caption; may be null if none
 pageBlockAudio audio:audio caption:pageBlockCaption = PageBlock;
+
+//@description A general file
+//@document The file; may be null
+//@caption File caption; may be null if none
+pageBlockDocument document:document caption:pageBlockCaption = PageBlock;
 
 //@description A photo
 //@photo Photo file; may be null
@@ -5412,7 +5435,7 @@ messageGiveawayCreated star_count:int53 = MessageContent;
 
 //@description A giveaway
 //@parameters Giveaway parameters
-//@winner_count Number of users which will receive Telegram Premium subscription gift codes
+//@winner_count Number of users who will receive Telegram Premium subscription gift codes
 //@prize Prize of the giveaway
 //@sticker A sticker to be shown in the message; may be null if unknown
 messageGiveaway parameters:giveawayParameters winner_count:int32 prize:GiveawayPrize sticker:sticker = MessageContent;
@@ -5456,7 +5479,7 @@ messageGiftedStars gifter_user_id:int53 receiver_user_id:int53 currency:string a
 //@gram_amount The received Gram amount, in the smallest units of the cryptocurrency
 //@transaction_id Identifier of the transaction for Gram credit; for receiver only
 //@sticker A sticker to be shown in the message; may be null if unknown
-messageGiftedTon gifter_user_id:int53 receiver_user_id:int53 gram_amount:int53 transaction_id:string sticker:sticker = MessageContent;
+messageGiftedGrams gifter_user_id:int53 receiver_user_id:int53 gram_amount:int53 transaction_id:string sticker:sticker = MessageContent;
 
 //@description Telegram Stars were received by the current user from a giveaway
 //@star_count Number of Telegram Stars that were received
@@ -5580,7 +5603,7 @@ messageSuggestedPostRefunded suggested_post_message_id:int53 reason:SuggestedPos
 //@description A contact has registered with Telegram
 messageContactRegistered = MessageContent;
 
-//@description The current user shared users, which were requested by the bot @users The shared users @button_id Identifier of the keyboard button with the request
+//@description The current user shared users who were requested by the bot @users The shared users @button_id Identifier of the keyboard button with the request
 messageUsersShared users:vector<sharedUser> button_id:int32 = MessageContent;
 
 //@description The current user shared a chat, which was requested by the bot @chat The shared chat @button_id Identifier of the keyboard button with the request
@@ -5935,6 +5958,9 @@ inputPageBlockAnimation animation:inputAnimation caption:pageBlockCaption has_sp
 //@description An audio file @audio The audio to be sent @caption Audio file caption; pass null if none
 inputPageBlockAudio audio:inputAudio caption:pageBlockCaption = InputPageBlock;
 
+//@description A general file @document The file to be sent @caption File caption; pass null if none
+inputPageBlockDocument document:inputDocument caption:pageBlockCaption = InputPageBlock;
+
 //@description A photo
 //@photo The photo to be sent
 //@caption Photo caption; pass null if none
@@ -6246,6 +6272,9 @@ searchMessagesChatTypeFilterGroup = SearchMessagesChatTypeFilter;
 
 //@description Returns only messages in channel chats
 searchMessagesChatTypeFilterChannel = SearchMessagesChatTypeFilter;
+
+//@description Returns only messages in the specified community @community_id Identifier of the community to search in
+searchMessagesChatTypeFilterCommunity community_id:int53 = SearchMessagesChatTypeFilter;
 
 
 //@class SearchChatTypeFilter @description Represents a filter for type of the chats to search for
@@ -6737,6 +6766,12 @@ quickReplyMessages messages:vector<quickReplyMessage> = QuickReplyMessages;
 quickReplyShortcut id:int32 name:string first_message:quickReplyMessage message_count:int32 = QuickReplyShortcut;
 
 
+//@description Describes a set up welcome message
+//@id Welcome message identifier; unique for the chat to which the welcome message belongs
+//@content Content of the welcome message
+welcomeMessage id:int32 content:MessageContent = WelcomeMessage;
+
+
 //@class PublicForward @description Describes a public forward or repost of a story
 
 //@description Contains a public forward as a message @message Information about the message
@@ -6821,7 +6856,7 @@ chatBoostSourcePremium user_id:int53 = ChatBoostSource;
 
 //@description Describes a prepaid giveaway
 //@id Unique identifier of the prepaid giveaway
-//@winner_count Number of users which will receive giveaway prize
+//@winner_count Number of users who will receive giveaway prize
 //@prize Prize of the giveaway
 //@boost_count The number of boosts received by the chat from the giveaway; for Telegram Star giveaways only
 //@payment_date Point in time (Unix timestamp) when the giveaway was paid
@@ -8174,7 +8209,7 @@ storePaymentPurposePremiumSubscription is_restore:Bool is_upgrade:Bool = StorePa
 //@description The user gifting Telegram Premium to another user
 //@currency ISO 4217 currency code of the payment currency
 //@amount Paid amount, in the smallest units of the currency
-//@user_id Identifiers of the user which will receive Telegram Premium
+//@user_id Identifier of the user who will receive Telegram Premium
 //@text Text to show along with the gift codes; 0-getOption("gift_text_length_max") characters. Only Bold, Italic, Underline, Strikethrough, Spoiler, CustomEmoji, and DateTime entities are allowed
 storePaymentPurposePremiumGift currency:string amount:int53 user_id:int53 text:formattedText = StorePaymentPurpose;
 
@@ -8182,7 +8217,7 @@ storePaymentPurposePremiumGift currency:string amount:int53 user_id:int53 text:f
 //@boosted_chat_id Identifier of the supergroup or channel chat, which will be automatically boosted by the users for duration of the Premium subscription and which is administered by the user
 //@currency ISO 4217 currency code of the payment currency
 //@amount Paid amount, in the smallest units of the currency
-//@user_ids Identifiers of the users which can activate the gift codes
+//@user_ids Identifiers of the users who can activate the gift codes
 //@text Text to show along with the gift codes; 0-getOption("gift_text_length_max") characters. Only Bold, Italic, Underline, Strikethrough, Spoiler, CustomEmoji, and DateTime entities are allowed
 storePaymentPurposePremiumGiftCodes boosted_chat_id:int53 currency:string amount:int53 user_ids:vector<int53> text:formattedText = StorePaymentPurpose;
 
@@ -8232,7 +8267,7 @@ storeTransactionGooglePlay package_name:string store_product_id:string purchase_
 //@description The user gifting Telegram Premium to another user
 //@currency ISO 4217 currency code of the payment currency, or "XTR" for payments in Telegram Stars
 //@amount Paid amount, in the smallest units of the currency
-//@user_id Identifier of the user which will receive Telegram Premium
+//@user_id Identifier of the user who will receive Telegram Premium
 //@month_count Number of months the Telegram Premium subscription will be active for the user
 //@text Text to show to the user receiving Telegram Premium; 0-getOption("gift_text_length_max") characters. Only Bold, Italic, Underline, Strikethrough, Spoiler, CustomEmoji, and DateTime entities are allowed
 telegramPaymentPurposePremiumGift currency:string amount:int53 user_id:int53 month_count:int32 text:formattedText = TelegramPaymentPurpose;
@@ -8241,7 +8276,7 @@ telegramPaymentPurposePremiumGift currency:string amount:int53 user_id:int53 mon
 //@boosted_chat_id Identifier of the supergroup or channel chat, which will be automatically boosted by the users for duration of the Premium subscription and which is administered by the user
 //@currency ISO 4217 currency code of the payment currency
 //@amount Paid amount, in the smallest units of the currency
-//@user_ids Identifiers of the users which can activate the gift codes
+//@user_ids Identifiers of the users who can activate the gift codes
 //@month_count Number of months the Telegram Premium subscription will be active for the users
 //@text Text to show along with the gift codes; 0-getOption("gift_text_length_max") characters. Only Bold, Italic, Underline, Strikethrough, Spoiler, CustomEmoji, and DateTime entities are allowed
 telegramPaymentPurposePremiumGiftCodes boosted_chat_id:int53 currency:string amount:int53 user_ids:vector<int53> month_count:int32 text:formattedText = TelegramPaymentPurpose;
@@ -8250,7 +8285,7 @@ telegramPaymentPurposePremiumGiftCodes boosted_chat_id:int53 currency:string amo
 //@parameters Giveaway parameters
 //@currency ISO 4217 currency code of the payment currency
 //@amount Paid amount, in the smallest units of the currency
-//@winner_count Number of users which will be able to activate the gift codes
+//@winner_count Number of users who will be able to activate the gift codes
 //@month_count Number of months the Telegram Premium subscription will be active for the users
 telegramPaymentPurposePremiumGiveaway parameters:giveawayParameters currency:string amount:int53 winner_count:int32 month_count:int32 = TelegramPaymentPurpose;
 
@@ -8586,7 +8621,7 @@ pushMessageContentPoll question:string is_regular:Bool is_pinned:Bool = PushMess
 pushMessageContentPremiumGiftCode month_count:int32 = PushMessageContent;
 
 //@description A message with a giveaway
-//@winner_count Number of users which will receive giveaway prizes; 0 for pinned message
+//@winner_count Number of users who will receive giveaway prizes; 0 for pinned message
 //@prize Prize of the giveaway; may be null for pinned message
 //@is_pinned True, if the message is a pinned message with the specified content
 pushMessageContentGiveaway winner_count:int32 prize:GiveawayPrize is_pinned:Bool = PushMessageContent;
@@ -10491,6 +10526,9 @@ updateChatBlockList chat_id:int53 block_list:BlockList = Update;
 //@description A chat's has_scheduled_messages field has changed @chat_id Chat identifier @has_scheduled_messages New value of has_scheduled_messages
 updateChatHasScheduledMessages chat_id:int53 has_scheduled_messages:Bool = Update;
 
+//@description A chat's has_welcome_messages field has changed @chat_id Chat identifier @has_welcome_messages New value of has_welcome_messages
+updateChatHasWelcomeMessages chat_id:int53 has_welcome_messages:Bool = Update;
+
 //@description The list of chat folders or a chat folder has changed
 //@chat_folders The new list of chat folders
 //@main_chat_list_position Position of the main chat list among chat folders, 0-based
@@ -10534,6 +10572,11 @@ updateQuickReplyShortcuts shortcut_ids:vector<int32> = Update;
 //@shortcut_id The identifier of the shortcut
 //@messages The new list of quick reply messages for the shortcut in order from the first to the last sent
 updateQuickReplyShortcutMessages shortcut_id:int32 messages:vector<quickReplyMessage> = Update;
+
+//@description The list of welcome messages of a chat has changed
+//@chat_id The identifier of the chat
+//@messages The new list of welcome messages of the chat in the order from the first to the last sent
+updateChatWelcomeMessages chat_id:int53 messages:vector<welcomeMessage> = Update;
 
 //@description Basic information about a topic in a forum chat was changed @info New information about the topic
 updateForumTopicInfo info:forumTopicInfo = Update;
@@ -12121,7 +12164,7 @@ resendMessages chat_id:int53 message_ids:vector<int53> quote:inputTextQuote paid
 //@only_preview Pass true to get a fake message instead of actually sending them
 //@reply_markup Markup for replying to the message; pass null if none; for bots only
 //@input_message_content The content of the message to be sent. Must be one of the following types: inputMessageText, inputMessageAnimation,
-//-inputMessageAudio, inputMessageDocument, inputMessagePhoto, inputMessageSticker, inputMessageVideo, inputMessageVideoNote, inputMessageVoiceNote,
+//-inputMessageAudio, inputMessageDocument, inputMessagePhoto, inputMessageRichMessage, inputMessageSticker, inputMessageVideo, inputMessageVideoNote, inputMessageVoiceNote,
 //-inputMessageLocation, inputMessageVenue, inputMessageContact
 sendEphemeralMessage chat_id:int53 topic_id:MessageTopic receiver_user_id:int53 callback_query_id:int64 reply_to:InputMessageReplyTo sending_id:int32 only_preview:Bool reply_markup:ReplyMarkup input_message_content:InputMessageContent = Message;
 
@@ -12142,7 +12185,7 @@ deleteMessages chat_id:int53 message_ids:vector<int53> revoke:Bool = Ok;
 //@description Deletes an ephemeral message; for bots only
 //@chat_id Chat identifier
 //@receiver_user_id Identifier of the user who received the message
-//@ephemeral_message_id Identifiers of the message to be deleted
+//@ephemeral_message_id Identifier of the message to be deleted
 deleteEphemeralMessage chat_id:int53 receiver_user_id:int53 ephemeral_message_id:int32 = Ok;
 
 //@description Deletes all messages sent by the specified message sender in a chat. Supported only for supergroups; requires can_delete_messages administrator right @chat_id Chat identifier @sender_id Identifier of the sender of messages to delete
@@ -12232,14 +12275,23 @@ editInlineMessageCaption inline_message_id:string reply_markup:ReplyMarkup capti
 //@reply_markup The new message reply markup; pass null if none
 editInlineMessageReplyMarkup inline_message_id:string reply_markup:ReplyMarkup = Ok;
 
-//@description Edits the text, caption or reply markup of an ephemeral message sent by the bot; for bots only
+//@description Edits the text, media, or reply markup of an ephemeral message sent by the bot; for bots only
 //@chat_id The chat the message belongs to
 //@receiver_user_id Identifier of the user who received the message
 //@ephemeral_message_id Identifier of the ephemeral message
 //@reply_markup The new message reply markup; pass null if none
 //@input_message_content New content of the message; pass null to edit only reply markup. Must be one of the following types: inputMessageText, inputMessageAnimation,
-//-inputMessageAudio, inputMessageDocument, inputMessagePhoto, inputMessageSticker, inputMessageVideo, inputMessageVideoNote, inputMessageVoiceNote
+//-inputMessageAudio, inputMessageDocument, inputMessagePhoto, inputMessageRichMessage, inputMessageSticker, inputMessageVideo, inputMessageVideoNote, inputMessageVoiceNote
 editEphemeralMessage chat_id:int53 receiver_user_id:int53 ephemeral_message_id:int32 reply_markup:ReplyMarkup input_message_content:InputMessageContent = Ok;
+
+//@description Edits the caption and reply markup of an ephemeral message sent by the bot; for bots only
+//@chat_id The chat the message belongs to
+//@receiver_user_id Identifier of the user who received the message
+//@ephemeral_message_id Identifier of the ephemeral message
+//@reply_markup The new message reply markup; pass null if none
+//@caption New message content caption; pass null to remove caption; 0-getOption("message_caption_length_max") characters
+//@show_caption_above_media Pass true to show the caption above the media; otherwise, the caption will be shown below the media. May be true only for animation, photo, and video messages
+editEphemeralMessageCaption chat_id:int53 receiver_user_id:int53 ephemeral_message_id:int32 reply_markup:ReplyMarkup caption:formattedText show_caption_above_media:Bool = Ok;
 
 //@description Edits the time when a scheduled message will be sent. Scheduling state of all messages in the same album or forwarded together with the message will be also changed
 //@chat_id The chat the message belongs to
@@ -12461,6 +12513,33 @@ readdQuickReplyShortcutMessages shortcut_name:string message_ids:vector<int53> =
 //@message_id Identifier of the message
 //@input_message_content New content of the message. Must be one of the following types: inputMessageAnimation, inputMessageAudio, inputMessageChecklist, inputMessageDocument, inputMessagePhoto, inputMessageRichMessage, inputMessageText, or inputMessageVideo
 editQuickReplyMessage shortcut_id:int32 message_id:int53 input_message_content:InputMessageContent = Ok;
+
+
+//@description Loads welcome messages of a chat; requires can_change_info administrator right in the chat. The loaded messages will be sent through updateChatWelcomeMessages
+//@chat_id The identifier of the chat
+loadChatWelcomeMessages chat_id:int53 = Ok;
+
+//@description Adds a message to the list of welcome messages of a chat; requires can_change_info administrator right in the chat
+//@chat_id The identifier of the chat
+//@input_message_content The content of the message to be sent. Must be one of the following types: inputMessageText, inputMessageAnimation,
+//-inputMessageAudio, inputMessageDocument, inputMessagePhoto, inputMessageRichMessage, inputMessageSticker, inputMessageVideo, inputMessageVideoNote, inputMessageVoiceNote,
+//-inputMessageLocation, inputMessageVenue, inputMessageContact
+addChatWelcomeMessage chat_id:int53 input_message_content:InputMessageContent = Ok;
+
+//@description Edits a welcome message of a chat; requires can_change_info administrator right in the chat
+//@chat_id The identifier of the chat
+//@welcome_message_id The identifier of the welcome message
+//@input_message_content New content of the message. Must be one of the following types: inputMessageText, inputMessageAnimation,
+//-inputMessageAudio, inputMessageDocument, inputMessagePhoto, inputMessageRichMessage, inputMessageSticker, inputMessageVideo, inputMessageVideoNote, inputMessageVoiceNote
+editChatWelcomeMessage chat_id:int53 welcome_message_id:int32 input_message_content:InputMessageContent = Ok;
+
+//@description Deletes a welcome message of a chat; requires can_change_info administrator right in the chat
+//@chat_id The identifier of the chat
+//@welcome_message_id The identifier of the welcome message
+deleteChatWelcomeMessage chat_id:int53 welcome_message_id:int32 = Ok;
+
+//@description Deletes all welcome messages of a chat; requires can_change_info administrator right in the chat @chat_id The identifier of the chat
+deleteAllChatWelcomeMessages chat_id:int53 = Ok;
 
 
 //@description Returns the list of custom emoji, which can be used as forum topic icon by all users
@@ -13288,7 +13367,7 @@ setChatTheme chat_id:int53 theme:InputChatTheme = Ok;
 //@description Changes the draft message in a chat or a topic
 //@chat_id Chat identifier
 //@topic_id Topic in which the draft will be changed; pass null to change the draft for the chat itself
-//@draft_message New draft message; pass null to remove the draft. All files in draft message content must be of the type inputFileLocal. Media thumbnails and captions are ignored
+//@draft_message New draft message; pass null to remove the draft
 setChatDraftMessage chat_id:int53 topic_id:MessageTopic draft_message:draftMessage = Ok;
 
 //@description Changes the notification settings of a chat. Notification settings of a chat with the current user (Saved Messages) can't be changed
@@ -13392,7 +13471,7 @@ setChatMemberStatus chat_id:int53 member_id:MessageSender status:ChatMemberStatu
 
 //@description Changes the tag or custom title of a chat member; requires can_manage_tags administrator right to change tag of other users; for basic groups and supergroups only
 //@chat_id Chat identifier
-//@user_id Identifier of the user, which tag is changed. Chats can't have member tags
+//@user_id Identifier of the user whose tag is changed. Chats can't have member tags
 //@tag The new tag of the member in the chat; 0-16 characters without emoji
 setChatMemberTag chat_id:int53 user_id:int53 tag:string = Ok;
 
@@ -15256,7 +15335,7 @@ getUpgradedGiftsPromotionalAnimation = Animation;
 //@received_gift_id Identifier of the unique gift
 //@price The new price for the unique gift; pass null to disallow gift resale. The current user will receive
 //-getOption("gift_resale_star_earnings_per_mille") Telegram Stars for each 1000 Telegram Stars paid for the gift if the gift price is in Telegram Stars or
-//-getOption("gift_resale_ton_earnings_per_mille") TON Grams for each 1000 Grams paid for the gift if the gift price is in Grams
+//-getOption("gift_resale_gram_earnings_per_mille") TON Grams for each 1000 Grams paid for the gift if the gift price is in Grams
 setGiftResalePrice received_gift_id:string price:GiftResalePrice = Ok;
 
 //@description Returns upgraded gifts that can be bought from other owners using sendResoldGift
@@ -15829,7 +15908,7 @@ checkPremiumGiftCode code:string = PremiumGiftCodeInfo;
 applyPremiumGiftCode code:string = Ok;
 
 //@description Allows to buy a Telegram Premium subscription for another user with payment in Telegram Stars; for bots only
-//@user_id Identifier of the user which will receive Telegram Premium
+//@user_id Identifier of the user who will receive Telegram Premium
 //@star_count The number of Telegram Stars to pay for subscription
 //@month_count Number of months the Telegram Premium subscription will be active for the user
 //@text Text to show to the user receiving Telegram Premium; 0-getOption("gift_text_length_max") characters. Only Bold, Italic, Underline, Strikethrough, Spoiler, CustomEmoji, and DateTime entities are allowed

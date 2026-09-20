@@ -185,6 +185,7 @@
 #include "td/telegram/WebBrowserManager.h"
 #include "td/telegram/WebPageId.h"
 #include "td/telegram/WebPagesManager.h"
+#include "td/telegram/WelcomeMessageManager.h"
 
 #include "td/utils/algorithm.h"
 #include "td/utils/Slice.h"
@@ -2235,6 +2236,8 @@ void Requests::on_request(uint64 id, const td_api::getCurrentState &request) {
     td_->suggested_action_manager_->get_current_state(updates);
 
     td_->transcription_manager_->get_current_state(updates);
+
+    td_->welcome_message_manager_->get_current_state(updates);
 
     td_->autosave_manager_->get_current_state(updates);
 
@@ -4363,6 +4366,15 @@ void Requests::on_request(uint64 id, td_api::editEphemeralMessage &request) {
       std::move(request.reply_markup_), std::move(request.input_message_content_), std::move(promise));
 }
 
+void Requests::on_request(uint64 id, td_api::editEphemeralMessageCaption &request) {
+  CHECK_IS_BOT();
+  CREATE_OK_REQUEST_PROMISE();
+  td_->message_query_manager_->edit_ephemeral_message_caption(
+      DialogId(request.chat_id_), UserId(request.receiver_user_id_), EphemeralMessageId(request.ephemeral_message_id_),
+      std::move(request.reply_markup_), std::move(request.caption_), request.show_caption_above_media_,
+      std::move(promise));
+}
+
 void Requests::on_request(uint64 id, td_api::editMessageSchedulingState &request) {
   CHECK_IS_USER();
   CREATE_OK_REQUEST_PROMISE();
@@ -4646,6 +4658,40 @@ void Requests::on_request(uint64 id, td_api::editQuickReplyMessage &request) {
   td_->quick_reply_manager_->edit_quick_reply_message(QuickReplyShortcutId(request.shortcut_id_),
                                                       MessageId(request.message_id_),
                                                       std::move(request.input_message_content_), std::move(promise));
+}
+
+void Requests::on_request(uint64 id, const td_api::loadChatWelcomeMessages &request) {
+  CHECK_IS_USER();
+  CREATE_OK_REQUEST_PROMISE();
+  td_->welcome_message_manager_->load_welcome_messages(DialogId(request.chat_id_), std::move(promise));
+}
+
+void Requests::on_request(uint64 id, td_api::addChatWelcomeMessage &request) {
+  CHECK_IS_USER();
+  CREATE_OK_REQUEST_PROMISE();
+  td_->welcome_message_manager_->add_welcome_message(DialogId(request.chat_id_), EphemeralMessageId(),
+                                                     std::move(request.input_message_content_), std::move(promise));
+}
+
+void Requests::on_request(uint64 id, td_api::editChatWelcomeMessage &request) {
+  CHECK_IS_USER();
+  CREATE_OK_REQUEST_PROMISE();
+  td_->welcome_message_manager_->edit_welcome_message(DialogId(request.chat_id_),
+                                                      EphemeralMessageId(request.welcome_message_id_),
+                                                      std::move(request.input_message_content_), std::move(promise));
+}
+
+void Requests::on_request(uint64 id, const td_api::deleteChatWelcomeMessage &request) {
+  CHECK_IS_USER();
+  CREATE_OK_REQUEST_PROMISE();
+  td_->welcome_message_manager_->delete_welcome_message(
+      DialogId(request.chat_id_), EphemeralMessageId(request.welcome_message_id_), std::move(promise));
+}
+
+void Requests::on_request(uint64 id, const td_api::deleteAllChatWelcomeMessages &request) {
+  CHECK_IS_USER();
+  CREATE_OK_REQUEST_PROMISE();
+  td_->welcome_message_manager_->delete_all_welcome_messages(DialogId(request.chat_id_), std::move(promise));
 }
 
 void Requests::on_request(uint64 id, const td_api::getCurrentWeather &request) {

@@ -2301,6 +2301,7 @@ Status FileManager::merge(FileId x_file_id, FileId y_file_id, bool no_sync) {
   auto file_view = FileView(node);
 
   LOG(DEBUG) << "Have x_node->pmc_id_ = " << x_node->pmc_id_.get() << ", y_node->pmc_id_ = " << y_node->pmc_id_.get()
+             << ", x_size = " << x_node->size_ << ", y_size = " << y_node->size_
              << ", x_node_size = " << x_node->file_ids_.size() << ", y_node_size = " << y_node->file_ids_.size()
              << ", node_i = " << node_i << ", local_i = " << local_i << ", remote_i = " << remote_i
              << ", generate_i = " << generate_i << ", size_i = " << size_i << ", remote_name_i = " << remote_name_i
@@ -3606,6 +3607,22 @@ bool FileManager::delete_partial_remote_location(FileUploadId file_upload_id) {
   return true;
 }
 
+void FileManager::delete_partial_remote_location_if_needed(FileUploadId file_upload_id, bool was_uploaded) {
+  if (was_uploaded) {
+    CHECK(file_upload_id.is_valid());
+    delete_partial_remote_location(file_upload_id);
+  }
+}
+
+void FileManager::delete_partial_remote_location_if_needed(const vector<FileUploadId> &file_upload_ids,
+                                                           bool was_uploaded) {
+  if (was_uploaded) {
+    CHECK(file_upload_ids.size() == 1u);
+    CHECK(file_upload_ids[0].is_valid());
+    delete_partial_remote_location(file_upload_ids[0]);
+  }
+}
+
 void FileManager::delete_partial_remote_location_if_needed(FileUploadId file_upload_id, const Status &error) {
   if (error.code() != 429 && error.code() < 500 && !G()->close_flag()) {
     delete_partial_remote_location(file_upload_id);
@@ -3962,6 +3979,12 @@ void FileManager::cancel_upload(FileUploadId file_upload_id) {
   run_generate(node);
   run_upload(node, {});
   try_flush_node(node, "cancel_upload");
+}
+
+void FileManager::cancel_uploads(const vector<FileUploadId> &file_upload_ids) {
+  for (const auto &file_upload_id : file_upload_ids) {
+    cancel_upload(file_upload_id);
+  }
 }
 
 static bool is_background_type(FileType type) {

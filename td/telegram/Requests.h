@@ -706,6 +706,8 @@ class Requests {
 
   void on_request(uint64 id, td_api::editEphemeralMessage &request);
 
+  void on_request(uint64 id, td_api::editEphemeralMessageCaption &request);
+
   void on_request(uint64 id, td_api::editMessageSchedulingState &request);
 
   void on_request(uint64 id, td_api::setMessageFactCheck &request);
@@ -773,6 +775,16 @@ class Requests {
   void on_request(uint64 id, td_api::readdQuickReplyShortcutMessages &request);
 
   void on_request(uint64 id, td_api::editQuickReplyMessage &request);
+
+  void on_request(uint64 id, const td_api::loadChatWelcomeMessages &request);
+
+  void on_request(uint64 id, td_api::addChatWelcomeMessage &request);
+
+  void on_request(uint64 id, td_api::editChatWelcomeMessage &request);
+
+  void on_request(uint64 id, const td_api::deleteChatWelcomeMessage &request);
+
+  void on_request(uint64 id, const td_api::deleteAllChatWelcomeMessages &request);
 
   void on_request(uint64 id, const td_api::getCurrentWeather &request);
 
