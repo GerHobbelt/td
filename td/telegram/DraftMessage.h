@@ -20,7 +20,6 @@
 #include "td/telegram/telegram_api.h"
 
 #include "td/utils/common.h"
-#include "td/utils/Promise.h"
 #include "td/utils/Status.h"
 
 namespace td {
@@ -79,7 +78,9 @@ class DraftMessage {
 
   bool need_update_to(const DraftMessage &other, bool from_update) const;
 
-  static unique_ptr<DraftMessage> clone(const unique_ptr<DraftMessage> &draft_message);
+  static unique_ptr<DraftMessage> clone(Td *td, const unique_ptr<DraftMessage> &draft_message, DialogId dialog_id);
+
+  vector<FileId> get_file_ids(const Td *td) const;
 
   void add_dependencies(Dependencies &dependencies) const;
 
@@ -107,6 +108,8 @@ bool is_local_draft_message(const unique_ptr<DraftMessage> &draft_message);
 bool need_update_draft_message(const unique_ptr<DraftMessage> &old_draft_message,
                                const unique_ptr<DraftMessage> &new_draft_message, bool from_update);
 
+vector<FileId> get_draft_message_file_ids(const Td *td, const unique_ptr<DraftMessage> &draft_message);
+
 void add_draft_message_dependencies(Dependencies &dependencies, const unique_ptr<DraftMessage> &draft_message);
 
 td_api::object_ptr<td_api::draftMessage> get_draft_message_object(Td *td,
@@ -114,13 +117,6 @@ td_api::object_ptr<td_api::draftMessage> get_draft_message_object(Td *td,
 
 unique_ptr<DraftMessage> get_draft_message(Td *td,
                                            telegram_api::object_ptr<telegram_api::DraftMessage> &&draft_message_ptr);
-
-void save_draft_message(Td *td, DialogId dialog_id, const MessageTopic &message_topic,
-                        const unique_ptr<DraftMessage> &draft_message, Promise<Unit> &&promise);
-
-void load_all_draft_messages(Td *td);
-
-void clear_all_draft_messages(Td *td, Promise<Unit> &&promise);
 
 vector<InputDialogId> get_draft_message_reply_input_dialog_ids(
     const telegram_api::object_ptr<telegram_api::DraftMessage> &draft_message);

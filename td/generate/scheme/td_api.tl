@@ -122,13 +122,21 @@ formattedText text:string entities:vector<textEntity> = FormattedText;
 //@is_full True, if the object contains the full message. Otherwise, getFullRichMessage must be used to get the full message
 richMessage blocks:vector<PageBlock> is_rtl:Bool is_full:Bool = RichMessage;
 
+//@description Describes a media to be used in a sent rich message
+//@id Unique identifier of the media; 1-64 base64url characters
+//@media The media to send. Must be one of the following types: inputMessageAnimation, inputMessageAudio, inputMessagePhoto, inputMessageVideo, or inputMessageVoiceNote
+inputRichMessageMedia id:string media:InputMessageContent = InputRichMessageMedia;
+
 //@class RichMessageSource @description Describes source of a rich message
 
-//@description A Markdown-formatted rich message; for bots only @text Markdown-formatted text of the message
-richMessageSourceMarkdown text:string = RichMessageSource;
+//@description A rich message defined by blocks @blocks Content of the message
+richMessageSourceBlocks blocks:vector<InputPageBlock> = RichMessageSource;
 
-//@description An HTML-formatted rich message; for bots only @text HTML-formatted text of the message
-richMessageSourceHtml text:string = RichMessageSource;
+//@description A Markdown-formatted rich message; for bots only @text Markdown-formatted text of the message @media Media used in the message
+richMessageSourceMarkdown text:string media:vector<inputRichMessageMedia> = RichMessageSource;
+
+//@description An HTML-formatted rich message; for bots only @text HTML-formatted text of the message @media Media used in the message
+richMessageSourceHtml text:string media:vector<inputRichMessageMedia> = RichMessageSource;
 
 //@description A rich message to send
 //@source Source of the rich message
@@ -159,7 +167,7 @@ textCompositionStyleExample source_text:formattedText result_text:formattedText 
 //@is_creator True, if the user is creator of the style
 //@install_count Number of users that installed the style; for created custom styles only; 0 if unknown
 //@prompt Prompt of the style; for created custom styles only
-//@creator_user_id User identifier of the creator of the style; 0 if none of unknown
+//@creator_user_id User identifier of the creator of the style; 0 if none or unknown
 //@english_example Example of the style usage in English; may be null if unknown
 textCompositionStyle name:string custom_emoji_id:int64 title:string is_custom:Bool is_creator:Bool install_count:int32 prompt:string creator_user_id:int53 english_example:textCompositionStyleExample = TextCompositionStyle;
 
@@ -533,7 +541,7 @@ inputChecklist title:formattedText tasks:vector<inputChecklistTask> others_can_a
 //@height Height of the animation
 //@file_name Original name of the file; as defined by the sender
 //@mime_type MIME type of the file, usually "image/gif" or "video/mp4"
-//@has_stickers True, if stickers were added to the animation. The list of corresponding sticker set can be received using getAttachedStickerSets
+//@has_stickers True, if stickers were added to the animation. The list of corresponding sticker sets can be received using getAttachedStickerSets
 //@minithumbnail Animation minithumbnail; may be null
 //@thumbnail Animation thumbnail in JPEG or MPEG4 format; may be null
 //@animation File containing the animation
@@ -893,7 +901,7 @@ businessAwayMessageSettings shortcut_id:int32 recipients:businessRecipients sche
 //@description Describes settings for greeting messages that are automatically sent by a Telegram Business account as response to incoming messages in an inactive private chat
 //@shortcut_id Unique quick reply shortcut identifier for the greeting messages
 //@recipients Chosen recipients of the greeting messages
-//@inactivity_days The number of days after which a chat will be considered as inactive; currently, must be on of 7, 14, 21, or 28
+//@inactivity_days The number of days after which a chat will be considered as inactive; currently, must be one of 7, 14, 21, or 28
 businessGreetingMessageSettings shortcut_id:int32 recipients:businessRecipients inactivity_days:int32 = BusinessGreetingMessageSettings;
 
 //@description Describes rights of a business bot
@@ -948,8 +956,8 @@ businessOpeningHours time_zone_id:string opening_hours:vector<businessOpeningHou
 
 //@description Contains information about a Telegram Business account
 //@location Location of the business; may be null if none
-//@opening_hours Opening hours of the business; may be null if none. The hours are guaranteed to be valid and has already been split by week days
-//@local_opening_hours Opening hours of the business in the local time; may be null if none. The hours are guaranteed to be valid and has already been split by week days.
+//@opening_hours Opening hours of the business; may be null if none. The hours are guaranteed to be valid and have already been split by week days
+//@local_opening_hours Opening hours of the business in the local time; may be null if none. The hours are guaranteed to be valid and have already been split by week days.
 //-Local time zone identifier will be empty. An updateUserFullInfo update is not triggered when value of this field changes
 //@next_open_in Time left before the business will open the next time, in seconds; 0 if unknown. An updateUserFullInfo update is not triggered when value of this field changes
 //@next_close_in Time left before the business will close the next time, in seconds; 0 if unknown. An updateUserFullInfo update is not triggered when value of this field changes
@@ -1036,7 +1044,7 @@ inputChatPhotoSticker sticker:chatPhotoSticker = InputChatPhoto;
 
 
 //@description Describes actions that a user is allowed to take in a chat
-//@can_send_basic_messages True, if the user can send text messages, contacts, giveaways, giveaway winners, invoices, locations, and venues
+//@can_send_basic_messages True, if the user can send text messages, rich messages, contacts, giveaways, giveaway winners, invoices, locations, and venues
 //@can_send_audios True, if the user can send music files
 //@can_send_documents True, if the user can send documents
 //@can_send_photos True, if the user can send photos
@@ -1194,7 +1202,7 @@ suggestedPostInfo price:SuggestedPostPrice send_date:int32 state:SuggestedPostSt
 
 //@description Contains information about a post to suggest
 //@price Price of the suggested post; pass null to suggest a post without payment. If the current user isn't an administrator of the channel direct messages chat
-//-and has no enough funds to pay for the post, then the error "BALANCE_TOO_LOW" will be returned immediately
+//-and doesn't have enough funds to pay for the post, then the error "BALANCE_TOO_LOW" will be returned immediately
 //@send_date Point in time (Unix timestamp) when the post is expected to be published; pass 0 if the date isn't restricted. If specified,
 //-then the date must be getOption("suggested_post_send_delay_min")-getOption("suggested_post_send_delay_max") seconds in the future
 inputSuggestedPostInfo price:SuggestedPostPrice send_date:int32 = InputSuggestedPostInfo;
@@ -1219,7 +1227,7 @@ starAmount star_count:int53 nanostar_count:int32 = StarAmount;
 
 //@description Describes a subscription to a channel chat
 //@can_reuse True, if the subscription is active and the user can use the method reuseStarSubscription to join the subscribed chat again
-//@invite_link The invite link that can be used to renew the subscription if it has been expired; may be empty, if the link isn't available anymore
+//@invite_link The invite link that can be used to renew the subscription if it has expired; may be empty if the link isn't available anymore
 starSubscriptionTypeChannel can_reuse:Bool invite_link:string = StarSubscriptionType;
 
 //@description Describes a subscription in a bot or a business account
@@ -1240,7 +1248,7 @@ starSubscriptionPricing period:int32 star_count:int53 = StarSubscriptionPricing;
 //@chat_id Identifier of the chat that is subscribed
 //@expiration_date Point in time (Unix timestamp) when the subscription will expire or expired
 //@is_canceled True, if the subscription was canceled
-//@is_expiring True, if the subscription expires soon and there are no enough Telegram Stars on the user's balance to extend it
+//@is_expiring True, if the subscription expires soon and there aren't enough Telegram Stars on the user's balance to extend it
 //@pricing The subscription plan
 //@type Type of the subscription
 starSubscription id:string chat_id:int53 expiration_date:int32 is_canceled:Bool is_expiring:Bool pricing:starSubscriptionPricing type:StarSubscriptionType = StarSubscription;
@@ -1487,7 +1495,7 @@ upgradedGiftOriginResale price:GiftResalePrice = UpgradedGiftOrigin;
 //@description The gift was assigned from blockchain and isn't owned by the current user. The gift can't be transferred, resold or withdrawn to blockchain
 upgradedGiftOriginBlockchain = UpgradedGiftOrigin;
 
-//@description The sender or receiver of the message has paid for upgraid of the gift, which has been completed
+//@description The sender or receiver of the message has paid for upgrade of the gift, which has been completed
 upgradedGiftOriginPrepaidUpgrade = UpgradedGiftOrigin;
 
 //@description The gift was bought through an offer @price Price paid for the gift
@@ -1575,10 +1583,10 @@ upgradedGiftColors id:int64 model_custom_emoji_id:int64 symbol_custom_emoji_id:i
 //@next_send_date Point in time (Unix timestamp) when the gift can be sent next time by the current user; may be 0 or a date in the past.
 //-If the date is in the future, then call canSendGift to get the reason, why the gift can't be sent now
 //@user_limits Number of times the gift can be purchased by the current user; may be null if not limited
-//@overall_limits Number of times the gift can be purchased all users; may be null if not limited
+//@overall_limits Number of times the gift can be purchased by all users; may be null if not limited
 //@background Background of the gift
-//@first_send_date Point in time (Unix timestamp) when the gift was send for the first time; for sold out gifts only
-//@last_send_date Point in time (Unix timestamp) when the gift was send for the last time; for sold out gifts only
+//@first_send_date Point in time (Unix timestamp) when the gift was sent for the first time; for sold out gifts only
+//@last_send_date Point in time (Unix timestamp) when the gift was sent for the last time; for sold out gifts only
 gift id:int64 publisher_chat_id:int53 sticker:sticker star_count:int53 default_sell_star_count:int53 upgrade_star_count:int53 upgrade_variant_count:int32 has_colors:Bool is_for_birthday:Bool is_premium:Bool auction_info:giftAuction next_send_date:int32 user_limits:giftPurchaseLimits overall_limits:giftPurchaseLimits background:giftBackground first_send_date:int32 last_send_date:int32 = Gift;
 
 //@description Describes an upgraded gift that can be transferred to another owner or transferred to the TON blockchain as an NFT
@@ -1591,7 +1599,7 @@ gift id:int64 publisher_chat_id:int53 sticker:sticker star_count:int53 default_s
 //@total_upgraded_count Total number of gifts that were upgraded from the same gift
 //@max_upgraded_count The maximum number of gifts that can be upgraded from the same gift
 //@is_burned True, if the gift was used to craft another gift
-//@is_crafted True, if the gift was craft from another gifts
+//@is_crafted True, if the gift was crafted from other gifts
 //@is_premium True, if the original gift could have been bought only by Telegram Premium subscribers
 //@is_theme_available True, if the gift can be used to set a theme in a chat
 //@used_theme_chat_id Identifier of the chat for which the gift is used to set a theme; 0 if none or the gift isn't owned by the current user
@@ -1768,7 +1776,7 @@ sentGiftUpgraded gift:upgradedGift = SentGift;
 //@next_resale_date Point in time (Unix timestamp) when the gift can be resold to another user; can be in the past; 0 if the gift can't be resold; only for the receiver of the gift
 //@export_date Point in time (Unix timestamp) when the upgraded gift can be transferred to the TON blockchain as an NFT; can be in the past; 0 if NFT export isn't possible; only for the receiver of the gift
 //@prepaid_upgrade_hash If non-empty, then the user can pay for an upgrade of the gift using buyGiftUpgrade
-//@craft_date Point in time (Unix timestamp) when the gift can be used to craft another gift can be in the past; only for the receiver of the gift
+//@craft_date Point in time (Unix timestamp) when the gift can be used to craft another gift; can be in the past; only for the receiver of the gift
 receivedGift received_gift_id:string sender_id:MessageSender text:formattedText unique_gift_number:int32 is_private:Bool is_saved:Bool is_pinned:Bool can_be_upgraded:Bool can_be_transferred:Bool was_refunded:Bool date:int32 gift:SentGift collection_ids:vector<int32> sell_star_count:int53 prepaid_upgrade_star_count:int53 is_upgrade_separate:Bool transfer_star_count:int53 drop_original_details_star_count:int53 next_transfer_date:int32 next_resale_date:int32 export_date:int32 prepaid_upgrade_hash:string craft_date:int32 = ReceivedGift;
 
 //@description Represents a list of gifts received by a user or a chat
@@ -2508,14 +2516,17 @@ supergroupMembersFilterBots = SupergroupMembersFilter;
 //@description The chat was joined successfully @chat_id Identifier of the chat
 chatJoinResultSuccess chat_id:int53 = ChatJoinResult;
 
-//@description A join request was sent and have to be approved by administrators of the chat
+//@description The join request was sent and have to be approved by administrators of the chat
 chatJoinResultRequestSent = ChatJoinResult;
 
 //@description An approval from a guard bot through a Web App is required to join the chat
 //@bot_user_id Identifier of the guard bot
-//@url The URL of the Web App to pass to getWebAppUrl
+//@url The URL of the Web App to open
 //@query_id Unique identifier of the join request, which will be used in updateChatJoinResult
 chatJoinResultGuardBotApprovalRequired bot_user_id:int53 url:webAppUrl query_id:int53 = ChatJoinResult;
+
+//@description The join was declined by the guard bot
+chatJoinResultDeclined = ChatJoinResult;
 
 
 //@class ChatJoinRequestResult @description Describes result of a chat join request
@@ -2523,7 +2534,7 @@ chatJoinResultGuardBotApprovalRequired bot_user_id:int53 url:webAppUrl query_id:
 //@description The request was approved
 chatJoinRequestResultApproved = ChatJoinRequestResult;
 
-//@description The request was decline
+//@description The request was declined
 chatJoinRequestResultDeclined = ChatJoinRequestResult;
 
 //@description The request was postponed without a decision
@@ -3932,48 +3943,6 @@ richTextStrikethrough text:RichText = RichText;
 //@description A spoilered rich text @text Text
 richTextSpoiler text:RichText = RichText;
 
-//@description A date and time
-//@text Original text
-//@unix_time Point in time (Unix timestamp) representing the date and time
-//@formatting_type Date and time formatting type; may be null if none and the original text must not be changed
-richTextDateTime text:RichText unix_time:int32 formatting_type:DateTimeFormattingType = RichText;
-
-//@description A mention of a Telegram user by a username @text Text
-richTextMention text:RichText = RichText;
-
-//@description A hashtag @text Text
-richTextHashtag text:RichText = RichText;
-
-//@description A cashtag @text Text
-richTextCashtag text:RichText = RichText;
-
-//@description A bot command @text Text
-richTextBotCommand text:RichText = RichText;
-
-//@description A fixed-width rich text @text Text
-richTextFixed text:RichText = RichText;
-
-//@description A rich text that serves as a mention of a user @text Text @user_id Identifier of the mentioned user
-richTextMentionName text:RichText user_id:int53 = RichText;
-
-//@description A rich text URL link @text Text @url URL @is_cached True, if the URL has cached instant view server-side
-richTextUrl text:RichText url:string is_cached:Bool = RichText;
-
-//@description A rich text email link @text Text @email_address Email address
-richTextEmailAddress text:RichText email_address:string = RichText;
-
-//@description An automatically found URL @text Text
-richTextAutoUrl text:RichText = RichText;
-
-//@description An automatically found email address @text Text
-richTextAutoEmailAddress text:RichText = RichText;
-
-//@description An automatically found phone number @text Text
-richTextAutoPhoneNumber text:RichText = RichText;
-
-//@description A bank card number @text Text
-richTextBankCardNumber text:RichText = RichText;
-
 //@description A subscript rich text @text Text
 richTextSubscript text:RichText = RichText;
 
@@ -3982,6 +3951,39 @@ richTextSuperscript text:RichText = RichText;
 
 //@description A marked rich text @text Text
 richTextMarked text:RichText = RichText;
+
+//@description A date and time
+//@text Original text
+//@unix_time Point in time (Unix timestamp) representing the date and time
+//@formatting_type Date and time formatting type; may be null if none and the original text must not be changed
+richTextDateTime text:RichText unix_time:int32 formatting_type:DateTimeFormattingType = RichText;
+
+//@description A mention of a Telegram user or chat by a username @text Text @username The username
+richTextMention text:RichText username:string = RichText;
+
+//@description A hashtag @text Text @hashtag The hashtag
+richTextHashtag text:RichText hashtag:string = RichText;
+
+//@description A cashtag @text Text @cashtag The cashtag
+richTextCashtag text:RichText cashtag:string = RichText;
+
+//@description A bank card number @text Text @bank_card_number The number of the bank card
+richTextBankCardNumber text:RichText bank_card_number:string = RichText;
+
+//@description A bot command @text Text @bot_command The bot command
+richTextBotCommand text:RichText bot_command:string = RichText;
+
+//@description A fixed-width rich text @text Text
+richTextFixed text:RichText = RichText;
+
+//@description A rich text that serves as a mention of a user @text Text @user_id Identifier of the mentioned user
+richTextMentionName text:RichText user_id:int53 = RichText;
+
+//@description A rich text URL link @text Text @url URL @is_cached True, if the URL has cached instant view server-side; instant view only
+richTextUrl text:RichText url:string is_cached:Bool = RichText;
+
+//@description A rich text email address @text Text @email_address Email address
+richTextEmailAddress text:RichText email_address:string = RichText;
 
 //@description A rich text phone number @text Text @phone_number Phone number
 richTextPhoneNumber text:RichText phone_number:string = RichText;
@@ -3998,31 +4000,43 @@ richTextIcon document:document width:int32 height:int32 = RichText;
 //@description A mathematical expression @expression The expression in LaTeX format
 richTextMathematicalExpression expression:string = RichText;
 
-//@description A reference to a richTexts object on the same page @text The text @anchor_name The name of a richTextAnchor object, which is the first element of the target richTexts object @url An HTTP URL, opening the reference
-richTextReference text:RichText anchor_name:string url:string = RichText;
+//@description A reference @name Reference name @text Text of the reference
+richTextReference name:string text:RichText = RichText;
+
+//@description A link to a reference on the same page @text The link text @reference_name The reference name @url An HTTP URL that opens the reference
+richTextReferenceLink text:RichText reference_name:string url:string = RichText;
 
 //@description An anchor @name Anchor name
 richTextAnchor name:string = RichText;
 
-//@description A link to an anchor on the same page @text The link text @anchor_name The anchor name. If the name is empty, the link must bring back to top @url An HTTP URL, opening the anchor
+//@description A link to an anchor on the same page @text The link text @anchor_name The anchor name. If the name is empty, the link must bring back to top @url An HTTP URL that opens the anchor
 richTextAnchorLink text:RichText anchor_name:string url:string = RichText;
 
 //@description A concatenation of rich texts @texts Texts
 richTexts texts:vector<RichText> = RichText;
 
 
-//@description Contains a caption of another block @text Content of the caption @credit Block credit (like HTML tag <cite>)
+//@description Contains a caption of another block @text Content of the caption @credit Block credit (like HTML tag <cite>); may be null if none
 pageBlockCaption text:RichText credit:RichText = PageBlockCaption;
 
 //@description Describes an item of a list page block
 //@label Item label
-//@page_blocks Item blocks
+//@blocks Item blocks
 //@has_checkbox True, if the item has a checkbox
 //@is_checked True, if the item is checked
-//@value Value of the item; 0 for non-ordered lists
+//@value Value of the item; 0 for unordered lists
+//@type Type of the item numbering type; must be one of "a" for lowercase letters, "A" for uppercase letters, "i" for lowercase Roman numerals, "I" for uppercase Roman numerals,
+//-"1" for decimal numbers, or empty for unordered lists
+pageBlockListItem label:string blocks:vector<PageBlock> has_checkbox:Bool is_checked:Bool value:int32 type:string = PageBlockListItem;
+
+//@description Describes an item of a list page block to be sent
+//@blocks Item blocks
+//@has_checkbox True, if the item has a checkbox
+//@is_checked True, if the item is checked
+//@value Value of the item; pass 0 for unordered lists
 //@type Type of the item numbering type; must be one of "a" for a lowercase letter, "A" for an uppercase letter, "i" for lowercase Roman numerals, "I" for uppercase Roman numerals,
-//-"1" for decimal numbers, or empty for non-ordered lists
-pageBlockListItem label:string page_blocks:vector<PageBlock> has_checkbox:Bool is_checked:Bool value:int32 type:string = PageBlockListItem;
+//-"1" for decimal numbers, or empty for unordered lists
+inputPageBlockListItem blocks:vector<InputPageBlock> has_checkbox:Bool is_checked:Bool value:int32 type:string = InputPageBlockListItem;
 
 //@class PageBlockHorizontalAlignment @description Describes a horizontal alignment of a table cell content
 
@@ -4065,7 +4079,7 @@ pageBlockTableCell text:RichText is_header:Bool colspan:int32 rowspan:int32 alig
 pageBlockRelatedArticle url:string title:string description:string photo:photo author:string publish_date:int32 = PageBlockRelatedArticle;
 
 
-//@class PageBlock @description Describes a block of an instant view for a web page
+//@class PageBlock @description Describes a block of an instant view for a web page or a block of a rich message
 
 //@description The title of a page; instant view only @title Title
 pageBlockTitle title:RichText = PageBlock;
@@ -4082,7 +4096,7 @@ pageBlockHeader header:RichText = PageBlock;
 //@description A subheader; instant view only @subheader Subheader
 pageBlockSubheader subheader:RichText = PageBlock;
 
-//@description A section heading @text Text of the section heading @size Realtive size of the text font; 1-6, 1 is the largest, 6 is the smallest
+//@description A section heading @text Text of the section heading @size Relative size of the text font; 1-6, 1 is the largest, 6 is the smallest
 pageBlockSectionHeading text:RichText size:int32 = PageBlock;
 
 //@description A kicker; instant view only @kicker Kicker
@@ -4114,36 +4128,36 @@ pageBlockList items:vector<pageBlockListItem> = PageBlock;
 
 //@description A block quote
 //@blocks Quote blocks
-//@credit Quote credit
+//@credit Quote credit; may be null if none
 pageBlockBlockQuote blocks:vector<PageBlock> credit:RichText = PageBlock;
 
 //@description A pull quote
 //@text Quote text
-//@credit Quote credit
+//@credit Quote credit; may be null if none
 pageBlockPullQuote text:RichText credit:RichText = PageBlock;
 
 //@description An animation
 //@animation Animation file; may be null
-//@caption Animation caption
+//@caption Animation caption; may be null if none
 //@need_autoplay True, if the animation must be played automatically
 //@has_spoiler True, if the animation preview must be covered by a spoiler animation
 pageBlockAnimation animation:animation caption:pageBlockCaption need_autoplay:Bool has_spoiler:Bool = PageBlock;
 
 //@description An audio file
 //@audio Audio file; may be null
-//@caption Audio file caption
+//@caption Audio file caption; may be null if none
 pageBlockAudio audio:audio caption:pageBlockCaption = PageBlock;
 
 //@description A photo
 //@photo Photo file; may be null
-//@caption Photo caption
+//@caption Photo caption; may be null if none
 //@url URL that needs to be opened when the photo is clicked; instant view only
 //@has_spoiler True, if the photo preview must be covered by a spoiler animation
 pageBlockPhoto photo:photo caption:pageBlockCaption url:string has_spoiler:Bool = PageBlock;
 
 //@description A video
 //@video Video file; may be null
-//@caption Video caption
+//@caption Video caption; may be null if none
 //@need_autoplay True, if the video must be played automatically
 //@is_looped True, if the video must be looped
 //@has_spoiler True, if the video preview must be covered by a spoiler animation
@@ -4151,7 +4165,7 @@ pageBlockVideo video:video caption:pageBlockCaption need_autoplay:Bool is_looped
 
 //@description A voice note
 //@voice_note Voice note; may be null
-//@caption Voice note caption
+//@caption Voice note caption; may be null if none
 pageBlockVoiceNote voice_note:voiceNote caption:pageBlockCaption = PageBlock;
 
 //@description A page cover; instant view only @cover Cover
@@ -4163,7 +4177,7 @@ pageBlockCover cover:PageBlock = PageBlock;
 //@poster_photo Poster photo, if available; may be null
 //@width Block width; 0 if unknown
 //@height Block height; 0 if unknown
-//@caption Block caption
+//@caption Block caption; may be null if none
 //@is_full_width True, if the block must be full width
 //@allow_scrolling True, if scrolling needs to be allowed
 pageBlockEmbedded url:string html:string poster_photo:photo width:int32 height:int32 caption:pageBlockCaption is_full_width:Bool allow_scrolling:Bool = PageBlock;
@@ -4173,21 +4187,21 @@ pageBlockEmbedded url:string html:string poster_photo:photo width:int32 height:i
 //@author Post author
 //@author_photo Post author photo; may be null
 //@date Point in time (Unix timestamp) when the post was created; 0 if unknown
-//@page_blocks Post content
-//@caption Post caption
-pageBlockEmbeddedPost url:string author:string author_photo:photo date:int32 page_blocks:vector<PageBlock> caption:pageBlockCaption = PageBlock;
+//@blocks Post content
+//@caption Post caption; may be null if none
+pageBlockEmbeddedPost url:string author:string author_photo:photo date:int32 blocks:vector<PageBlock> caption:pageBlockCaption = PageBlock;
 
 //@description A collage
-//@page_blocks Collage item contents
-//@caption Block caption
-pageBlockCollage page_blocks:vector<PageBlock> caption:pageBlockCaption = PageBlock;
+//@blocks Collage item contents
+//@caption Block caption; may be null if none
+pageBlockCollage blocks:vector<PageBlock> caption:pageBlockCaption = PageBlock;
 
 //@description A slideshow
-//@page_blocks Slideshow item contents
-//@caption Block caption
-pageBlockSlideshow page_blocks:vector<PageBlock> caption:pageBlockCaption = PageBlock;
+//@blocks Slideshow item contents
+//@caption Block caption; may be null if none
+pageBlockSlideshow blocks:vector<PageBlock> caption:pageBlockCaption = PageBlock;
 
-//@description A link to a chat
+//@description A link to a chat; instant view only
 //@title Chat title
 //@photo Chat photo; may be null
 //@accent_color_id Identifier of the accent color for chat title and background of chat photo
@@ -4195,7 +4209,7 @@ pageBlockSlideshow page_blocks:vector<PageBlock> caption:pageBlockCaption = Page
 pageBlockChatLink title:string photo:chatPhotoInfo accent_color_id:int32 username:string = PageBlock;
 
 //@description A table
-//@caption Table caption
+//@caption Table caption; may be null if none
 //@cells Table cells
 //@is_bordered True, if the table is bordered
 //@is_striped True, if the table is striped
@@ -4203,9 +4217,9 @@ pageBlockTable caption:RichText cells:vector<vector<pageBlockTableCell>> is_bord
 
 //@description A collapsible block
 //@header Always visible heading for the block
-//@page_blocks Block contents
+//@blocks Block contents
 //@is_open True, if the block is open by default
-pageBlockDetails header:RichText page_blocks:vector<PageBlock> is_open:Bool = PageBlock;
+pageBlockDetails header:RichText blocks:vector<PageBlock> is_open:Bool = PageBlock;
 
 //@description Related articles; instant view only
 //@header Block header
@@ -4217,18 +4231,18 @@ pageBlockRelatedArticles header:RichText articles:vector<pageBlockRelatedArticle
 //@zoom Map zoom level
 //@width Map width
 //@height Map height
-//@caption Block caption
+//@caption Block caption; may be null if none
 pageBlockMap location:location zoom:int32 width:int32 height:int32 caption:pageBlockCaption = PageBlock;
 
 
 //@description Describes an instant view page for a web page
-//@page_blocks Content of the instant view page
+//@blocks Content of the instant view page
 //@view_count Number of the instant view views; 0 if unknown
 //@version Version of the instant view; currently, can be 1 or 2
 //@is_rtl True, if the instant view must be shown from right to left
 //@is_full True, if the instant view contains the full page. A network request might be needed to get the full instant view
 //@feedback_link An internal link to be opened to leave feedback about the instant view
-webPageInstantView page_blocks:vector<PageBlock> view_count:int32 version:int32 is_rtl:Bool is_full:Bool feedback_link:InternalLinkType = WebPageInstantView;
+webPageInstantView blocks:vector<PageBlock> view_count:int32 version:int32 is_rtl:Bool is_full:Bool feedback_link:InternalLinkType = WebPageInstantView;
 
 
 //@class LinkPreviewAlbumMedia @description Describes a media from a link preview album
@@ -5379,7 +5393,7 @@ messageGiftedStars gifter_user_id:int53 receiver_user_id:int53 currency:string a
 //@sticker A sticker to be shown in the message; may be null if unknown
 messageGiftedTon gifter_user_id:int53 receiver_user_id:int53 ton_amount:int53 transaction_id:string sticker:sticker = MessageContent;
 
-//@description A Telegram Stars were received by the current user from a giveaway
+//@description Telegram Stars were received by the current user from a giveaway
 //@star_count Number of Telegram Stars that were received
 //@transaction_id Identifier of the transaction for Telegram Stars credit
 //@boosted_chat_id Identifier of the supergroup or channel chat, which was automatically boosted by the winners of the giveaway
@@ -5424,7 +5438,7 @@ messageGift gift:gift sender_id:MessageSender receiver_id:MessageSender received
 //@next_transfer_date Point in time (Unix timestamp) when the gift can be transferred to another owner; can be in the past; 0 if the gift can be transferred immediately or transfer isn't possible; only for the receiver of the gift
 //@next_resale_date Point in time (Unix timestamp) when the gift can be resold to another user; can be in the past; 0 if the gift can't be resold; only for the receiver of the gift
 //@export_date Point in time (Unix timestamp) when the gift can be transferred to the TON blockchain as an NFT; can be in the past; 0 if NFT export isn't possible; only for the receiver of the gift
-//@craft_date Point in time (Unix timestamp) when the gift can be used to craft another gift can be in the past; only for the receiver of the gift
+//@craft_date Point in time (Unix timestamp) when the gift can be used to craft another gift; can be in the past; only for the receiver of the gift
 messageUpgradedGift gift:upgradedGift sender_id:MessageSender receiver_id:MessageSender origin:UpgradedGiftOrigin received_gift_id:string is_saved:Bool can_be_transferred:Bool was_transferred:Bool transfer_star_count:int53 drop_original_details_star_count:int53 next_transfer_date:int32 next_resale_date:int32 export_date:int32 craft_date:int32 = MessageContent;
 
 //@description A gift which purchase, upgrade or transfer were refunded
@@ -5471,7 +5485,7 @@ messageChecklistTasksDone checklist_message_id:int53 marked_as_done_task_ids:vec
 //@tasks List of tasks added to the checklist
 messageChecklistTasksAdded checklist_message_id:int53 tasks:vector<checklistTask> = MessageContent;
 
-//@description Approval of suggested post has failed, because the user which proposed the post had no enough funds
+//@description Approval of suggested post has failed, because the user who proposed the post didn't have enough funds
 //@suggested_post_message_id Identifier of the message with the suggested post; may be 0 or an identifier of a deleted message
 //@price Price of the suggested post
 messageSuggestedPostApprovalFailed suggested_post_message_id:int53 price:SuggestedPostPrice = MessageContent;
@@ -5644,7 +5658,72 @@ diffEntityTypeDelete = DiffEntityType;
 inputThumbnail thumbnail:InputFile width:int32 height:int32 = InputThumbnail;
 
 
-//@class InputPaidMediaType @description Describes type of paid media to sent
+//@description An animation to be sent
+//@animation Animation file to be sent
+//@thumbnail Animation thumbnail; pass null to skip thumbnail uploading
+//@added_sticker_file_ids File identifiers of the stickers added to the animation, if applicable
+//@duration Duration of the animation, in seconds; may be replaced by the server
+//@width Width of the animation; may be replaced by the server
+//@height Height of the animation; may be replaced by the server
+inputAnimation animation:InputFile thumbnail:inputThumbnail added_sticker_file_ids:vector<int32> duration:int32 width:int32 height:int32 = InputAnimation;
+
+//@description An audio to be sent
+//@audio Audio file to be sent
+//@album_cover_thumbnail Thumbnail of the cover for the album; pass null to skip thumbnail uploading
+//@duration Duration of the audio, in seconds; may be replaced by the server
+//@title Title of the audio; 0-64 characters; may be replaced by the server
+//@performer Performer of the audio; 0-64 characters, may be replaced by the server
+inputAudio audio:InputFile album_cover_thumbnail:inputThumbnail duration:int32 title:string performer:string = InputAudio;
+
+//@description A document (general file) to be sent
+//@document File to be sent
+//@thumbnail Document thumbnail; pass null to skip thumbnail uploading
+//@disable_content_type_detection Pass true to disable automatic file type detection and send the document as a file. Always true for files sent to secret chats
+inputDocument document:InputFile thumbnail:inputThumbnail disable_content_type_detection:Bool = InputDocument;
+
+//@description A photo to be sent
+//@photo Photo to be sent. The photo must be at most 10 MB in size. The photo's width and height must not exceed 10000 in total. Width and height ratio must be at most 20
+//@thumbnail Photo thumbnail; pass null to skip thumbnail uploading. The thumbnail is sent to the other party only in secret chats
+//@video Video of the live photo; not supported in secret chats; pass null if the photo isn't a live photo
+//@added_sticker_file_ids File identifiers of the stickers added to the photo, if applicable
+//@width Photo width; may be replaced by the server
+//@height Photo height; may be replaced by the server
+inputPhoto photo:InputFile thumbnail:inputThumbnail video:InputFile added_sticker_file_ids:vector<int32> width:int32 height:int32 = InputPhoto;
+
+//@description A sticker to be sent
+//@sticker Sticker to be sent
+//@thumbnail Sticker thumbnail; pass null to skip thumbnail uploading
+//@width Sticker width
+//@height Sticker height
+inputSticker sticker:InputFile thumbnail:inputThumbnail width:int32 height:int32 = InputSticker;
+
+//@description A video to be sent
+//@video Video file to be sent. The video is expected to be re-encoded to MPEG4 format with H.264 codec by the sender
+//@thumbnail Video thumbnail; pass null to skip thumbnail uploading
+//@cover Cover of the video; pass null to skip cover uploading; not supported in secret chats and for self-destructing messages
+//@start_timestamp Timestamp from which the video playing must start, in seconds
+//@added_sticker_file_ids File identifiers of the stickers added to the video, if applicable
+//@duration Duration of the video, in seconds
+//@width Video width
+//@height Video height
+//@supports_streaming True, if the video is expected to be streamed
+inputVideo video:InputFile thumbnail:inputThumbnail cover:InputFile start_timestamp:int32 added_sticker_file_ids:vector<int32> duration:int32 width:int32 height:int32 supports_streaming:Bool = InputVideo;
+
+//@description A video note to be sent
+//@video_note Video note file to be sent. The video is expected to be encoded to MPEG4 format with H.264 codec and have no data outside of the visible circle
+//@thumbnail Video thumbnail; may be null if empty; pass null to skip thumbnail uploading
+//@duration Duration of the video, in seconds; 0-60
+//@length Video width and height; must be positive and not greater than 640
+inputVideoNote video_note:InputFile thumbnail:inputThumbnail duration:int32 length:int32 = InputVideoNote;
+
+//@description A video note to be sent
+//@voice_note Voice note file to be sent. The voice note must be encoded with the Opus codec and stored inside an OGG container with a single audio channel, or be in MP3 or M4A format as regular audio
+//@duration Duration of the voice note, in seconds
+//@waveform Waveform representation of the voice note in 5-bit format
+inputVoiceNote voice_note:InputFile duration:int32 waveform:bytes = InputVoiceNote;
+
+
+//@class InputPaidMediaType @description Describes type of paid media to send
 
 //@description The media is a photo. The photo must be at most 10 MB in size. The photo's width and height must not exceed 10000 in total. Width and height ratio must be at most 20
 //@video Video of the live photo; pass null if the photo isn't a live photo
@@ -5719,28 +5798,14 @@ messageCopyOptions send_copy:Bool replace_caption:Bool new_caption:formattedText
 
 //@class InputPollMedia @description The content of a poll media to send
 
-//@description An animation
-//@animation Animation file to be sent
-//@thumbnail Animation thumbnail; pass null to skip thumbnail uploading
-//@added_sticker_file_ids File identifiers of the stickers added to the animation, if applicable
-//@duration Duration of the animation, in seconds
-//@width Width of the animation; may be replaced by the server
-//@height Height of the animation; may be replaced by the server
-inputPollMediaAnimation animation:InputFile thumbnail:inputThumbnail added_sticker_file_ids:vector<int32> duration:int32 width:int32 height:int32 = InputPollMedia;
+//@description An animation @animation The animation to be sent
+inputPollMediaAnimation animation:inputAnimation = InputPollMedia;
 
-//@description An audio
-//@audio Audio file to be sent
-//@album_cover_thumbnail Thumbnail of the cover for the album; pass null to skip thumbnail uploading
-//@duration Duration of the audio, in seconds; may be replaced by the server
-//@title Title of the audio; 0-64 characters; may be replaced by the server
-//@performer Performer of the audio; 0-64 characters, may be replaced by the server
-inputPollMediaAudio audio:InputFile album_cover_thumbnail:inputThumbnail duration:int32 title:string performer:string = InputPollMedia;
+//@description An audio @audio The audio to be sent
+inputPollMediaAudio audio:inputAudio = InputPollMedia;
 
-//@description A document (general file)
-//@document Document to be sent
-//@thumbnail Document thumbnail; pass null to skip thumbnail uploading
-//@disable_content_type_detection Pass true to disable automatic file type detection and send the document as a file
-inputPollMediaDocument document:InputFile thumbnail:inputThumbnail disable_content_type_detection:Bool = InputPollMedia;
+//@description A document (general file) @document The document to be sent
+inputPollMediaDocument document:inputDocument = InputPollMedia;
 
 //@description A link @url URL of the link
 inputPollMediaLink url:string = InputPollMedia;
@@ -5748,35 +5813,104 @@ inputPollMediaLink url:string = InputPollMedia;
 //@description A location @location Location to be sent
 inputPollMediaLocation location:location = InputPollMedia;
 
-//@description A photo
-//@photo Photo to send. The photo must be at most 10 MB in size. The photo's width and height must not exceed 10000 in total. Width and height ratio must be at most 20
-//@video Video of the live photo; pass null if the photo isn't a live photo
-//@added_sticker_file_ids File identifiers of the stickers added to the photo, if applicable
-//@width Photo width
-//@height Photo height
-inputPollMediaPhoto photo:InputFile video:InputFile added_sticker_file_ids:vector<int32> width:int32 height:int32 = InputPollMedia;
+//@description A photo @photo Photo to be sent
+inputPollMediaPhoto photo:inputPhoto = InputPollMedia;
 
-//@description A sticker
-//@sticker Sticker to be sent
-//@thumbnail Sticker thumbnail; pass null to skip thumbnail uploading
-//@width Sticker width
-//@height Sticker height
-inputPollMediaSticker sticker:InputFile thumbnail:inputThumbnail width:int32 height:int32 = InputPollMedia;
+//@description A sticker @sticker Sticker to be sent
+inputPollMediaSticker sticker:inputSticker = InputPollMedia;
 
 //@description A venue @venue Venue to send
 inputPollMediaVenue venue:venue = InputPollMedia;
 
+//@description A video @video The video to be sent
+inputPollMediaVideo video:inputVideo = InputPollMedia;
+
+
+//@class InputPageBlock @description Describes a block of a rich message to send
+
+//@description A section heading @text Text of the section heading @size Realtive size of the text font; 1-6, 1 is the largest, 6 is the smallest
+inputPageBlockSectionHeading text:RichText size:int32 = InputPageBlock;
+
+//@description A text paragraph @text Paragraph text
+inputPageBlockParagraph text:RichText = InputPageBlock;
+
+//@description A preformatted text paragraph @text Paragraph text @language Programming language for which the text needs to be formatted
+inputPageBlockPreformatted text:RichText language:string = InputPageBlock;
+
+//@description The footer of the page @footer Footer
+inputPageBlockFooter footer:RichText = InputPageBlock;
+
+//@description A "Thinking..." placeholder; for pending rich messages only; for bots only @text Text of the placeholder
+inputPageBlockThinking text:RichText = InputPageBlock;
+
+//@description An empty block separating the page
+inputPageBlockDivider = InputPageBlock;
+
+//@description A mathematical expression @expression The expression in LaTeX format
+inputPageBlockMathematicalExpression expression:string = InputPageBlock;
+
+//@description An invisible anchor @name Name of the anchor
+inputPageBlockAnchor name:string = InputPageBlock;
+
+//@description A list of data blocks @items The items of the list
+inputPageBlockList items:vector<inputPageBlockListItem> = InputPageBlock;
+
+//@description A block quote @blocks Quote blocks @credit Quote credit
+inputPageBlockBlockQuote blocks:vector<InputPageBlock> credit:RichText = InputPageBlock;
+
+//@description A pull quote @text Quote text @credit Quote credit
+inputPageBlockPullQuote text:RichText credit:RichText = InputPageBlock;
+
+//@description An animation
+//@animation The animation to be sent
+//@caption Animation caption
+//@has_spoiler True, if the animation preview must be covered by a spoiler animation
+inputPageBlockAnimation animation:inputAnimation caption:pageBlockCaption has_spoiler:Bool = InputPageBlock;
+
+//@description An audio file @audio The audio to be sent @caption Audio file caption
+inputPageBlockAudio audio:inputAudio caption:pageBlockCaption = InputPageBlock;
+
+//@description A photo
+//@photo The photo to be sent
+//@caption Photo caption
+//@has_spoiler True, if the photo preview must be covered by a spoiler animation
+inputPageBlockPhoto photo:inputPhoto caption:pageBlockCaption has_spoiler:Bool = InputPageBlock;
+
 //@description A video
-//@video Video to be sent. The video is expected to be re-encoded to MPEG4 format with H.264 codec by the sender
-//@thumbnail Video thumbnail; pass null to skip thumbnail uploading
-//@cover Cover of the video; pass null to skip cover uploading
-//@start_timestamp Timestamp from which the video playing must start, in seconds
-//@added_sticker_file_ids File identifiers of the stickers added to the video, if applicable
-//@duration Duration of the video, in seconds
-//@width Video width
-//@height Video height
-//@supports_streaming True, if the video is expected to be streamed
-inputPollMediaVideo video:InputFile thumbnail:inputThumbnail cover:InputFile start_timestamp:int32 added_sticker_file_ids:vector<int32> duration:int32 width:int32 height:int32 supports_streaming:Bool = InputPollMedia;
+//@video The video to be sent
+//@caption Video caption
+//@has_spoiler True, if the video preview must be covered by a spoiler animation
+inputPageBlockVideo video:inputVideo caption:pageBlockCaption has_spoiler:Bool = InputPageBlock;
+
+//@description A voice note @voice_note The voice note to be sent @caption Voice note caption
+inputPageBlockVoiceNote voice_note:inputVoiceNote caption:pageBlockCaption = InputPageBlock;
+
+//@description A collage @blocks Collage item contents @caption Block caption
+inputPageBlockCollage blocks:vector<InputPageBlock> caption:pageBlockCaption = InputPageBlock;
+
+//@description A slideshow @blocks Slideshow item contents @caption Block caption
+inputPageBlockSlideshow blocks:vector<InputPageBlock> caption:pageBlockCaption = InputPageBlock;
+
+//@description A table
+//@caption Table caption
+//@cells Table cells
+//@is_bordered True, if the table is bordered
+//@is_striped True, if the table is striped
+inputPageBlockTable caption:RichText cells:vector<vector<pageBlockTableCell>> is_bordered:Bool is_striped:Bool = InputPageBlock;
+
+//@description A collapsible block
+//@header Always visible heading for the block
+//@blocks Block contents
+//@is_open True, if the block is open by default
+inputPageBlockDetails header:RichText blocks:vector<InputPageBlock> is_open:Bool = InputPageBlock;
+
+//@description A map
+//@location Location of the map center
+//@zoom Map zoom level
+//@width Map width
+//@height Map height
+//@caption Block caption
+inputPageBlockMap location:location zoom:int32 width:int32 height:int32 caption:pageBlockCaption = InputPageBlock;
 
 
 //@class InputMessageContent @description The content of a message to send
@@ -5788,36 +5922,25 @@ inputPollMediaVideo video:InputFile thumbnail:inputThumbnail cover:InputFile sta
 //@clear_draft Pass true to delete message draft in the chat
 inputMessageText text:formattedText link_preview_options:linkPreviewOptions clear_draft:Bool = InputMessageContent;
 
-//@description A rich message @message The rich message to send @clear_draft Pass true to delete message draft in the chat
+//@description A rich message @message The rich message to send; file upload isn't supported @clear_draft Pass true to delete message draft in the chat
 inputMessageRichMessage message:inputRichMessage clear_draft:Bool = InputMessageContent;
 
 //@description An animation message (GIF-style).
-//@animation Animation file to be sent
-//@thumbnail Animation thumbnail; pass null to skip thumbnail uploading
-//@added_sticker_file_ids File identifiers of the stickers added to the animation, if applicable
-//@duration Duration of the animation, in seconds
-//@width Width of the animation; may be replaced by the server
-//@height Height of the animation; may be replaced by the server
+//@animation The animation to be sent
 //@caption Animation caption; pass null to use an empty caption; 0-getOption("message_caption_length_max") characters
 //@show_caption_above_media True, if the caption must be shown above the animation; otherwise, the caption must be shown below the animation; not supported in secret chats
 //@has_spoiler True, if the animation preview must be covered by a spoiler animation; not supported in secret chats
-inputMessageAnimation animation:InputFile thumbnail:inputThumbnail added_sticker_file_ids:vector<int32> duration:int32 width:int32 height:int32 caption:formattedText show_caption_above_media:Bool has_spoiler:Bool = InputMessageContent;
+inputMessageAnimation animation:inputAnimation caption:formattedText show_caption_above_media:Bool has_spoiler:Bool = InputMessageContent;
 
 //@description An audio message
-//@audio Audio file to be sent
-//@album_cover_thumbnail Thumbnail of the cover for the album; pass null to skip thumbnail uploading
-//@duration Duration of the audio, in seconds; may be replaced by the server
-//@title Title of the audio; 0-64 characters; may be replaced by the server
-//@performer Performer of the audio; 0-64 characters, may be replaced by the server
+//@audio Audio to be sent
 //@caption Audio caption; pass null to use an empty caption; 0-getOption("message_caption_length_max") characters
-inputMessageAudio audio:InputFile album_cover_thumbnail:inputThumbnail duration:int32 title:string performer:string caption:formattedText = InputMessageContent;
+inputMessageAudio audio:inputAudio caption:formattedText = InputMessageContent;
 
 //@description A document message (general file)
 //@document Document to be sent
-//@thumbnail Document thumbnail; pass null to skip thumbnail uploading
-//@disable_content_type_detection Pass true to disable automatic file type detection and send the document as a file. Always true for files sent to secret chats
 //@caption Document caption; pass null to use an empty caption; 0-getOption("message_caption_length_max") characters
-inputMessageDocument document:InputFile thumbnail:inputThumbnail disable_content_type_detection:Bool caption:formattedText = InputMessageContent;
+inputMessageDocument document:inputDocument caption:formattedText = InputMessageContent;
 
 //@description A message with paid media; can be used only in channel chats with supergroupFullInfo.has_paid_media_allowed
 //@star_count The number of Telegram Stars that must be paid to see the media; 1-getOption("paid_media_message_star_count_max")
@@ -5828,57 +5951,34 @@ inputMessageDocument document:InputFile thumbnail:inputThumbnail disable_content
 inputMessagePaidMedia star_count:int53 paid_media:vector<inputPaidMedia> caption:formattedText show_caption_above_media:Bool payload:string = InputMessageContent;
 
 //@description A photo message
-//@photo Photo to send. The photo must be at most 10 MB in size. The photo's width and height must not exceed 10000 in total. Width and height ratio must be at most 20
-//@thumbnail Photo thumbnail to be sent; pass null to skip thumbnail uploading. The thumbnail is sent to the other party only in secret chats
-//@video Video of the live photo; not supported in secret chats; pass null if the photo isn't a live photo
-//@added_sticker_file_ids File identifiers of the stickers added to the photo, if applicable
-//@width Photo width
-//@height Photo height
+//@photo Photo to be sent
 //@caption Photo caption; pass null to use an empty caption; 0-getOption("message_caption_length_max") characters
 //@show_caption_above_media True, if the caption must be shown above the photo; otherwise, the caption must be shown below the photo; not supported in secret chats
 //@self_destruct_type Photo self-destruct type; pass null if none; private chats only
 //@has_spoiler True, if the photo preview must be covered by a spoiler animation; not supported in secret chats
-inputMessagePhoto photo:InputFile thumbnail:inputThumbnail video:InputFile added_sticker_file_ids:vector<int32> width:int32 height:int32 caption:formattedText show_caption_above_media:Bool self_destruct_type:MessageSelfDestructType has_spoiler:Bool = InputMessageContent;
+inputMessagePhoto photo:inputPhoto caption:formattedText show_caption_above_media:Bool self_destruct_type:MessageSelfDestructType has_spoiler:Bool = InputMessageContent;
 
-//@description A sticker message
-//@sticker Sticker to be sent
-//@thumbnail Sticker thumbnail; pass null to skip thumbnail uploading
-//@width Sticker width
-//@height Sticker height
-//@emoji Emoji used to choose the sticker
-inputMessageSticker sticker:InputFile thumbnail:inputThumbnail width:int32 height:int32 emoji:string = InputMessageContent;
+//@description A sticker message @sticker Sticker to be sent @emoji Emoji used to choose the sticker
+inputMessageSticker sticker:inputSticker emoji:string = InputMessageContent;
 
 //@description A video message
-//@video Video to be sent. The video is expected to be re-encoded to MPEG4 format with H.264 codec by the sender
-//@thumbnail Video thumbnail; pass null to skip thumbnail uploading
-//@cover Cover of the video; pass null to skip cover uploading; not supported in secret chats and for self-destructing messages
-//@start_timestamp Timestamp from which the video playing must start, in seconds
-//@added_sticker_file_ids File identifiers of the stickers added to the video, if applicable
-//@duration Duration of the video, in seconds
-//@width Video width
-//@height Video height
-//@supports_streaming True, if the video is expected to be streamed
+//@video Video to be sent
 //@caption Video caption; pass null to use an empty caption; 0-getOption("message_caption_length_max") characters
 //@show_caption_above_media True, if the caption must be shown above the video; otherwise, the caption must be shown below the video; not supported in secret chats
 //@self_destruct_type Video self-destruct type; pass null if none; private chats only
 //@has_spoiler True, if the video preview must be covered by a spoiler animation; not supported in secret chats
-inputMessageVideo video:InputFile thumbnail:inputThumbnail cover:InputFile start_timestamp:int32 added_sticker_file_ids:vector<int32> duration:int32 width:int32 height:int32 supports_streaming:Bool caption:formattedText show_caption_above_media:Bool self_destruct_type:MessageSelfDestructType has_spoiler:Bool = InputMessageContent;
+inputMessageVideo video:inputVideo caption:formattedText show_caption_above_media:Bool self_destruct_type:MessageSelfDestructType has_spoiler:Bool = InputMessageContent;
 
 //@description A video note message
-//@video_note Video note to be sent. The video is expected to be encoded to MPEG4 format with H.264 codec and have no data outside of the visible circle
-//@thumbnail Video thumbnail; may be null if empty; pass null to skip thumbnail uploading
-//@duration Duration of the video, in seconds; 0-60
-//@length Video width and height; must be positive and not greater than 640
+//@video_note Video note to be sent
 //@self_destruct_type Video note self-destruct type; may be null if none; pass null if none; private chats only
-inputMessageVideoNote video_note:InputFile thumbnail:inputThumbnail duration:int32 length:int32 self_destruct_type:MessageSelfDestructType = InputMessageContent;
+inputMessageVideoNote video_note:inputVideoNote self_destruct_type:MessageSelfDestructType = InputMessageContent;
 
 //@description A voice note message
-//@voice_note Voice note to be sent. The voice note must be encoded with the Opus codec and stored inside an OGG container with a single audio channel, or be in MP3 or M4A format as regular audio
-//@duration Duration of the voice note, in seconds
-//@waveform Waveform representation of the voice note in 5-bit format
+//@voice_note Voice note to be sent
 //@caption Voice note caption; pass null to use an empty caption; 0-getOption("message_caption_length_max") characters
 //@self_destruct_type Voice note self-destruct type; may be null if none; pass null if none; private chats only
-inputMessageVoiceNote voice_note:InputFile duration:int32 waveform:bytes caption:formattedText self_destruct_type:MessageSelfDestructType = InputMessageContent;
+inputMessageVoiceNote voice_note:inputVoiceNote caption:formattedText self_destruct_type:MessageSelfDestructType = InputMessageContent;
 
 //@description A message with a live location @location Initial state of the live location to be sent. Live period must be equal to 0x7FFFFFFF for permanent live locations, or between 60 and 86400
 inputMessageLiveLocation location:liveLocation = InputMessageContent;
@@ -6277,7 +6377,7 @@ storyAreaTypeLocation location:location address:locationAddress = StoryAreaType;
 //@description An area pointing to a venue @venue Information about the venue
 storyAreaTypeVenue venue:venue = StoryAreaType;
 
-//@description An area pointing to a suggested reaction. App needs to show a clickable reaction on the area and call setStoryReaction when the are is clicked
+//@description An area pointing to a suggested reaction. App needs to show a clickable reaction on the area and call setStoryReaction when the area is clicked
 //@reaction_type Type of the reaction
 //@total_count Number of times the reaction was added
 //@is_dark True, if reaction has a dark background
@@ -6469,7 +6569,7 @@ storyInteractionInfo view_count:int32 forward_count:int32 reaction_count:int32 r
 //@can_toggle_is_posted_to_chat_page True, if the story's is_posted_to_chat_page value can be changed
 //@can_get_statistics True, if the story statistics are available through getStoryStatistics
 //@can_get_interactions True, if interactions with the story can be received through getStoryInteractions
-//@has_expired_viewers True, if users viewed the story can't be received, because the story has expired more than getOption("story_viewers_expiration_delay") seconds ago
+//@has_expired_viewers True, if users who viewed the story can't be received, because the story has expired more than getOption("story_viewers_expiration_delay") seconds ago
 //@repost_info Information about the original story; may be null if the story wasn't reposted
 //@interaction_info Information about interactions with the story; may be null if the story isn't owned or there were no interactions
 //@chosen_reaction_type Type of the chosen reaction; may be null if none
@@ -8787,7 +8887,7 @@ accountTtl days:int32 = AccountTtl;
 messageAutoDeleteTime time:int32 = MessageAutoDeleteTime;
 
 
-//@class SessionType @description Describes type of a user session
+//@class SessionType @description Describes type of user session
 
 //@description A regular session from a device
 //@session_id Unique identifier of the session. Use terminateSession to terminate it or confirmSession to confirm it if it isn't confirmed yet
@@ -9581,7 +9681,7 @@ networkStatistics since_date:int32 entries:vector<NetworkStatisticsEntry> = Netw
 //@video_upload_bitrate The maximum suggested bitrate for uploaded videos, in kbit/s
 //@preload_large_videos True, if the beginning of video files needs to be preloaded for instant playback
 //@preload_next_audio True, if the next audio track needs to be preloaded while the user is listening to an audio file
-//@preload_stories True, if stories needs to be preloaded
+//@preload_stories True, if stories need to be preloaded
 //@use_less_data_for_calls True, if "use less data for calls" option needs to be enabled
 autoDownloadSettings is_auto_download_enabled:Bool max_photo_file_size:int32 max_video_file_size:int53 max_other_file_size:int53 video_upload_bitrate:int32 preload_large_videos:Bool preload_next_audio:Bool preload_stories:Bool use_less_data_for_calls:Bool = AutoDownloadSettings;
 
@@ -9630,18 +9730,18 @@ autosaveSettings private_chat_settings:scopeAutosaveSettings group_settings:scop
 //@url URL for which the exception is done
 //@domain Domain of the URL. All URLs on the domain and subdomains of the domain are subject to the exception
 //@title Title of the website
-//@favicon_custom_emoji_id Identifier of the custom emoji with favicon of the website; may be 0 if unknown
+//@favicon_custom_emoji_id Identifier of the custom emoji with favicon of the website; may be 0 if unknown, in which case the first letter of the domain must be used
 webDomainException url:string domain:string title:string favicon_custom_emoji_id:int64 = WebDomainException;
 
 //@description Describes web browser settings
 //@open_external_browser True, if links are opened in an external browser by default
-//@external_exceptions The list of websites which must be always opened in an external browser
-//@in_app_exceptions The list of websites which must be always opened in the in-app browser
+//@external_exceptions The list of websites which must always be opened in an external browser
+//@in_app_exceptions The list of websites which must always be opened in the in-app browser
 //@display_close_button True, if a close button must be shown in the in-app browser; for Android app only
 webBrowserSettings open_external_browser:Bool external_exceptions:vector<webDomainException> in_app_exceptions:vector<webDomainException> display_close_button:Bool = WebBrowserSettings;
 
 
-//@class WebBrowserType @description Describes the type of a web browser
+//@class WebBrowserType @description Describes the type of web browser
 
 //@description An external web browser
 webBrowserTypeExternal = WebBrowserType;
@@ -9858,7 +9958,7 @@ addedProxies proxies:vector<addedProxy> = AddedProxies;
 //@emojis String with 1-20 emoji corresponding to the sticker
 //@mask_position Position where the mask is placed; pass null if not specified
 //@keywords List of up to 20 keywords with total length up to 64 characters, which can be used to find the sticker
-inputSticker sticker:InputFile format:StickerFormat emojis:string mask_position:maskPosition keywords:vector<string> = InputSticker;
+newSticker sticker:InputFile format:StickerFormat emojis:string mask_position:maskPosition keywords:vector<string> = NewSticker;
 
 
 //@description Represents a date range @start_date Point in time (Unix timestamp) at which the date range begins @end_date Point in time (Unix timestamp) at which the date range ends
@@ -10569,7 +10669,7 @@ updateNewCallSignalingData call_id:int32 data:bytes = Update;
 //@description State of a gift auction was updated @state New state of the auction
 updateGiftAuctionState state:giftAuctionState = Update;
 
-//@description The list of auctions in which participate the current user has changed @states New states of the auctions
+//@description The list of auctions in which the current user participates has changed @states New states of the auctions
 updateActiveGiftAuctions states:vector<giftAuctionState> = Update;
 
 //@description Some privacy setting rules have been changed @setting The privacy setting @rules New privacy rules
@@ -10591,8 +10691,8 @@ updateUnreadMessageCount chat_list:ChatList unread_count:int32 unread_unmuted_co
 updateUnreadChatCount chat_list:ChatList total_count:int32 unread_count:int32 unread_unmuted_count:int32 marked_as_unread_count:int32 marked_as_unread_unmuted_count:int32 = Update;
 
 //@description A join request from the user was completed
-//@query_id Identifier of the join request query as received in chatJoinResultGuardBotApprovalRequired
-//@chat_id Identifier of the joined chat, or 0 if the request didn't succeed
+//@query_id Identifier of the join request query as received in chatJoinResultGuardBotApprovalRequired. If the corresponding Web App is still open, then it must be closed
+//@chat_id Identifier of the joined chat, or 0 if the request wasn't approved
 //@result Result of the join
 updateChatJoinResult query_id:int64 chat_id:int53 result:ChatJoinRequestResult = Update;
 
@@ -10684,7 +10784,7 @@ updateConnectionState state:ConnectionState = Update;
 //@appeal_link The link to open to send an appeal to unfreeze the account
 updateFreezeState is_frozen:Bool freezing_date:int32 deletion_date:int32 appeal_link:string = Update;
 
-//@description The parameters for age verification of the current user's account has changed
+//@description The parameters for age verification of the current user's account have changed
 //@parameters Parameters for the age verification; may be null if age verification isn't needed
 updateAgeVerificationParameters parameters:ageVerificationParameters = Update;
 
@@ -10743,7 +10843,7 @@ updateStarRevenueStatus owner_id:MessageSender status:starRevenueStatus = Update
 //@status New Toncoin revenue status
 updateTonRevenueStatus status:tonRevenueStatus = Update;
 
-//@description The parameters of speech recognition without Telegram Premium subscription has changed
+//@description The parameters of speech recognition without Telegram Premium subscription have changed
 //@max_media_duration The maximum allowed duration of media for speech recognition without Telegram Premium subscription, in seconds
 //@weekly_count The total number of allowed speech recognitions per week; 0 if none
 //@left_count Number of left speech recognition attempts this week
@@ -10765,7 +10865,7 @@ updateStakeDiceState state:stakeDiceState = Update;
 //@sticker The animated sticker to be played
 updateAnimatedEmojiMessageClicked chat_id:int53 message_id:int53 sticker:sticker = Update;
 
-//@description The parameters of animation search through getOption("animation_search_bot_username") bot has changed @provider Name of the animation search provider @emojis The new list of emojis suggested for searching
+//@description The parameters of animation search through getOption("animation_search_bot_username") bot have changed @provider Name of the animation search provider @emojis The new list of emojis suggested for searching
 updateAnimationSearchParameters provider:string emojis:vector<string> = Update;
 
 //@description The styles supported for text composition have changed @styles The new list of supported styles
@@ -10774,7 +10874,7 @@ updateTextCompositionStyles styles:vector<textCompositionStyle> = Update;
 //@description The list of suggested to the user actions has changed @added_actions Added suggested actions @removed_actions Removed suggested actions
 updateSuggestedActions added_actions:vector<SuggestedAction> removed_actions:vector<SuggestedAction> = Update;
 
-//@description Download or upload file speed for the user was limited, but it can be restored by subscription to Telegram Premium. The notification can be postponed until a being downloaded or uploaded file is visible to the user.
+//@description Download or upload file speed for the user was limited, but it can be restored by subscription to Telegram Premium. The notification can be postponed until a file being downloaded or uploaded is visible to the user.
 //-Use getOption("premium_download_speedup") or getOption("premium_upload_speedup") to get expected speedup after subscription to Telegram Premium
 //@is_upload True, if upload speed was limited; false, if download speed was limited
 updateSpeedLimitNotification is_upload:Bool = Update;
@@ -10903,7 +11003,7 @@ updateChatMember chat_id:int53 actor_user_id:int53 date:int32 invite_link:chatIn
 //@request Join request
 //@user_chat_id Chat identifier of the private chat with the user
 //@invite_link The invite link, which was used to send join request; may be null
-//@query_id Identifier of the join request query, which can be used in processChatJoinRequestQuery; 0 if none
+//@query_id Identifier of the join request query, which can be used in answerChatJoinRequestQuery; 0 if none
 updateNewChatJoinRequest chat_id:int53 request:chatJoinRequest user_chat_id:int53 invite_link:chatInviteLink query_id:int64 = Update;
 
 //@description A chat boost has changed; for bots only
@@ -11280,7 +11380,7 @@ getMessageAuthor chat_id:int53 message_id:int53 = User;
 //@description Returns information about a file. This is an offline method @file_id Identifier of the file to get
 getFile file_id:int32 = File;
 
-//@description Returns information about a file by its remote identifier. This is an offline method. Can be used to register a URL as a file for further uploading, or sending as a message. Even the request succeeds, the file can be used only if it is still accessible to the user.
+//@description Returns information about a file by its remote identifier. This is an offline method. Can be used to register a URL as a file for further uploading, or sending as a message. Even if the request succeeds, the file can be used only if it is still accessible to the user.
 //-For example, if the file is from a message, then the message must be not deleted and accessible to the user. If the file database is disabled, then the corresponding object with the file must be preloaded by the application
 //@remote_file_id Remote identifier of the file to get
 //@file_type File type; pass null if unknown
@@ -11972,7 +12072,7 @@ editMessageReplyMarkup chat_id:int53 message_id:int53 reply_markup:ReplyMarkup =
 //@description Edits the text of an inline text or game message sent via a bot; for bots only
 //@inline_message_id Inline message identifier
 //@reply_markup The new message reply markup; pass null if none
-//@input_message_content New text content of the message. Must be of type inputMessageText or inputMessageRichMessage
+//@input_message_content New text content of the message. Must be of type inputMessageText or inputMessageRichMessage; file upload isn't supported
 editInlineMessageText inline_message_id:string reply_markup:ReplyMarkup input_message_content:InputMessageContent = Ok;
 
 //@description Edits the content of a live location in an inline message sent via a bot; for bots only
@@ -12218,7 +12318,7 @@ readdQuickReplyShortcutMessages shortcut_name:string message_ids:vector<int53> =
 //-The type of message content in an album can't be changed with exception of replacing a photo with a video or vice versa
 //@shortcut_id Unique identifier of the quick reply shortcut with the message
 //@message_id Identifier of the message
-//@input_message_content New content of the message. Must be one of the following types: inputMessageAnimation, inputMessageAudio, inputMessageChecklist, inputMessageDocument, inputMessagePhoto, inputMessageText, or inputMessageVideo
+//@input_message_content New content of the message. Must be one of the following types: inputMessageAnimation, inputMessageAudio, inputMessageChecklist, inputMessageDocument, inputMessagePhoto, inputMessageRichMessage, inputMessageText, or inputMessageVideo
 editQuickReplyMessage shortcut_id:int32 message_id:int53 input_message_content:InputMessageContent = Ok;
 
 
@@ -13138,7 +13238,7 @@ addChatMembers chat_id:int53 user_ids:vector<int53> = FailedToAddMembers;
 
 //@description Changes the status of a chat member; requires can_invite_users member right to add a chat member, can_promote_members administrator right to change administrator rights of the member,
 //-and can_restrict_members administrator right to change restrictions of a user. This function is currently not suitable for transferring chat ownership; use transferChatOwnership instead.
-//-Use addChatMember or banChatMember if some additional parameters needs to be passed
+//-Use addChatMember or banChatMember if some additional parameters need to be passed
 //@chat_id Chat identifier
 //@member_id Member identifier. Chats can be only banned and unbanned in supergroups and channels
 //@status The new status of the member in the chat
@@ -13684,7 +13784,7 @@ getChatInviteLinkCounts chat_id:int53 = ChatInviteLinkCounts;
 //@description Returns invite links for a chat created by specified administrator. Requires administrator privileges and can_invite_users right in the chat to get own links and owner privileges to get other links
 //@chat_id Chat identifier
 //@creator_user_id User identifier of a chat administrator. Must be an identifier of the current user for non-owner
-//@is_revoked Pass true if revoked links needs to be returned instead of active or expired
+//@is_revoked Pass true if revoked links need to be returned instead of active or expired
 //@offset_date Creation date of an invite link starting after which to return invite links; use 0 to get results from the beginning
 //@offset_invite_link Invite link starting after which to return invite links; use empty string to get results from the beginning
 //@limit The maximum number of invite links to return; up to 100
@@ -14153,12 +14253,8 @@ getUserProfileAudios user_id:int53 offset:int32 limit:int32 = Audios;
 //@description Checks whether a file is in the profile audio files of the current user. Returns a 404 error if it isn't @file_id Identifier of the audio file to check
 isProfileAudio file_id:int32 = Ok;
 
-//@description Adds an audio file to the beginning of the profile audio files of the current user
-//@audio The audio file to be added
-//@duration Duration of the audio, in seconds; may be replaced by the server; ignored for already uploaded files
-//@title Title of the audio; 0-64 characters; may be replaced by the server; ignored for already uploaded files
-//@performer Performer of the audio; 0-64 characters, may be replaced by the server; ignored for already uploaded files
-addProfileAudio audio:InputFile duration:int32 title:string performer:string = Ok;
+//@description Adds an audio file to the beginning of the profile audio files of the current user @audio The audio to add
+addProfileAudio audio:inputAudio = Ok;
 
 //@description Changes position of an audio file in the profile audio files of the current user
 //@file_id Identifier of the file from profile audio files, which position will be changed
@@ -14924,7 +15020,7 @@ getUpgradedGiftVariants regular_gift_id:int64 return_upgrade_models:Bool return_
 //@business_connection_id Unique identifier of business connection on behalf of which to send the request; for bots only
 //@received_gift_id Identifier of the gift
 //@keep_original_details Pass true to keep the original gift text, sender and receiver in the upgraded gift
-//@star_count The Telegram Star amount required to pay for the upgrade. It the gift has prepaid_upgrade_star_count > 0, then pass 0, otherwise, pass gift.upgrade_star_count
+//@star_count The Telegram Star amount required to pay for the upgrade. If the gift has prepaid_upgrade_star_count > 0, then pass 0, otherwise, pass gift.upgrade_star_count
 upgradeGift business_connection_id:string received_gift_id:string keep_original_details:Bool star_count:int53 = UpgradeGiftResult;
 
 //@description Pays for upgrade of a regular gift that is owned by another user or channel chat
@@ -15418,7 +15514,7 @@ setPassportElement element:InputPassportElement password:string = PassportElemen
 //@description Deletes a Telegram Passport element @type Element type
 deletePassportElement type:PassportElementType = Ok;
 
-//@description Informs the user who some of the elements in their Telegram Passport contain errors; for bots only. The user will not be able to resend the elements, until the errors are fixed @user_id User identifier @errors The errors
+//@description Informs the user that some of the elements in their Telegram Passport contain errors; for bots only. The user will not be able to resend the elements, until the errors are fixed @user_id User identifier @errors The errors
 setPassportElementErrors user_id:int53 errors:vector<inputPassportElementError> = Ok;
 
 
@@ -15461,7 +15557,7 @@ setBotUpdatesStatus pending_update_count:int32 error_message:string = Ok;
 //@description Uploads a file with a sticker; returns the uploaded file
 //@user_id Sticker file owner; ignored for regular users
 //@sticker_format Sticker format
-//@sticker File file to upload; must fit in a 512x512 square. For WEBP stickers the file must be in WEBP or PNG format, which will be converted to WEBP server-side.
+//@sticker File to upload; must fit in a 512x512 square. For WEBP stickers the file must be in WEBP or PNG format, which will be converted to WEBP server-side.
 //-See https://core.telegram.org/animated_stickers#technical-requirements for technical requirements
 uploadStickerFile user_id:int53 sticker_format:StickerFormat sticker:InputFile = File;
 
@@ -15480,20 +15576,20 @@ checkStickerSetName name:string = CheckStickerSetNameResult;
 //@needs_repainting Pass true if stickers in the sticker set must be repainted; for custom emoji sticker sets only
 //@stickers List of stickers to be added to the set; 1-200 stickers for custom emoji sticker sets, and 1-120 stickers otherwise. For TGS stickers, uploadStickerFile must be used before the sticker is shown
 //@source Source of the sticker set; may be empty if unknown
-createNewStickerSet user_id:int53 title:string name:string sticker_type:StickerType needs_repainting:Bool stickers:vector<inputSticker> source:string = StickerSet;
+createNewStickerSet user_id:int53 title:string name:string sticker_type:StickerType needs_repainting:Bool stickers:vector<newSticker> source:string = StickerSet;
 
 //@description Adds a new sticker to a set
 //@user_id Sticker set owner; ignored for regular users
 //@name Sticker set name. The sticker set must be owned by the current user, and contain less than 200 stickers for custom emoji sticker sets and less than 120 otherwise
 //@sticker Sticker to add to the set
-addStickerToSet user_id:int53 name:string sticker:inputSticker = Ok;
+addStickerToSet user_id:int53 name:string sticker:newSticker = Ok;
 
 //@description Replaces existing sticker in a set. The function is equivalent to removeStickerFromSet, then addStickerToSet, then setStickerPositionInSet
 //@user_id Sticker set owner; ignored for regular users
 //@name Sticker set name. The sticker set must be owned by the current user
 //@old_sticker Sticker to remove from the set
 //@new_sticker Sticker to add to the set
-replaceStickerInSet user_id:int53 name:string old_sticker:InputFile new_sticker:inputSticker = Ok;
+replaceStickerInSet user_id:int53 name:string old_sticker:InputFile new_sticker:newSticker = Ok;
 
 //@description Sets a sticker set thumbnail
 //@user_id Sticker set owner; ignored for regular users
@@ -15624,7 +15720,7 @@ getStarGiveawayPaymentOptions = StarGiveawayPaymentOptions;
 getStarTransactions owner_id:MessageSender subscription_id:string direction:TransactionDirection offset:string limit:int32 = StarTransactions;
 
 //@description Returns the list of Telegram Star subscriptions for the current user
-//@only_expiring Pass true to receive only expiring subscriptions for which there are no enough Telegram Stars to extend
+//@only_expiring Pass true to receive only expiring subscriptions for which there aren't enough Telegram Stars to extend
 //@offset Offset of the first subscription to return as received from the previous request; use empty string to get the first chunk of results
 getStarSubscriptions only_expiring:Bool offset:string = StarSubscriptions;
 
@@ -15683,7 +15779,7 @@ disconnectAffiliateProgram affiliate:AffiliateType url:string = ConnectedAffilia
 getConnectedAffiliateProgram affiliate:AffiliateType bot_user_id:int53 = ConnectedAffiliateProgram;
 
 //@description Returns affiliate programs that were connected to the given affiliate
-//@affiliate The affiliate to which the affiliate program were connected
+//@affiliate The affiliate to which the affiliate programs were connected
 //@offset Offset of the first affiliate program to return as received from the previous request; use empty string to get the first chunk of results
 //@limit The maximum number of affiliate programs to return
 getConnectedAffiliatePrograms affiliate:AffiliateType offset:string limit:int32 = ConnectedAffiliatePrograms;
@@ -15693,7 +15789,7 @@ getConnectedAffiliatePrograms affiliate:AffiliateType offset:string limit:int32 
 getBusinessFeatures source:BusinessFeature = BusinessFeatures;
 
 
-//@description Accepts Telegram terms of services @terms_of_service_id Terms of service identifier
+//@description Accepts Telegram terms of service @terms_of_service_id Terms of service identifier
 acceptTermsOfService terms_of_service_id:string = Ok;
 
 

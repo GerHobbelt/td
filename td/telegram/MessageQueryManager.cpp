@@ -98,7 +98,7 @@ class GetRichMessageQuery final : public Td::ResultHandler {
     }
 
     auto ptr = result_ptr.move_as_ok();
-    LOG(INFO) << "Receive result for GetFullRichMessageQuery: " << to_string(ptr);
+    LOG(INFO) << "Receive result for GetRichMessageQuery: " << to_string(ptr);
     auto info = get_messages_info(td_, dialog_id_, std::move(ptr), "GetRichMessageQuery");
     if (info.messages.size() != 1u || info.messages[0]->get_id() != telegram_api::message::ID) {
       return promise_.set_value(nullptr);
@@ -483,9 +483,9 @@ class SearchMessagesGlobalQuery final : public Td::ResultHandler {
       }
     }
     send_query(G()->net_query_creator().create(telegram_api::messages_searchGlobal(
-        flags, broadcasts_only, groups_only, users_only, folder_id.get(), query, get_input_messages_filter(filter),
-        min_date_, max_date_, offset_date_, std::move(input_peer), offset_message_id.get_server_message_id().get(),
-        limit)));
+        flags, broadcasts_only, groups_only, users_only, folder_id.get(), nullptr, query,
+        get_input_messages_filter(filter), min_date_, max_date_, offset_date_, std::move(input_peer),
+        offset_message_id.get_server_message_id().get(), limit)));
   }
 
   void on_result(BufferSlice packet) final {
@@ -2188,6 +2188,9 @@ void MessageQueryManager::upload_message_cover(BusinessConnectionId business_con
 
 void MessageQueryManager::on_upload_cover(FileUploadId file_upload_id,
                                           telegram_api::object_ptr<telegram_api::InputFile> input_file) {
+  if (G()->close_flag()) {
+    return;
+  }
   LOG(INFO) << "Cover " << file_upload_id << " has been uploaded";
 
   auto it = being_uploaded_covers_.find(file_upload_id);
@@ -2200,6 +2203,9 @@ void MessageQueryManager::on_upload_cover(FileUploadId file_upload_id,
 }
 
 void MessageQueryManager::on_upload_cover_error(FileUploadId file_upload_id, Status status) {
+  if (G()->close_flag()) {
+    return;
+  }
   CHECK(status.is_error());
 
   auto it = being_uploaded_covers_.find(file_upload_id);

@@ -7,8 +7,6 @@
 #include "td/telegram/DialogInviteLinkManager.h"
 
 #include "td/telegram/AccessRights.h"
-#include "td/telegram/ChannelId.h"
-#include "td/telegram/ChatId.h"
 #include "td/telegram/ChatManager.h"
 #include "td/telegram/DialogInviteLink.h"
 #include "td/telegram/DialogManager.h"
@@ -109,8 +107,7 @@ class ImportChatInviteQuery final : public Td::ResultHandler {
         td_->user_manager_->on_get_users(std::move(ptr->users_), "ImportChatInviteQuery");
         promise_.set_value(td_api::make_object<td_api::chatJoinResultGuardBotApprovalRequired>(
             td_->user_manager_->get_user_id_object(UserId(ptr->bot_id_), "chatJoinResultGuardBotApprovalRequired"),
-            td_api::make_object<td_api::webAppUrl>(ptr->webview_->url_, ptr->webview_->same_origin_),
-            ptr->webview_->query_id_));
+            td_api::make_object<td_api::webAppUrl>(string(), false), ptr->query_id_));
         break;
       }
       default:
@@ -120,8 +117,9 @@ class ImportChatInviteQuery final : public Td::ResultHandler {
 
   void on_error(Status status) final {
     td_->dialog_invite_link_manager_->invalidate_invite_link_info(invite_link_);
-    if (status.message() == "INVITE_REQUEST_SENT" || status.message() == "JOIN_GUARD_TIMEOUT") {
-      return promise_.set_value(td_api::make_object<td_api::chatJoinResultRequestSent>());
+    auto chat_join_result = DialogParticipantManager::get_chat_join_result_object(status);
+    if (chat_join_result != nullptr) {
+      return promise_.set_value(std::move(chat_join_result));
     }
     promise_.set_error(std::move(status));
   }

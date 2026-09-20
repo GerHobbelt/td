@@ -5053,7 +5053,7 @@ UserManager::User *UserManager::get_user_force(UserId user_id, const char *sourc
         false, need_apply_min_photo, false, false, false, false, 0, false, false, false, false, false, false, false,
         false, false, false, false, false, user_id.get(), 1, first_name, string(), username, phone_number,
         std::move(profile_photo), nullptr, bot_info_version, Auto(), string(), string(), nullptr,
-        vector<telegram_api::object_ptr<telegram_api::username>>(), nullptr, nullptr, nullptr, 0, 0, 0);
+        vector<telegram_api::object_ptr<telegram_api::username>>(), nullptr, nullptr, nullptr, 0, 0, 0, 0);
     on_get_user(std::move(user), "get_user_force");
     u = get_user(user_id);
     CHECK(u != nullptr && u->is_received);
@@ -6067,6 +6067,10 @@ void UserManager::upload_profile_photo(UserId user_id, FileUploadId file_upload_
 
 void UserManager::on_upload_profile_photo(FileUploadId file_upload_id,
                                           telegram_api::object_ptr<telegram_api::InputFile> input_file) {
+  if (G()->close_flag()) {
+    return;
+  }
+
   auto it = being_uploaded_profile_photos_.find(file_upload_id);
   CHECK(it != being_uploaded_profile_photos_.end());
   UserId user_id = it->second.user_id;
@@ -6113,6 +6117,10 @@ void UserManager::on_upload_profile_photo(FileUploadId file_upload_id,
 }
 
 void UserManager::on_upload_profile_photo_error(FileUploadId file_upload_id, Status status) {
+  if (G()->close_flag()) {
+    return;
+  }
+
   LOG(INFO) << "Profile photo " << file_upload_id << " has upload error " << status;
   CHECK(status.is_error());
 
@@ -7112,8 +7120,14 @@ void UserManager::check_is_saved_music(FileId file_id, Promise<Unit> &&promise) 
   return promise.set_value(Unit());
 }
 
-void UserManager::add_new_saved_music(const td_api::object_ptr<td_api::InputFile> &audio, int32 duration,
-                                      const string &title, const string &performer, Promise<Unit> &&promise) {
+void UserManager::add_new_saved_music(td_api::object_ptr<td_api::inputAudio> &&input_audio, Promise<Unit> &&promise) {
+  if (input_audio == nullptr) {
+    return promise.set_error(400, "Audio must be non-empty");
+  }
+  if (!clean_input_string(input_audio->title_) || !clean_input_string(input_audio->performer_)) {
+    return promise.set_error(400, "Strings must be encoded in UTF-8");
+  }
+  auto audio = std::move(input_audio->audio_);
   TRY_RESULT_PROMISE(promise, file_id,
                      td_->file_manager_->get_input_file_id(FileType::Audio, audio, DialogId(), false, false));
   CHECK(file_id.is_valid());
@@ -7132,8 +7146,8 @@ void UserManager::add_new_saved_music(const td_api::object_ptr<td_api::InputFile
     return add_saved_music(file_id, FileId(), std::move(promise));
   }
 
-  td_->audios_manager_->create_audio(file_id, string(), PhotoSize(), string(), string(), duration, title, performer, 0,
-                                     false);
+  td_->audios_manager_->create_audio(file_id, string(), PhotoSize(), string(), string(), input_audio->duration_,
+                                     input_audio->title_, input_audio->performer_, 0, false);
   auto upload_promise = PromiseCreator::lambda(
       [actor_id = actor_id(this), file_id, promise = std::move(promise)](Result<Unit> &&result) mutable {
         if (result.is_error()) {
@@ -7160,6 +7174,9 @@ void UserManager::upload_saved_music(FileId file_id, Promise<Unit> &&promise) {
 
 void UserManager::on_upload_saved_music(FileUploadId file_upload_id,
                                         telegram_api::object_ptr<telegram_api::InputFile> input_file) {
+  if (G()->close_flag()) {
+    return;
+  }
   LOG(INFO) << "Profile audio " << file_upload_id << " has been uploaded";
 
   auto it = being_uploaded_saved_music_files_.find(file_upload_id);
@@ -7172,7 +7189,6 @@ void UserManager::on_upload_saved_music(FileUploadId file_upload_id,
 
 void UserManager::on_upload_saved_music_error(FileUploadId file_upload_id, Status status) {
   if (G()->close_flag()) {
-    // do not fail upload if closing
     return;
   }
 
@@ -10084,16 +10100,10 @@ void UserManager::update_user_full(UserFull *user_full, UserId user_id, const ch
   }
   if (true) {
     vector<FileId> file_ids;
-    if (!user_full->personal_photo.is_empty()) {
-      append(file_ids, photo_get_file_ids(user_full->personal_photo));
-    }
-    if (!user_full->fallback_photo.is_empty()) {
-      append(file_ids, photo_get_file_ids(user_full->fallback_photo));
-    }
+    photo_append_file_ids(user_full->personal_photo, file_ids);
+    photo_append_file_ids(user_full->fallback_photo, file_ids);
     if (user_full->bot_info != nullptr) {
-      if (!user_full->bot_info->description_photo.is_empty()) {
-        append(file_ids, photo_get_file_ids(user_full->bot_info->description_photo));
-      }
+      photo_append_file_ids(user_full->bot_info->description_photo, file_ids);
       if (user_full->bot_info->description_animation_file_id.is_valid()) {
         file_ids.push_back(user_full->bot_info->description_animation_file_id);
       }

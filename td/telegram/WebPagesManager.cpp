@@ -1599,10 +1599,12 @@ td_api::object_ptr<td_api::LinkPreviewType> WebPagesManager::get_link_preview_ty
           break;
       }
     }
-    if (caption != nullptr && caption->text_ != nullptr && caption->text_->get_id() == td_api::richTextPlain::ID) {
-      caption_text = std::move(static_cast<td_api::richTextPlain *>(caption->text_.get())->text_);
-    } else {
-      LOG(ERROR) << "Receive instead of caption text: " << to_string(caption);
+    if (caption != nullptr) {
+      if (caption->text_ != nullptr && caption->text_->get_id() == td_api::richTextPlain::ID) {
+        caption_text = std::move(static_cast<td_api::richTextPlain *>(caption->text_.get())->text_);
+      } else {
+        LOG(ERROR) << "Receive instead of caption text: " << to_string(caption);
+      }
     }
   };
 
@@ -1613,12 +1615,12 @@ td_api::object_ptr<td_api::LinkPreviewType> WebPagesManager::get_link_preview_ty
         break;
       case td_api::pageBlockCollage::ID: {
         auto *collage = static_cast<td_api::pageBlockCollage *>(block_object.get());
-        process_album(std::move(collage->page_blocks_), std::move(collage->caption_));
+        process_album(std::move(collage->blocks_), std::move(collage->caption_));
         break;
       }
       case td_api::pageBlockSlideshow::ID: {
         auto *collage = static_cast<td_api::pageBlockSlideshow *>(block_object.get());
-        process_album(std::move(collage->page_blocks_), std::move(collage->caption_));
+        process_album(std::move(collage->blocks_), std::move(collage->caption_));
         break;
       }
       default:

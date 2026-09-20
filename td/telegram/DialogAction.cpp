@@ -6,12 +6,14 @@
 //
 #include "td/telegram/DialogAction.h"
 
+#include "td/telegram/MessageContentDupType.h"
 #include "td/telegram/misc.h"
 #include "td/telegram/ServerMessageId.h"
 #include "td/telegram/Td.h"
 #include "td/telegram/telegram_api.h"
 
 #include "td/utils/emoji.h"
+#include "td/utils/logging.h"
 #include "td/utils/misc.h"
 #include "td/utils/Slice.h"
 #include "td/utils/SliceBuilder.h"
@@ -247,7 +249,7 @@ DialogAction DialogAction::clone() const {
   action.emoji_ = emoji_;
   action.random_id_ = random_id_;
   action.text_ = text_;
-  action.message_ = message_.clone();
+  action.message_ = message_.clone(nullptr, DialogId(), MessageContentDupType::ServerCopy);
   return action;
 }
 
@@ -291,9 +293,14 @@ telegram_api::object_ptr<telegram_api::SendMessageAction> DialogAction::get_inpu
     case Type::TextDraft:
       return telegram_api::make_object<telegram_api::sendMessageTextDraftAction>(
           random_id_, get_input_text_with_entities(td->user_manager_.get(), text_, "sendMessageTextDraftAction"));
-    case Type::RichTextDraft:
+    case Type::RichTextDraft: {
+      auto input_rich_message = message_.get_input_rich_message(td);
+      if (input_rich_message == nullptr) {
+        return nullptr;
+      }
       return telegram_api::make_object<telegram_api::inputSendMessageRichMessageDraftAction>(
-          random_id_, message_.get_input_rich_message(td));
+          random_id_, std::move(input_rich_message));
+    }
     case Type::ClickingAnimatedEmoji:
     default:
       UNREACHABLE();
@@ -426,9 +433,11 @@ bool DialogAction::is_canceled_by_message_of_type(MessageContentType message_con
       return type_ == Type::ChoosingLocation;
     case MessageContentType::Sticker:
       return type_ == Type::ChoosingSticker;
+    case MessageContentType::PaidMedia:
+      return type_ == Type::RecordingVideo || type_ == Type::UploadingVideo || type_ == Type::UploadingPhoto ||
+             type_ == Type::UploadingDocument;
     case MessageContentType::Game:
     case MessageContentType::Invoice:
-    case MessageContentType::PaidMedia:
     case MessageContentType::Text:
     case MessageContentType::Unsupported:
     case MessageContentType::ChatCreate:

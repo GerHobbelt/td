@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.10 FATAL_ERROR)
 
-project(TDLib VERSION 1.8.64 LANGUAGES CXX C)
+project(TDLib VERSION 1.8.65 LANGUAGES CXX C)
 
 if (NOT DEFINED CMAKE_MODULE_PATH)
   set(CMAKE_MODULE_PATH "")
@@ -433,6 +433,7 @@ set(TDLIB_SOURCE_PART1
   td/telegram/DownloadManager.cpp
   td/telegram/DownloadManagerCallback.cpp
   td/telegram/DraftMessage.cpp
+  td/telegram/DraftMessageManager.cpp
   td/telegram/EmailVerification.cpp
   td/telegram/EmojiGameInfo.cpp
   td/telegram/EmojiGroup.cpp
@@ -606,6 +607,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/Requests.cpp
   td/telegram/RestrictionReason.cpp
   td/telegram/RichMessage.cpp
+  td/telegram/RichMessageMedia.cpp
   td/telegram/SavedMessagesManager.cpp
   td/telegram/SavedMessagesTopicId.cpp
   td/telegram/ScopeNotificationSettings.cpp
@@ -815,6 +817,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/DownloadManager.h
   td/telegram/DownloadManagerCallback.h
   td/telegram/DraftMessage.h
+  td/telegram/DraftMessageManager.h
   td/telegram/EmailVerification.h
   td/telegram/EmojiGameInfo.h
   td/telegram/EmojiGroup.h
@@ -883,6 +886,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/InputGroupCall.h
   td/telegram/InputGroupCallId.h
   td/telegram/InputInvoice.h
+  td/telegram/InputMedia.h
   td/telegram/InputMessageText.h
   td/telegram/JoinChatBotResult.h
   td/telegram/JsonValue.h
@@ -898,6 +902,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/MediaArea.h
   td/telegram/MediaAreaCoordinates.h
   td/telegram/MessageContent.h
+  td/telegram/MessageContentDupType.h
   td/telegram/MessageContentType.h
   td/telegram/MessageCopyOptions.h
   td/telegram/MessageCover.h
@@ -907,6 +912,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/MessageExtendedMedia.h
   td/telegram/MessageForwardInfo.h
   td/telegram/MessageFullId.h
+  td/telegram/MessageHashMap.h
   td/telegram/MessageId.h
   td/telegram/MessageImportManager.h
   td/telegram/MessageInputReplyTo.h
@@ -1029,6 +1035,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/Requests.h
   td/telegram/RestrictionReason.h
   td/telegram/RichMessage.h
+  td/telegram/RichMessageMedia.h
   td/telegram/SavedMessagesManager.h
   td/telegram/SavedMessagesTopicId.h
   td/telegram/ScheduledServerMessageId.h
@@ -1206,6 +1213,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/MessageReaction.hpp
   td/telegram/MessageReactor.hpp
   td/telegram/MessageReplyInfo.hpp
+  td/telegram/MessageTopic.hpp
   td/telegram/MinChannel.hpp
   td/telegram/NotificationGroupInfo.hpp
   td/telegram/OrderInfo.hpp
@@ -1229,6 +1237,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/ReplyMarkup.hpp
   td/telegram/RequestedDialogType.hpp
   td/telegram/RichMessage.hpp
+  td/telegram/RichMessageMedia.hpp
   td/telegram/ScopeNotificationSettings.hpp
   td/telegram/SecureValue.hpp
   td/telegram/SendCodeHelper.hpp

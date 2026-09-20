@@ -33,6 +33,7 @@
 #include "td/telegram/MessageDb.h"
 #include "td/telegram/MessageEffectId.h"
 #include "td/telegram/MessageFullId.h"
+#include "td/telegram/MessageHashMap.h"
 #include "td/telegram/MessageId.h"
 #include "td/telegram/MessageInputReplyTo.h"
 #include "td/telegram/MessageLinkInfo.h"
@@ -552,6 +553,8 @@ class MessagesManager final : public Actor {
 
   bool load_dialog(DialogId dialog_id, int left_tries, Promise<Unit> &&promise);
 
+  void reload_dialog(DialogId dialog_id, Promise<Unit> &&promise);
+
   void load_dialogs(vector<DialogId> dialog_ids, Promise<vector<DialogId>> &&promise);
 
   Result<DialogDate> get_dialog_list_last_date(DialogListId dialog_list_id);
@@ -910,12 +913,14 @@ class MessagesManager final : public Actor {
   void on_send_message_fail(int64 random_id, Status error);
 
   void on_upload_message_media_success(DialogId dialog_id, MessageId message_id, int32 media_pos,
+                                       uint64 edit_generation,
                                        telegram_api::object_ptr<telegram_api::MessageMedia> &&media);
 
   void on_upload_message_media_file_parts_missing(DialogId dialog_id, MessageId message_id, int32 media_pos,
-                                                  vector<int> &&bad_parts);
+                                                  uint64 edit_generation, vector<int> &&bad_parts);
 
-  void on_upload_message_media_fail(DialogId dialog_id, MessageId message_id, int32 media_pos, Status error);
+  void on_upload_message_media_fail(DialogId dialog_id, MessageId message_id, int32 media_pos, uint64 edit_generation,
+                                    Status error);
 
   void on_create_new_dialog(telegram_api::object_ptr<telegram_api::Updates> &&updates,
                             MissingInvitees &&missing_invitees,
@@ -1690,10 +1695,6 @@ class MessagesManager final : public Actor {
   static std::pair<DialogId, unique_ptr<Message>> create_message(Td *td, MessageInfo &&message_info,
                                                                  bool is_guest_message, const char *source);
 
-  MessageId find_old_message_id(DialogId dialog_id, MessageId message_id) const;
-
-  void delete_update_message_id(DialogId dialog_id, MessageId message_id);
-
   void get_dialog_message_count_from_server(DialogId dialog_id, MessageTopic message_topic, MessageSearchFilter filter,
                                             Promise<int32> &&promise);
 
@@ -1753,11 +1754,11 @@ class MessagesManager final : public Actor {
 
   void cancel_edit_message_media(DialogId dialog_id, Message *m, Slice error_message);
 
-  void on_message_media_edited(DialogId dialog_id, MessageId message_id, FileUploadId file_upload_id,
-                               FileUploadId thumbnail_file_upload_id, FileId cover_file_id, bool was_uploaded,
-                               bool was_thumbnail_uploaded, string file_reference, string cover_file_reference,
-                               int32 schedule_date, int32 schedule_repeat_period, uint64 generation,
-                               Result<int32> &&result);
+  void on_message_media_edited(DialogId dialog_id, MessageId message_id, vector<FileUploadId> &&file_upload_ids,
+                               vector<FileUploadId> &&thumbnail_file_upload_ids, vector<FileId> &&cover_file_ids,
+                               bool was_uploaded, bool was_thumbnail_uploaded, vector<string> &&file_references,
+                               vector<string> &&cover_file_references, int32 schedule_date,
+                               int32 schedule_repeat_period, uint64 edit_generation, Result<int32> &&result);
 
   MessageId get_persistent_message_id(const Dialog *d, MessageId message_id) const;
 
@@ -1788,13 +1789,11 @@ class MessagesManager final : public Actor {
 
   bool update_message_is_pinned(Dialog *d, Message *m, bool is_pin, const char *source);
 
-  static FileUploadId get_media_file_upload_id(const vector<FileUploadId> &file_upload_ids, int32 media_pos);
+  vector<FileUploadId> *get_message_file_upload_ids(DialogId dialog_id, const Message *m, bool is_thumbnail) const;
 
   FileUploadId get_message_send_file_upload_id(DialogId dialog_id, const Message *m, int32 media_pos) const;
 
   FileUploadId get_message_send_thumbnail_file_upload_id(DialogId dialog_id, const Message *m, int32 media_pos) const;
-
-  void delete_message_send_thumbnail_file_upload_id(DialogId dialog_id, Message *m, int32 media_pos);
 
   void do_forward_messages(DialogId to_dialog_id, DialogId from_dialog_id, const vector<Message *> &messages,
                            const vector<MessageId> &message_ids, bool drop_author, bool drop_media_captions,
@@ -1884,16 +1883,20 @@ class MessagesManager final : public Actor {
 
   void do_send_message(DialogId dialog_id, const Message *m, int32 media_pos = -1, vector<int> bad_parts = {});
 
+  void on_send_message_file_error(DialogId dialog_id, const Message *m, const MessageContent *content,
+                                  const vector<FileUploadId> &file_upload_ids, size_t pos, vector<int> &&bad_parts);
+
   void on_cover_upload(DialogId dialog_id, MessageId message_id, uint64 edit_generation, int32 media_pos,
                        vector<int> bad_parts, Result<Unit> result);
 
-  void on_message_media_uploaded(DialogId dialog_id, const Message *m, int32 media_pos,
-                                 telegram_api::object_ptr<telegram_api::InputMedia> &&input_media);
+  void on_message_media_uploaded(DialogId dialog_id, const Message *m, int32 media_pos, InputMedia &&input_media);
+
+  void do_send_message_media(DialogId dialog_id, const Message *m, InputMedia &&input_media);
 
   void on_secret_message_media_uploaded(DialogId dialog_id, const Message *m, SecretInputMedia &&secret_input_media);
 
   void on_upload_message_media_finished(int64 media_album_id, DialogId dialog_id, MessageId message_id, int32 media_pos,
-                                        Status result);
+                                        uint64 edit_generation, Status result);
 
   void do_send_message_group(int64 media_album_id);
 
@@ -2183,6 +2186,9 @@ class MessagesManager final : public Actor {
 
   void fail_edit_message_media(MessageFullId message_full_id, Status &&error);
 
+  void do_edit_message_media(DialogId dialog_id, Message *m, InputMessageContent &&content,
+                             unique_ptr<ReplyMarkup> &&reply_markup, Promise<Unit> &&promise);
+
   void on_dialog_updated(DialogId dialog_id, const char *source);
 
   static BufferSlice get_dialog_database_value(const Dialog *d);
@@ -2296,7 +2302,8 @@ class MessagesManager final : public Actor {
   static bool need_message_changed_warning(const Message *old_message);
 
   bool update_message_content(DialogId dialog_id, Message *old_message, unique_ptr<MessageContent> new_content,
-                              bool need_merge_files, bool is_message_in_dialog, bool &is_content_changed);
+                              bool need_merge_files, bool is_message_in_dialog, bool update_edited_content,
+                              bool &is_content_changed);
 
   void update_message_max_reply_media_timestamp(const Dialog *d, Message *m,
                                                 bool need_send_update_message_content) const;
@@ -2742,17 +2749,9 @@ class MessagesManager final : public Actor {
   DialogFolder *get_dialog_folder(FolderId folder_id);
   const DialogFolder *get_dialog_folder(FolderId folder_id) const;
 
-  void add_edited_message(DialogId dialog_id, MessageId message_id, unique_ptr<EditedMessage> edited_message);
-
-  EditedMessage *get_edited_message(DialogId dialog_id, MessageId message_id);
-
-  const EditedMessage *get_edited_message(DialogId dialog_id, MessageId message_id) const;
-
   MessageContent *get_edited_message_content(MessageFullId message_full_id);
 
   const MessageContent *get_edited_message_content(MessageFullId message_full_id) const;
-
-  void delete_edited_message(DialogId dialog_id, MessageId message_id);
 
   static Message *get_message(Dialog *d, MessageId message_id);
   static const Message *get_message(const Dialog *d, MessageId message_id);
@@ -2950,7 +2949,8 @@ class MessagesManager final : public Actor {
                                   unique_ptr<DraftMessage> &&draft_message);
 
   bool update_dialog_draft_message(Dialog *d, unique_ptr<DraftMessage> &&draft_message, bool from_update,
-                                   bool need_update_dialog_pos, bool from_database = false);
+                                   bool need_update_dialog_pos, bool need_delete_files = true,
+                                   bool from_database = false);
 
   void clear_dialog_draft_by_sent_message(Dialog *d, const Message *m, bool need_update_dialog_pos);
 
@@ -3157,6 +3157,8 @@ class MessagesManager final : public Actor {
 
   static DialogId get_message_sender(const Message *m);
 
+  static int32 get_message_shown_edit_date(const Message *m);
+
   ForumTopicId get_message_forum_topic_id(DialogId dialog_id, const Message *m) const;
 
   MessageTopic get_message_topic(DialogId dialog_id, const Message *m) const;
@@ -3229,10 +3231,8 @@ class MessagesManager final : public Actor {
 
   FlatHashMap<int64, MessageFullId> being_sent_messages_;  // message_random_id -> message
 
-  FlatHashMap<MessageFullId, MessageId, MessageFullIdHash> update_message_ids_;  // new_message_id -> temporary_id
-  FlatHashMap<DialogId, FlatHashMap<ScheduledServerMessageId, MessageId, ScheduledServerMessageIdHash>,
-              DialogIdHash>
-      update_scheduled_message_ids_;                                              // new_message_id -> temporary_id
+  MessageHashMap<MessageId> update_message_ids_;  // new_message_id -> temporary_id
+
   FlatHashMap<MessageFullId, MessageId, MessageFullIdHash> messages_to_restore_;  // new_message_id -> temporary_id
 
   FlatHashMap<MessageFullId, vector<Promise<Unit>>, MessageFullIdHash> awaited_message_full_ids_;
@@ -3253,7 +3253,7 @@ class MessagesManager final : public Actor {
     vector<bool> is_finished;
     vector<Status> results;
   };
-  FlatHashMap<MessageFullId, PendingInternalMediaSend, MessageFullIdHash> pending_internal_media_sends_;
+  MessageHashMap<PendingInternalMediaSend> pending_internal_media_sends_;
 
   WaitFreeHashMap<MessageId, DialogId, MessageIdHash> message_id_to_dialog_id_;
   FlatHashMap<MessageId, DialogId, MessageIdHash> last_clear_history_message_id_to_dialog_id_;
@@ -3456,10 +3456,7 @@ class MessagesManager final : public Actor {
 
   FlatHashMap<string, int32> auth_notification_id_date_;
 
-  FlatHashMap<MessageFullId, unique_ptr<EditedMessage>, MessageFullIdHash> edited_messages_;
-  FlatHashMap<DialogId, FlatHashMap<ScheduledServerMessageId, unique_ptr<EditedMessage>, ScheduledServerMessageIdHash>,
-              DialogIdHash>
-      edited_scheduled_messages_;
+  MessageHashMap<unique_ptr<EditedMessage>> edited_messages_;
 
   FlatHashMap<DialogId, MessageId, DialogIdHash> previous_repaired_read_inbox_max_message_id_;
 
