@@ -318,6 +318,20 @@ class Requests {
 
   void on_request(uint64 id, td_api::getMessageLinkInfo &request);
 
+  void on_request(uint64 id, td_api::createTextCompositionStyle &request);
+
+  void on_request(uint64 id, td_api::editTextCompositionStyle &request);
+
+  void on_request(uint64 id, td_api::deleteTextCompositionStyle &request);
+
+  void on_request(uint64 id, td_api::searchTextCompositionStyle &request);
+
+  void on_request(uint64 id, td_api::getTextCompositionStyleExample &request);
+
+  void on_request(uint64 id, td_api::addTextCompositionStyle &request);
+
+  void on_request(uint64 id, td_api::removeTextCompositionStyle &request);
+
   void on_request(uint64 id, td_api::translateText &request);
 
   void on_request(uint64 id, td_api::translateMessageText &request);
@@ -1340,7 +1354,11 @@ class Requests {
 
   void on_request(uint64 id, td_api::createBot &request);
 
-  void on_request(uint64 id, const td_api::getBotToken &request);
+  void on_request(uint64 id, const td_api::getManagedBotToken &request);
+
+  void on_request(uint64 id, const td_api::getManagedBotAccessSettings &request);
+
+  void on_request(uint64 id, td_api::setManagedBotAccessSettings &request);
 
   void on_request(uint64 id, td_api::setBotName &request);
 
@@ -1384,7 +1402,7 @@ class Requests {
 
   void on_request(uint64 id, const td_api::isProfileAudio &request);
 
-  void on_request(uint64 id, const td_api::addProfileAudio &request);
+  void on_request(uint64 id, td_api::addProfileAudio &request);
 
   void on_request(uint64 id, const td_api::setProfileAudioPosition &request);
 
@@ -1652,9 +1670,15 @@ class Requests {
 
   void on_request(uint64 id, td_api::setOption &request);
 
+  void on_request(uint64 id, td_api::addPollOption &request);
+
+  void on_request(uint64 id, const td_api::deletePollOption &request);
+
   void on_request(uint64 id, td_api::setPollAnswer &request);
 
   void on_request(uint64 id, const td_api::getPollVoters &request);
+
+  void on_request(uint64 id, const td_api::getPollVoteStatistics &request);
 
   void on_request(uint64 id, td_api::stopPoll &request);
 
@@ -1679,6 +1703,8 @@ class Requests {
   void on_request(uint64 id, td_api::getInlineQueryResults &request);
 
   void on_request(uint64 id, td_api::answerInlineQuery &request);
+
+  void on_request(uint64 id, td_api::answerGuestQuery &request);
 
   void on_request(uint64 id, td_api::savePreparedInlineMessage &request);
 

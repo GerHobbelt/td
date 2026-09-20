@@ -50,7 +50,7 @@ class GetTopPeersQuery final : public Td::ResultHandler {
 
   void send(int64 hash) {
     send_query(G()->net_query_creator().create(telegram_api::contacts_getTopPeers(
-        0, true, true, true, true, true, true, true, true, true, 0 /*offset*/, 100 /*limit*/, hash)));
+        0, true, true, true, true, true, true, true, true, true, true, 0 /*offset*/, 100 /*limit*/, hash)));
   }
 
   void on_result(BufferSlice packet) final {

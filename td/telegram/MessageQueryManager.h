@@ -12,6 +12,7 @@
 #include "td/telegram/DialogId.h"
 #include "td/telegram/DialogListId.h"
 #include "td/telegram/EmojiGameInfo.h"
+#include "td/telegram/files/FileId.h"
 #include "td/telegram/files/FileUploadId.h"
 #include "td/telegram/ForumTopicId.h"
 #include "td/telegram/MessageCover.h"
@@ -21,7 +22,6 @@
 #include "td/telegram/MessageThreadInfo.h"
 #include "td/telegram/MessageTopic.h"
 #include "td/telegram/MessageViewer.h"
-#include "td/telegram/Photo.h"
 #include "td/telegram/SavedMessagesTopicId.h"
 #include "td/telegram/td_api.h"
 #include "td/telegram/telegram_api.h"
@@ -67,8 +67,9 @@ class MessageQueryManager final : public Actor {
 
   void report_message_delivery(MessageFullId message_full_id, int32 until_date, bool from_push);
 
-  void send_bot_requested_peer(MessageFullId message_full_id, UserId user_id, const string &request_id, int32 button_id,
-                               vector<DialogId> shared_dialog_ids, Promise<Unit> &&promise);
+  void share_dialogs_with_bot(const td_api::object_ptr<td_api::KeyboardButtonSource> &source_ptr, int32 button_id,
+                              vector<DialogId> shared_dialog_ids, bool expect_user, bool only_check,
+                              Promise<Unit> &&promise);
 
   void reload_message_extended_media(DialogId dialog_id, vector<MessageId> message_ids);
 

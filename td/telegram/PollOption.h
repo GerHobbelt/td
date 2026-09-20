@@ -8,6 +8,7 @@
 
 #include "td/telegram/ChannelId.h"
 #include "td/telegram/DialogId.h"
+#include "td/telegram/files/FileId.h"
 #include "td/telegram/MessageEntity.h"
 #include "td/telegram/MinChannel.h"
 #include "td/telegram/td_api.h"
@@ -21,23 +22,32 @@
 namespace td {
 
 class Dependencies;
+class MessageContent;
 class Td;
 
 struct PollOption {
   FormattedText text_;
-  string data_;
+  unique_ptr<MessageContent> media_;
   DialogId added_by_dialog_id_;
   vector<DialogId> recent_voter_dialog_ids_;
   int32 added_date_ = 0;
   int32 voter_count_ = 0;
   bool is_chosen_ = false;
 
+  friend bool operator==(const PollOption &lhs, const PollOption &rhs);
+
   PollOption() = default;
 
-  PollOption(FormattedText &&text, int32 pos);
+  PollOption(FormattedText &&text, unique_ptr<MessageContent> &&media);
 
   PollOption(Td *td, telegram_api::object_ptr<telegram_api::PollAnswer> &&poll_answer_ptr,
              vector<std::pair<ChannelId, MinChannel>> &min_channels);
+
+  static Result<PollOption> get_poll_option(Td *td, DialogId dialog_id,
+                                            td_api::object_ptr<td_api::inputPollOption> &&input_poll_option);
+
+  static Result<vector<PollOption>> get_poll_options(
+      Td *td, DialogId dialog_id, vector<td_api::object_ptr<td_api::inputPollOption>> &&input_poll_options);
 
   const string &get_data() const {
     return data_;
@@ -51,21 +61,29 @@ struct PollOption {
     return added_date_;
   }
 
+  PollOption dup_option(Td *td, DialogId dialog_id) const;
+
+  void append_file_ids(const Td *td, vector<FileId> &file_ids) const;
+
   td_api::object_ptr<td_api::pollOption> get_poll_option_object(Td *td) const;
 
-  telegram_api::object_ptr<telegram_api::PollAnswer> get_input_poll_answer() const;
+  telegram_api::object_ptr<telegram_api::PollAnswer> get_input_poll_answer(
+      telegram_api::object_ptr<telegram_api::InputMedia> &&input_media) const;
 
   static vector<PollOption> get_poll_options(Td *td,
                                              vector<telegram_api::object_ptr<telegram_api::PollAnswer>> &&poll_answers,
                                              vector<std::pair<ChannelId, MinChannel>> &min_channels);
 
-  void add_dependencies(Dependencies &dependencies) const;
+  void add_dependencies(Dependencies &dependencies, UserId my_user_id, bool is_bot) const;
 
   template <class StorerT>
   void store(StorerT &storer) const;
 
   template <class ParserT>
   void parse(ParserT &parser);
+
+ private:
+  string data_;
 };
 
 bool operator==(const PollOption &lhs, const PollOption &rhs);

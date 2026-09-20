@@ -656,7 +656,7 @@ void AuthManager::check_premium_purchase(uint64 query_id, string currency, int64
   on_new_query(query_id);
 
   auto purpose = telegram_api::make_object<telegram_api::inputStorePaymentAuthCode>(
-      0, false, send_code_helper_.get_phone_number(), send_code_helper_.get_phone_code_hash(), currency, amount);
+      0, false, send_code_helper_.get_phone_number(), send_code_helper_.get_phone_code_hash(), 7, currency, amount);
   start_net_query(NetQueryType::CheckPremiumPurchase,
                   G()->net_query_creator().create_unauth(telegram_api::payments_canPurchaseStore(std::move(purpose))));
 }
@@ -671,7 +671,8 @@ void AuthManager::set_premium_purchase_transaction(uint64 query_id,
     return on_query_error(query_id, Status::Error(400, "Transaction must be non-empty"));
   }
   auto purpose = telegram_api::make_object<telegram_api::inputStorePaymentAuthCode>(
-      0, is_restore, send_code_helper_.get_phone_number(), send_code_helper_.get_phone_code_hash(), currency, amount);
+      0, is_restore, send_code_helper_.get_phone_number(), send_code_helper_.get_phone_code_hash(), 7, currency,
+      amount);
   switch (transaction->get_id()) {
     case td_api::storeTransactionAppStore::ID: {
       auto type = td_api::move_object_as<td_api::storeTransactionAppStore>(transaction);

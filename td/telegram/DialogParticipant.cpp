@@ -189,7 +189,8 @@ RestrictedRights::RestrictedRights(const tl_object_ptr<telegram_api::chatBannedR
                            !rights->send_videos_, !rights->send_roundvideos_, !rights->send_voices_,
                            !rights->send_stickers_, !rights->send_gifs_, !rights->send_games_, !rights->send_inline_,
                            !rights->embed_links_, !rights->send_polls_, !rights->change_info_, !rights->invite_users_,
-                           !rights->pin_messages_, !rights->manage_topics_, !rights->edit_rank_, channel_type);
+                           !rights->pin_messages_, !rights->manage_topics_, !rights->edit_rank_,
+                           !rights->send_reactions_, channel_type);
 }
 
 RestrictedRights::RestrictedRights(const td_api::object_ptr<td_api::chatPermissions> &rights,
@@ -199,13 +200,13 @@ RestrictedRights::RestrictedRights(const td_api::object_ptr<td_api::chatPermissi
     return;
   }
 
-  *this = RestrictedRights(rights->can_send_basic_messages_, rights->can_send_audios_, rights->can_send_documents_,
-                           rights->can_send_photos_, rights->can_send_videos_, rights->can_send_video_notes_,
-                           rights->can_send_voice_notes_, rights->can_send_other_messages_,
-                           rights->can_send_other_messages_, rights->can_send_other_messages_,
-                           rights->can_send_other_messages_, rights->can_add_link_previews_, rights->can_send_polls_,
-                           rights->can_change_info_, rights->can_invite_users_, rights->can_pin_messages_,
-                           rights->can_create_topics_, rights->can_edit_tag_, channel_type);
+  *this = RestrictedRights(
+      rights->can_send_basic_messages_, rights->can_send_audios_, rights->can_send_documents_, rights->can_send_photos_,
+      rights->can_send_videos_, rights->can_send_video_notes_, rights->can_send_voice_notes_,
+      rights->can_send_other_messages_, rights->can_send_other_messages_, rights->can_send_other_messages_,
+      rights->can_send_other_messages_, rights->can_add_link_previews_, rights->can_send_polls_,
+      rights->can_change_info_, rights->can_invite_users_, rights->can_pin_messages_, rights->can_create_topics_,
+      rights->can_edit_tag_, rights->can_react_to_messages_, channel_type);
 }
 
 RestrictedRights::RestrictedRights(bool can_send_messages, bool can_send_audios, bool can_send_documents,
@@ -214,7 +215,7 @@ RestrictedRights::RestrictedRights(bool can_send_messages, bool can_send_audios,
                                    bool can_send_games, bool can_use_inline_bots, bool can_add_web_page_previews,
                                    bool can_send_polls, bool can_change_info_and_settings, bool can_invite_users,
                                    bool can_pin_messages, bool can_manage_topics, bool can_edit_rank,
-                                   ChannelType channel_type) {
+                                   bool can_send_reactions, ChannelType channel_type) {
   if (channel_type == ChannelType::Broadcast) {
     flags_ = 0;
     return;
@@ -236,7 +237,8 @@ RestrictedRights::RestrictedRights(bool can_send_messages, bool can_send_audios,
            (static_cast<uint64>(can_invite_users) * CAN_INVITE_USERS) |
            (static_cast<uint64>(can_pin_messages) * CAN_PIN_MESSAGES) |
            (static_cast<uint64>(can_manage_topics) * CAN_MANAGE_TOPICS) |
-           (static_cast<uint64>(can_edit_rank) * CAN_EDIT_RANK);
+           (static_cast<uint64>(can_edit_rank) * CAN_EDIT_RANK) |
+           (static_cast<uint64>(can_send_reactions) * CAN_SEND_REACTIONS);
 }
 
 td_api::object_ptr<td_api::chatPermissions> RestrictedRights::get_chat_permissions_object() const {
@@ -244,8 +246,8 @@ td_api::object_ptr<td_api::chatPermissions> RestrictedRights::get_chat_permissio
       can_send_messages(), can_send_audios(), can_send_documents(), can_send_photos(), can_send_videos(),
       can_send_video_notes(), can_send_voice_notes(), can_send_polls(),
       can_send_stickers() || can_send_animations() || can_send_games() || can_use_inline_bots(),
-      can_add_web_page_previews(), can_edit_rank(), can_change_info_and_settings(), can_invite_users(),
-      can_pin_messages(), can_manage_topics());
+      can_add_web_page_previews(), can_send_reactions(), can_edit_rank(), can_change_info_and_settings(),
+      can_invite_users(), can_pin_messages(), can_manage_topics());
 }
 
 telegram_api::object_ptr<telegram_api::chatBannedRights> RestrictedRights::get_chat_banned_rights() const {
@@ -254,7 +256,7 @@ telegram_api::object_ptr<telegram_api::chatBannedRights> RestrictedRights::get_c
       !can_send_animations(), !can_send_games(), !can_use_inline_bots(), !can_add_web_page_previews(),
       !can_send_polls(), !can_change_info_and_settings(), !can_invite_users(), !can_pin_messages(),
       !can_manage_topics(), !can_send_photos(), !can_send_videos(), !can_send_video_notes(), !can_send_audios(),
-      !can_send_voice_notes(), !can_send_documents(), !can_send_messages(), !can_edit_rank(), 0);
+      !can_send_voice_notes(), !can_send_documents(), !can_send_messages(), !can_edit_rank(), !can_send_reactions(), 0);
 }
 
 bool operator==(const RestrictedRights &lhs, const RestrictedRights &rhs) {
@@ -321,6 +323,9 @@ StringBuilder &operator<<(StringBuilder &string_builder, const RestrictedRights 
   if (!status.can_edit_rank()) {
     string_builder << "(rank)";
   }
+  if (!status.can_send_reactions()) {
+    string_builder << "(reactions)";
+  }
   return string_builder;
 }
 
@@ -381,8 +386,8 @@ DialogParticipantStatus DialogParticipantStatus::Banned(int32 banned_until_date,
 }
 
 DialogParticipantStatus DialogParticipantStatus::GroupAdministrator(bool is_creator, string &&rank) {
-  return Administrator(AdministratorRights(false, true, true, false, false, true, true, true, true, false, false, true,
-                                           false, false, false, false, false, ChannelType::Unknown),
+  return Administrator(AdministratorRights(false, true, true, false, false, true, true, true, true, false, is_creator,
+                                           true, false, false, false, false, true, ChannelType::Unknown),
                        std::move(rank), is_creator);
 }
 
@@ -427,7 +432,7 @@ RestrictedRights DialogParticipantStatus::get_effective_restricted_rights() cons
                           can_send_videos(), can_send_video_notes(), can_send_voice_notes(), can_send_stickers(),
                           can_send_animations(), can_send_games(), can_use_inline_bots(), can_add_web_page_previews(),
                           can_send_polls(), can_change_info_and_settings(), can_invite_users(), can_pin_messages(),
-                          can_create_topics(), can_edit_rank(), ChannelType::Unknown);
+                          can_create_topics(), can_edit_rank(), can_send_reactions(), ChannelType::Unknown);
 }
 
 td_api::object_ptr<td_api::ChatMemberStatus> DialogParticipantStatus::get_chat_member_status_object(

@@ -163,6 +163,36 @@ class SetInlineBotResultsQuery final : public Td::ResultHandler {
   }
 };
 
+class SetBotGuestChatResultQuery final : public Td::ResultHandler {
+  Promise<td_api::object_ptr<td_api::inlineMessageId>> promise_;
+
+ public:
+  explicit SetBotGuestChatResultQuery(Promise<td_api::object_ptr<td_api::inlineMessageId>> &&promise)
+      : promise_(std::move(promise)) {
+  }
+
+  void send(int64 query_id, telegram_api::object_ptr<telegram_api::InputBotInlineResult> &&result) {
+    send_query(
+        G()->net_query_creator().create(telegram_api::messages_setBotGuestChatResult(query_id, std::move(result))));
+  }
+
+  void on_result(BufferSlice packet) final {
+    auto result_ptr = fetch_result<telegram_api::messages_setBotGuestChatResult>(packet);
+    if (result_ptr.is_error()) {
+      return on_error(result_ptr.move_as_error());
+    }
+
+    auto ptr = result_ptr.move_as_ok();
+    LOG(INFO) << "Receive result for SetBotGuestChatResultQuery: " << to_string(ptr);
+    promise_.set_value(
+        td_api::make_object<td_api::inlineMessageId>(InlineQueriesManager::get_inline_message_id(std::move(ptr))));
+  }
+
+  void on_error(Status status) final {
+    promise_.set_error(std::move(status));
+  }
+};
+
 class SavePreparedInlineMessageQuery final : public Td::ResultHandler {
   Promise<td_api::object_ptr<td_api::preparedInlineMessageId>> promise_;
 
@@ -702,6 +732,14 @@ void InlineQueriesManager::answer_inline_query(
   td_->create_handler<SetInlineBotResultsQuery>(std::move(promise))
       ->send(inline_query_id, is_gallery && !force_vertical, is_personal, std::move(switch_pm), std::move(web_view),
              std::move(results), cache_time, next_offset);
+}
+
+void InlineQueriesManager::answer_guest_query(int64 guest_query_id,
+                                              td_api::object_ptr<td_api::InputInlineQueryResult> &&input_result,
+                                              Promise<td_api::object_ptr<td_api::inlineMessageId>> &&promise) const {
+  TRY_RESULT_PROMISE(promise, result, get_input_bot_inline_result(std::move(input_result), nullptr, nullptr));
+
+  td_->create_handler<SetBotGuestChatResultQuery>(std::move(promise))->send(guest_query_id, std::move(result));
 }
 
 void InlineQueriesManager::save_prepared_inline_message(

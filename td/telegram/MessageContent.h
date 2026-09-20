@@ -24,6 +24,7 @@
 #include "td/telegram/MessageId.h"
 #include "td/telegram/MessageSelfDestructType.h"
 #include "td/telegram/Photo.h"
+#include "td/telegram/PollId.h"
 #include "td/telegram/QuickReplyMessageFullId.h"
 #include "td/telegram/ReplyMarkup.h"
 #include "td/telegram/secret_api.h"
@@ -104,6 +105,8 @@ InlineMessageContent create_inline_message_content(Td *td, FileId file_id,
                                                    tl_object_ptr<telegram_api::BotInlineMessage> &&bot_inline_message,
                                                    int32 allowed_media_content_id, Photo *photo, Game *game);
 
+unique_ptr<MessageContent> create_empty_text_message_content();
+
 unique_ptr<MessageContent> create_text_message_content(string text, vector<MessageEntity> entities,
                                                        WebPageId web_page_id, bool force_small_media,
                                                        bool force_large_media, bool skip_confitmation,
@@ -136,6 +139,9 @@ SecretInputMedia get_message_content_secret_input_media(
     BufferSlice thumbnail, int32 layer);
 
 telegram_api::object_ptr<telegram_api::InputMedia> get_message_content_input_media(
+    const MessageContent *content, Td *td, vector<telegram_api::object_ptr<telegram_api::InputMedia>> &&input_media);
+
+telegram_api::object_ptr<telegram_api::InputMedia> get_message_content_input_media(
     const MessageContent *content, int32 media_pos, Td *td,
     telegram_api::object_ptr<telegram_api::InputFile> input_file,
     telegram_api::object_ptr<telegram_api::InputFile> input_thumbnail, FileUploadId file_upload_id,
@@ -162,7 +168,7 @@ bool update_opened_message_content(MessageContent *content);
 
 int32 get_message_content_index_mask(const MessageContent *content, const Td *td, bool is_outgoing);
 
-vector<unique_ptr<MessageContent>> get_individual_message_contents(const MessageContent *content);
+vector<unique_ptr<MessageContent>> get_individual_message_contents(const Td *td, const MessageContent *content);
 
 StickerType get_message_content_sticker_type(const Td *td, const MessageContent *content);
 
@@ -172,7 +178,7 @@ BackgroundInfo get_message_content_my_background_info(const MessageContent *cont
 
 ChatTheme get_message_content_chat_theme(const MessageContent *content);
 
-MessageFullId get_message_content_replied_message_id(DialogId dialog_id, const MessageContent *content);
+MessageFullId get_message_content_replied_message_full_id(DialogId dialog_id, const MessageContent *content);
 
 std::pair<InputGroupCallId, bool> get_message_content_group_call_info(const MessageContent *content);
 
@@ -189,11 +195,15 @@ telegram_api::object_ptr<telegram_api::inputPhoneCall> get_message_content_input
 
 int32 get_message_content_live_location_period(const MessageContent *content);
 
+PollId get_message_content_poll_id(const MessageContent *content);
+
 bool get_message_content_poll_is_anonymous(const Td *td, const MessageContent *content);
 
 bool get_message_content_poll_is_closed(const Td *td, const MessageContent *content);
 
-bool get_message_content_poll_has_open_answers(const Td *td, const MessageContent *content);
+bool get_message_content_poll_can_add_option(const Td *td, const MessageContent *content);
+
+bool get_message_content_poll_can_view_stats(const Td *td, const MessageContent *content);
 
 bool get_message_content_poll_has_unread_votes(const Td *td, const MessageContent *content);
 
@@ -219,16 +229,6 @@ void remove_message_content_web_page(MessageContent *content);
 
 bool can_message_content_have_media_timestamp(const MessageContent *content);
 
-void set_message_content_poll_answer(Td *td, const MessageContent *content, MessageFullId message_full_id,
-                                     vector<int32> &&option_ids, Promise<Unit> &&promise);
-
-void get_message_content_poll_voters(Td *td, const MessageContent *content, MessageFullId message_full_id,
-                                     int32 option_id, int32 offset, int32 limit,
-                                     Promise<td_api::object_ptr<td_api::pollVoters>> &&promise);
-
-void stop_message_content_poll(Td *td, const MessageContent *content, MessageFullId message_full_id,
-                               unique_ptr<ReplyMarkup> &&reply_markup, Promise<Unit> &&promise);
-
 void merge_message_contents(Td *td, const MessageContent *old_content, MessageContent *new_content,
                             bool need_message_changed_warning, DialogId dialog_id, bool need_merge_files,
                             bool &is_content_changed, bool &need_update);
@@ -237,6 +237,12 @@ bool merge_message_content_file_id(Td *td, MessageContent *message_content, File
 
 void compare_message_contents(Td *td, const MessageContent *lhs_content, const MessageContent *rhs_content,
                               bool &is_content_changed, bool &need_update);
+
+void merge_and_compare_message_contents(Td *td, const MessageContent *old_content, MessageContent *new_content,
+                                        bool need_message_changed_warning, DialogId dialog_id, bool need_merge_files,
+                                        const vector<FileUploadId> &old_file_upload_ids, MessageSelfDestructType ttl,
+                                        double ttl_expires_at, bool *is_content_secret, bool &is_content_changed,
+                                        bool &need_update);
 
 void register_message_content(Td *td, const MessageContent *content, MessageFullId message_full_id, int32 message_date,
                               const char *source);
@@ -308,8 +314,6 @@ const FormattedText *get_message_content_text(const MessageContent *content);
 const FormattedText *get_message_content_caption(const MessageContent *content);
 
 int64 get_message_content_star_count(const MessageContent *content);
-
-string get_message_content_payload(const MessageContent *content);
 
 int32 get_message_content_duration(const MessageContent *content, const Td *td);
 

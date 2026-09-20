@@ -17,11 +17,11 @@
 #include "td/telegram/DialogParticipantManager.h"
 #include "td/telegram/FactCheck.h"
 #include "td/telegram/files/FileManager.h"
-#include "td/telegram/files/FileType.h"
 #include "td/telegram/FolderId.h"
 #include "td/telegram/ForumTopicManager.h"
 #include "td/telegram/Global.h"
 #include "td/telegram/HashtagHints.h"
+#include "td/telegram/InlineQueriesManager.h"
 #include "td/telegram/logevent/LogEvent.h"
 #include "td/telegram/logevent/LogEventHelper.h"
 #include "td/telegram/MessageContent.h"
@@ -32,6 +32,7 @@
 #include "td/telegram/MessageSender.h"
 #include "td/telegram/MessagesInfo.h"
 #include "td/telegram/MessagesManager.h"
+#include "td/telegram/RequestedDialogType.h"
 #include "td/telegram/SearchPostsFlood.h"
 #include "td/telegram/SecretChatsManager.h"
 #include "td/telegram/ServerMessageId.h"
@@ -180,10 +181,10 @@ class SendBotRequestedPeerQuery final : public Td::ResultHandler {
     telegram_api::object_ptr<telegram_api::InputPeer> input_peer;
     if (bot_user_id == UserId() && request_id.empty()) {
       input_peer = td_->dialog_manager_->get_input_peer(dialog_id, AccessRights::Write);
-      flags = telegram_api::messages_sendBotRequestedPeer::MSG_ID_MASK;
+      flags |= telegram_api::messages_sendBotRequestedPeer::MSG_ID_MASK;
     } else {
       input_peer = td_->dialog_manager_->get_input_peer(DialogId(bot_user_id), AccessRights::Write);
-      flags = telegram_api::messages_sendBotRequestedPeer::WEBAPP_REQ_ID_MASK;
+      flags |= telegram_api::messages_sendBotRequestedPeer::WEBAPP_REQ_ID_MASK;
     }
     if (input_peer == nullptr) {
       return on_error(Status::Error(400, "Can't access the chat"));
@@ -2078,11 +2079,60 @@ void MessageQueryManager::report_message_delivery(MessageFullId message_full_id,
   td_->create_handler<ReportMessageDeliveryQuery>()->send(message_full_id, from_push);
 }
 
-void MessageQueryManager::send_bot_requested_peer(MessageFullId message_full_id, UserId user_id,
-                                                  const string &request_id, int32 button_id,
-                                                  vector<DialogId> shared_dialog_ids, Promise<Unit> &&promise) {
+void MessageQueryManager::share_dialogs_with_bot(const td_api::object_ptr<td_api::KeyboardButtonSource> &source_ptr,
+                                                 int32 button_id, vector<DialogId> shared_dialog_ids, bool expect_user,
+                                                 bool only_check, Promise<Unit> &&promise) {
+  if (source_ptr == nullptr) {
+    return promise.set_error(400, "Source must be non-empty");
+  }
+  const RequestedDialogType *requested_dialog_type = nullptr;
+  MessageFullId message_full_id;
+  UserId bot_user_id;
+  string request_id;
+  switch (source_ptr->get_id()) {
+    case td_api::keyboardButtonSourceMessage::ID: {
+      const auto *source = static_cast<const td_api::keyboardButtonSourceMessage *>(source_ptr.get());
+      message_full_id = {DialogId(source->chat_id_), MessageId(source->message_id_)};
+      TRY_RESULT_PROMISE_ASSIGN(promise, requested_dialog_type,
+                                td_->messages_manager_->get_message_requested_dialog_type(message_full_id, button_id));
+      break;
+    }
+    case td_api::keyboardButtonSourceWebApp::ID: {
+      const auto *source = static_cast<const td_api::keyboardButtonSourceWebApp *>(source_ptr.get());
+      bot_user_id = UserId(source->bot_user_id_);
+      request_id = source->prepared_button_id_;
+      requested_dialog_type = td_->inline_queries_manager_->get_requested_dialog_type(bot_user_id, request_id);
+      break;
+    }
+    default:
+      UNREACHABLE();
+  }
+  if (requested_dialog_type == nullptr) {
+    return promise.set_error(400, "Button not found");
+  }
+  TRY_STATUS_PROMISE(promise, requested_dialog_type->check_shared_dialog_count(shared_dialog_ids.size()));
+
+  for (auto shared_dialog_id : shared_dialog_ids) {
+    if (shared_dialog_id.get_type() != DialogType::User) {
+      if (!td_->dialog_manager_->have_dialog_force(shared_dialog_id, "share_dialogs_with_bot")) {
+        return promise.set_error(400, "Shared chat not found");
+      }
+    } else {
+      if (!expect_user) {
+        return promise.set_error(400, "Wrong chat type");
+      }
+      if (!td_->user_manager_->have_accessible_user(shared_dialog_id.get_user_id())) {
+        return promise.set_error(400, "Shared user not found");
+      }
+    }
+    TRY_STATUS_PROMISE(promise, requested_dialog_type->check_shared_dialog(td_, shared_dialog_id));
+  }
+  if (only_check) {
+    return promise.set_value(Unit());
+  }
+
   td_->create_handler<SendBotRequestedPeerQuery>(std::move(promise))
-      ->send(message_full_id, user_id, request_id, button_id, std::move(shared_dialog_ids));
+      ->send(message_full_id, bot_user_id, request_id, button_id, std::move(shared_dialog_ids));
 }
 
 void MessageQueryManager::reload_message_extended_media(DialogId dialog_id, vector<MessageId> message_ids) {
@@ -2204,9 +2254,8 @@ void MessageQueryManager::on_get_messages_search_result(
   for (auto &message : messages) {
     next_offset.update_from_message(message);
 
-    bool is_channel_message = DialogId::get_message_dialog_id(message).get_type() == DialogType::Channel;
-    auto new_message_full_id = td_->messages_manager_->on_get_message(DialogId(), std::move(message), false,
-                                                                      is_channel_message, false, "search messages");
+    auto new_message_full_id =
+        td_->messages_manager_->on_get_message(DialogId(), std::move(message), false, false, "search messages");
     if (new_message_full_id != MessageFullId()) {
       result.push_back(new_message_full_id);
     } else {
@@ -2248,7 +2297,7 @@ void MessageQueryManager::on_get_outgoing_document_messages(
   MessagesManager::FoundMessages found_messages;
   for (auto &message : messages) {
     auto dialog_id = DialogId::get_message_dialog_id(message);
-    auto message_full_id = td_->messages_manager_->on_get_message(dialog_id, std::move(message), false, false, false,
+    auto message_full_id = td_->messages_manager_->on_get_message(dialog_id, std::move(message), false, false,
                                                                   "on_get_outgoing_document_messages");
     if (message_full_id != MessageFullId()) {
       found_messages.message_full_ids.push_back(message_full_id);
@@ -2299,7 +2348,7 @@ void MessageQueryManager::on_get_public_post_search_result(
   for (auto &message : messages) {
     next_offset.update_from_message(message);
 
-    auto message_full_id = td_->messages_manager_->on_get_message(DialogId(), std::move(message), false, true, false,
+    auto message_full_id = td_->messages_manager_->on_get_message(DialogId(), std::move(message), false, false,
                                                                   "on_get_public_post_search_result");
     auto message_object =
         td_->messages_manager_->get_message_object(message_full_id, "on_get_public_post_search_result");
@@ -2359,7 +2408,7 @@ void MessageQueryManager::on_get_hashtag_search_result(
     next_offset.update_from_message(message);
 
     auto new_message_full_id =
-        td_->messages_manager_->on_get_message(DialogId(), std::move(message), false, true, false, "search hashtag");
+        td_->messages_manager_->on_get_message(DialogId(), std::move(message), false, false, "search hashtag");
     if (new_message_full_id != MessageFullId()) {
       result.push_back(new_message_full_id);
     } else {
@@ -2417,8 +2466,8 @@ void MessageQueryManager::on_get_recent_locations(DialogId dialog_id, int32 limi
   LOG(INFO) << "Receive " << messages.size() << " recent locations in " << dialog_id;
   vector<MessageId> message_ids;
   for (auto &message : messages) {
-    auto new_message_full_id = td_->messages_manager_->on_get_message(dialog_id, std::move(message), false, false,
-                                                                      false, "on_get_recent_locations");
+    auto new_message_full_id =
+        td_->messages_manager_->on_get_message(dialog_id, std::move(message), false, false, "on_get_recent_locations");
     if (new_message_full_id != MessageFullId()) {
       message_ids.push_back(new_message_full_id.get_message_id());
     } else {
@@ -2857,8 +2906,8 @@ void MessageQueryManager::process_discussion_message_impl(
   message_thread_info.unread_message_count = max(0, result->unread_count_);
   MessageId top_message_id;
   for (auto &message : result->messages_) {
-    auto message_full_id = td_->messages_manager_->on_get_message(expected_dialog_id, std::move(message), false, true,
-                                                                  false, "process_discussion_message_impl");
+    auto message_full_id = td_->messages_manager_->on_get_message(expected_dialog_id, std::move(message), false, false,
+                                                                  "process_discussion_message_impl");
     if (message_full_id.get_message_id().is_valid()) {
       message_thread_info.message_ids.push_back(message_full_id.get_message_id());
       if (message_full_id.get_message_id() == expected_message_id) {

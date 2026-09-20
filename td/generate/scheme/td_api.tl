@@ -119,18 +119,29 @@ formattedText text:string entities:vector<textEntity> = FormattedText;
 //@description Represents a change of a text @offset Offset of the entity, in UTF-16 code units @length Length of the entity, in UTF-16 code units @type Type of the entity
 diffEntity offset:int32 length:int32 type:DiffEntityType = DiffEntity;
 
-//@description A text with some changes highlighted @text The text @entities Entities describing changes in the text. Entities doesn't mutually intersect with each other
+//@description A text with some changes highlighted @text The text @entities Entities describing changes in the text. Entities don't mutually intersect with each other
 diffText text:string entities:vector<diffEntity> = DiffText;
 
 //@description A text fixed using fixTextWithAi @text The resulting text @diff_text Changes made to the original text
 fixedText text:formattedText diff_text:diffText = FixedText;
 
 
+//@description Contains an example of text composition style usage
+//@source_text Source text
+//@result_text The text after the style was applied to the source text
+textCompositionStyleExample source_text:formattedText result_text:formattedText = TextCompositionStyleExample;
+
 //@description Describes a style that can be used to compose a text
 //@name Name of the style
-//@custom_emoji_id Identifier of the custom emoji corresponding to the style
+//@custom_emoji_id Identifier of the custom emoji corresponding to the style; 0 if none
 //@title Title of the style in the user application's language
-textCompositionStyle name:string custom_emoji_id:int64 title:string = TextCompositionStyle;
+//@is_custom True, if the style is created by a user
+//@is_creator True, if the user is creator of the style
+//@install_count Number of users that installed the style; for created custom styles only; 0 if unknown
+//@prompt Prompt of the style; for created custom styles only
+//@creator_user_id User identifier of the creator of the style; 0 if none of unknown
+//@english_example Example of the style usage in English; may be null if unknown
+textCompositionStyle name:string custom_emoji_id:int64 title:string is_custom:Bool is_creator:Bool install_count:int32 prompt:string creator_user_id:int53 english_example:textCompositionStyleExample = TextCompositionStyle;
 
 
 //@description Contains Telegram terms of service @text Text of the terms of service @min_user_age The minimum age of a user to be able to accept the terms; 0 if age isn't restricted @show_popup True, if a blocking popup with terms of service must be shown to the user
@@ -182,7 +193,7 @@ authorizationStateWaitCode code_info:authenticationCodeInfo = AuthorizationState
 //@description The user needs to confirm authorization on another logged in device by scanning a QR code with the provided link @link A tg:// URL for the QR code. The link will be updated frequently
 authorizationStateWaitOtherDeviceConfirmation link:string = AuthorizationState;
 
-//@description The user is unregistered and need to accept terms of service and enter their first name and last name to finish registration. Call registerUser to accept the terms of service and provide the data @terms_of_service Telegram terms of service
+//@description The user is unregistered and needs to accept terms of service and enter their first name and last name to finish registration. Call registerUser to accept the terms of service and provide the data @terms_of_service Telegram terms of service
 authorizationStateWaitRegistration terms_of_service:termsOfService = AuthorizationState;
 
 //@description The user has been authorized, but needs to enter a 2-step verification password to start using the application.
@@ -399,8 +410,9 @@ outline paths:vector<closedVectorPath> = Outline;
 
 
 //@description Describes one answer option of a poll
-//@id Unique identifier of the option in the poll
+//@id Unique identifier of the option in the poll; may be empty if yet unassigned
 //@text Option text; 1-100 characters; may contain only custom emoji entities
+//@media Option media. Currently, can be only of the types messageAnimation, messageLocation, messagePhoto, messageSticker, messageVenue, or messageVideo without caption
 //@voter_count Number of voters for this option, available only for closed or voted polls, or if the current user is the creator of the poll
 //@vote_percentage The percentage of votes for this option; 0-100
 //@recent_voter_ids Identifiers of recent voters for the option, if the poll is non-anonymous and poll results are available
@@ -408,7 +420,7 @@ outline paths:vector<closedVectorPath> = Outline;
 //@is_being_chosen True, if the option is being chosen by a pending setPollAnswer request
 //@author Identifier of the user or chat who added the option; may be null if the option existed from creation of the poll
 //@addition_date Point in time (Unix timestamp) when the option was added; 0 if the option existed from creation of the poll
-pollOption id:string text:formattedText voter_count:int32 vote_percentage:int32 recent_voter_ids:vector<MessageSender> is_chosen:Bool is_being_chosen:Bool author:MessageSender addition_date:int32 = PollOption;
+pollOption id:string text:formattedText media:MessageContent voter_count:int32 vote_percentage:int32 recent_voter_ids:vector<MessageSender> is_chosen:Bool is_being_chosen:Bool author:MessageSender addition_date:int32 = PollOption;
 
 //@description Describes one answer option of a poll to be created
 //@text Option text; 1-100 characters. Only custom emoji entities are allowed to be added and only by Premium users
@@ -417,13 +429,48 @@ inputPollOption text:formattedText = InputPollOption;
 
 //@class PollType @description Describes the type of poll
 
-//@description A regular poll @allows_adding_options True, if answer options can be added to the poll after creation using the method addPollOption; not supported in channel chats and for anonymous polls
-pollTypeRegular allows_adding_options:Bool = PollType;
+//@description A regular poll
+pollTypeRegular = PollType;
 
 //@description A poll in quiz mode, which has predefined correct answers
 //@correct_option_ids Increasing list of 0-based identifiers of the correct answer options; empty for a yet unanswered poll
-//@explanation Text that is shown when the user chooses an incorrect answer or taps on the lamp icon; 0-200 characters with at most 2 line feeds; empty for a yet unanswered poll
-pollTypeQuiz correct_option_ids:vector<int32> explanation:formattedText = PollType;
+//@explanation Text that is shown when the user chooses an incorrect answer or taps on the lamp icon; empty for a yet unanswered poll
+//@explanation_media Media that is shown when the user chooses an incorrect answer or taps on the lamp icon; may be null if none or the poll is unanswered yet.
+//-Currently, can be only of the types messageAnimation, messageAudio, messageDocument, messageLocation, messagePhoto, messageVenue, or messageVideo without caption
+pollTypeQuiz correct_option_ids:vector<int32> explanation:formattedText explanation_media:MessageContent = PollType;
+
+
+//@class InputPollType @description Describes the type of poll to send
+
+//@description A regular poll @allow_adding_options True, if answer options can be added to the poll after creation; not supported in channel chats and for anonymous polls
+inputPollTypeRegular allow_adding_options:Bool = InputPollType;
+
+//@description A poll in quiz mode, which has predefined correct answers
+//@correct_option_ids Increasing list of 0-based identifiers of the correct answer options; must be non-empty
+//@explanation Text that is shown when the user chooses an incorrect answer or taps on the lamp icon; 0-200 characters with at most 2 line feeds
+inputPollTypeQuiz correct_option_ids:vector<int32> explanation:formattedText = InputPollType;
+
+
+//@class PollVoteRestrictionReason @description Reason of vote restriction in the poll for the current user
+
+//@description The poll is closed
+pollVoteRestrictionReasonClosed = PollVoteRestrictionReason;
+
+//@description The poll isn't sent yet
+pollVoteRestrictionReasonYetUnsent = PollVoteRestrictionReason;
+
+//@description The poll is from a scheduled message
+pollVoteRestrictionReasonScheduled = PollVoteRestrictionReason;
+
+//@description The poll is from a quick reply message
+pollVoteRestrictionReasonQuickReply = PollVoteRestrictionReason;
+
+//@description The user is from a country, users from which aren't allowed to vote
+//@country_code Two-letter ISO 3166-1 alpha-2 code of the current user's country
+pollVoteRestrictionReasonCountryRestricted country_code:string = PollVoteRestrictionReason;
+
+//@description The user must be a member of the chat for at least a day to vote
+pollVoteRestrictionReasonMembershipRequired = PollVoteRestrictionReason;
 
 
 //@description Describes a task in a checklist
@@ -603,16 +650,19 @@ webApp short_name:string title:string description:string photo:photo animation:a
 //@options List of poll answer options
 //@total_voter_count Total number of voters, participating in the poll
 //@recent_voter_ids Identifiers of recent voters, if the poll is non-anonymous and poll results are available
-//@can_get_voters True, if the current user can get voters in the poll
+//@can_get_voters True, if the current user can get voters in the poll using getPollVoters
 //@is_anonymous True, if the poll is anonymous
 //@allows_multiple_answers True, if multiple answer options can be chosen simultaneously
 //@allows_revoting True, if the poll can be answered multiple times
+//@member_only True, if only the users that are members of the chat for more than a day will be able to vote
+//@country_codes The list of two-letter ISO 3166-1 alpha-2 codes of countries, users from which will be able to vote. If empty, then all users can participate in the poll
 //@option_order The list of 0-based poll identifiers in which the options of the poll must be shown; empty if the order of options must not be changed
 //@type Type of the poll
 //@open_period Amount of time the poll will be active after creation, in seconds
 //@close_date Point in time (Unix timestamp) when the poll will automatically be closed
 //@is_closed True, if the poll is closed
-poll id:int64 question:formattedText options:vector<pollOption> total_voter_count:int32 recent_voter_ids:vector<MessageSender> can_get_voters:Bool is_anonymous:Bool allows_multiple_answers:Bool allows_revoting:Bool option_order:vector<int32> type:PollType open_period:int32 close_date:int32 is_closed:Bool = Poll;
+//@vote_restriction_reason The reason describing, why the current user can't vote in the poll; may be null if the user can vote in the poll
+poll id:int64 question:formattedText options:vector<pollOption> total_voter_count:int32 recent_voter_ids:vector<MessageSender> can_get_voters:Bool is_anonymous:Bool allows_multiple_answers:Bool allows_revoting:Bool member_only:Bool country_codes:vector<string> option_order:vector<int32> type:PollType open_period:int32 close_date:int32 is_closed:Bool vote_restriction_reason:PollVoteRestrictionReason = Poll;
 
 
 //@description Describes an alternative re-encoded quality of a video file
@@ -711,11 +761,12 @@ userTypeDeleted = UserType;
 //@can_manage_bots True, if the bot can manage other bots
 //@is_inline True, if the bot supports inline queries
 //@inline_query_placeholder Placeholder for inline queries (displayed on the application input field)
+//@supports_username_queries True, if the bot can be queried by username from any non-secret chat
 //@need_location True, if the location of the user is expected to be sent with every inline query to this bot
-//@can_connect_to_business True, if the bot supports connection to Telegram Business accounts
+//@can_connect_to_business True, if the bot supports connection to user accounts for chat automation
 //@can_be_added_to_attachment_menu True, if the bot can be added to attachment or side menu
 //@active_user_count The number of recently active users of the bot
-userTypeBot can_be_edited:Bool can_join_groups:Bool can_read_all_group_messages:Bool has_main_web_app:Bool has_topics:Bool allows_users_to_create_topics:Bool can_manage_bots:Bool is_inline:Bool inline_query_placeholder:string need_location:Bool can_connect_to_business:Bool can_be_added_to_attachment_menu:Bool active_user_count:int32 = UserType;
+userTypeBot can_be_edited:Bool can_join_groups:Bool can_read_all_group_messages:Bool has_main_web_app:Bool has_topics:Bool allows_users_to_create_topics:Bool can_manage_bots:Bool is_inline:Bool inline_query_placeholder:string supports_username_queries:Bool need_location:Bool can_connect_to_business:Bool can_be_added_to_attachment_menu:Bool active_user_count:int32 = UserType;
 
 //@description No information on the user besides the user identifier is available, yet this user has not been deleted. This object is extremely rare and must be handled like a deleted user. It is not possible to perform any actions on users of this type
 userTypeUnknown = UserType;
@@ -731,6 +782,11 @@ botCommands bot_user_id:int53 commands:vector<botCommand> = BotCommands;
 //@text Text of the button
 //@url URL of a Web App to open when the button is pressed. If the link is of the type internalLinkTypeWebApp, then it must be processed accordingly. Otherwise, the link must be passed to openWebApp
 botMenuButton text:string url:string = BotMenuButton;
+
+//@description Describes users that have access to a bot
+//@is_restricted True, if access to the bot is restricted to its owner and selected users
+//@added_user_ids Identifiers of the users who can use the bot additionally to the owner of the bot
+botAccessSettings is_restricted:Bool added_user_ids:vector<int53> = BotAccessSettings;
 
 
 //@description Describes parameters of verification that is provided by a bot
@@ -948,12 +1004,13 @@ inputChatPhotoSticker sticker:chatPhotoSticker = InputChatPhoto;
 //@can_send_polls True, if the user can send polls and checklists
 //@can_send_other_messages True, if the user can send animations, games, stickers, and dice and use inline bots
 //@can_add_link_previews True, if the user may add a link preview to their messages
+//@can_react_to_messages True, if the user can react to messages
 //@can_edit_tag True, if the user may change the tag of self
 //@can_change_info True, if the user can change the chat title, photo, and other settings
 //@can_invite_users True, if the user can invite new users to the chat
 //@can_pin_messages True, if the user can pin messages
 //@can_create_topics True, if the user can create topics
-chatPermissions can_send_basic_messages:Bool can_send_audios:Bool can_send_documents:Bool can_send_photos:Bool can_send_videos:Bool can_send_video_notes:Bool can_send_voice_notes:Bool can_send_polls:Bool can_send_other_messages:Bool can_add_link_previews:Bool can_edit_tag:Bool can_change_info:Bool can_invite_users:Bool can_pin_messages:Bool can_create_topics:Bool = ChatPermissions;
+chatPermissions can_send_basic_messages:Bool can_send_audios:Bool can_send_documents:Bool can_send_photos:Bool can_send_videos:Bool can_send_video_notes:Bool can_send_voice_notes:Bool can_send_polls:Bool can_send_other_messages:Bool can_add_link_previews:Bool can_react_to_messages:Bool can_edit_tag:Bool can_change_info:Bool can_invite_users:Bool can_pin_messages:Bool can_create_topics:Bool = ChatPermissions;
 
 //@description Describes rights of the administrator
 //@can_manage_chat True, if the administrator can access the chat event log, get boost list, see hidden supergroup and channel members, report supergroup spam messages,
@@ -1341,7 +1398,7 @@ upgradedGiftOriginCraft = UpgradedGiftOrigin;
 
 //@class UpgradedGiftAttributeRarity @description Describes rarity of an upgraded gift attribute
 
-//@description The rarity is represented as the numeric frequence of the model
+//@description The rarity is represented as the numeric frequency of the model
 //@per_mille The number of upgraded gifts that receive this attribute for each 1000 gifts upgraded; if 0, then it can be shown as "<0.1%"
 upgradedGiftAttributeRarityPerMille per_mille:int32 = UpgradedGiftAttributeRarity;
 
@@ -2847,6 +2904,7 @@ factCheck text:formattedText country_code:string = FactCheck;
 //@is_paid_star_suggested_post True, if the message is a suggested channel post which was paid in Telegram Stars; a warning must be shown if the message is deleted in less than getOption("suggested_post_lifetime_min") seconds after sending
 //@is_paid_ton_suggested_post True, if the message is a suggested channel post which was paid in Toncoins; a warning must be shown if the message is deleted in less than getOption("suggested_post_lifetime_min") seconds after sending
 //@contains_unread_mention True, if the message contains an unread mention for the current user
+//@contains_unread_poll_votes True, if the message is a poll message with unread votes
 //@date Point in time (Unix timestamp) when the message was sent; 0 for scheduled messages
 //@edit_date Point in time (Unix timestamp) when the message was last edited; 0 for scheduled messages
 //@forward_info Information about the initial message sender; may be null if none or unknown
@@ -2861,6 +2919,7 @@ factCheck text:formattedText country_code:string = FactCheck;
 //@self_destruct_in Time left before the message self-destruct timer expires, in seconds; 0 if self-destruction isn't scheduled yet
 //@auto_delete_in Time left before the message will be automatically deleted by message_auto_delete_time setting of the chat, in seconds; 0 if never
 //@via_bot_user_id If non-zero, the user identifier of the inline bot through which this message was sent
+//@guest_bot_caller_id The identifier of the user or chat which used a guest bot to send the message; may be null if none
 //@sender_business_bot_user_id If non-zero, the user identifier of the business bot that sent this message
 //@sender_boost_count Number of times the sender of the message boosted the supergroup at the time the message was sent; 0 if none or unknown. For messages sent by the current user, supergroupFullInfo.my_boost_count must be used instead
 //@sender_tag Tag of the sender of the message in the supergroup at the time the message was sent; may be empty if none or unknown. For messages sent in basic groups or supergroup administrators, the current custom title or tag must be used instead
@@ -2872,7 +2931,7 @@ factCheck text:formattedText country_code:string = FactCheck;
 //@summary_language_code IETF language tag of the message language on which it can be summarized; empty if summary isn't available for the message
 //@content Content of the message
 //@reply_markup Reply markup for the message; may be null if none
-message id:int53 sender_id:MessageSender chat_id:int53 sending_state:MessageSendingState scheduling_state:MessageSchedulingState is_outgoing:Bool is_pinned:Bool is_from_offline:Bool can_be_saved:Bool has_timestamped_media:Bool is_channel_post:Bool is_paid_star_suggested_post:Bool is_paid_ton_suggested_post:Bool contains_unread_mention:Bool date:int32 edit_date:int32 forward_info:messageForwardInfo import_info:messageImportInfo interaction_info:messageInteractionInfo unread_reactions:vector<unreadReaction> fact_check:factCheck suggested_post_info:suggestedPostInfo reply_to:MessageReplyTo topic_id:MessageTopic self_destruct_type:MessageSelfDestructType self_destruct_in:double auto_delete_in:double via_bot_user_id:int53 sender_business_bot_user_id:int53 sender_boost_count:int32 sender_tag:string paid_message_star_count:int53 author_signature:string media_album_id:int64 effect_id:int64 restriction_info:restrictionInfo summary_language_code:string content:MessageContent reply_markup:ReplyMarkup = Message;
+message id:int53 sender_id:MessageSender chat_id:int53 sending_state:MessageSendingState scheduling_state:MessageSchedulingState is_outgoing:Bool is_pinned:Bool is_from_offline:Bool can_be_saved:Bool has_timestamped_media:Bool is_channel_post:Bool is_paid_star_suggested_post:Bool is_paid_ton_suggested_post:Bool contains_unread_mention:Bool contains_unread_poll_votes:Bool date:int32 edit_date:int32 forward_info:messageForwardInfo import_info:messageImportInfo interaction_info:messageInteractionInfo unread_reactions:vector<unreadReaction> fact_check:factCheck suggested_post_info:suggestedPostInfo reply_to:MessageReplyTo topic_id:MessageTopic self_destruct_type:MessageSelfDestructType self_destruct_in:double auto_delete_in:double via_bot_user_id:int53 guest_bot_caller_id:MessageSender sender_business_bot_user_id:int53 sender_boost_count:int32 sender_tag:string paid_message_star_count:int53 author_signature:string media_album_id:int64 effect_id:int64 restriction_info:restrictionInfo summary_language_code:string content:MessageContent reply_markup:ReplyMarkup = Message;
 
 
 //@description Contains a list of messages @total_count Approximate total number of messages found @messages List of messages; messages may be null
@@ -2980,7 +3039,7 @@ sponsoredChat unique_id:int53 chat_id:int53 sponsor_info:string additional_info:
 //@description Contains a list of sponsored chats @chats List of sponsored chats
 sponsoredChats chats:vector<sponsoredChat> = SponsoredChats;
 
-//@description Describes an advertisent to be shown while a video from a message is watched
+//@description Describes an advertisement to be shown while a video from a message is watched
 //@unique_id Unique identifier of this result
 //@text Text of the advertisement
 //@min_display_duration The minimum amount of time the advertisement must be displayed before it can be hidden by the user, in seconds
@@ -4147,6 +4206,9 @@ linkPreviewTypeStoryAlbum photo_icon:photo video_icon:video = LinkPreviewType;
 //@description The link is a link to boost a supergroup chat @photo Photo of the chat; may be null
 linkPreviewTypeSupergroupBoost photo:chatPhoto = LinkPreviewType;
 
+//@description The link is a link to a text composition style @custom_emoji_id Identifier of the custom emoji corresponding to the style; 0 if none
+linkPreviewTypeTextCompositionStyle custom_emoji_id:int64 = LinkPreviewType;
+
 //@description The link is a link to a cloud theme. TDLib has no theme support yet @documents The list of files with theme description @settings Settings for the cloud theme; may be null if unknown
 linkPreviewTypeTheme documents:vector<document> settings:themeSettings = LinkPreviewType;
 
@@ -4822,8 +4884,12 @@ messageDice initial_state:DiceStickers final_state:DiceStickers emoji:string val
 //@description A message with a game @game The game description
 messageGame game:game = MessageContent;
 
-//@description A message with a poll @poll The poll description
-messagePoll poll:poll = MessageContent;
+//@description A message with a poll
+//@poll Information about the poll
+//@param_description Description of the poll
+//@media Media attached to the poll. Currently, can be only of the types messageAnimation, messageAudio, messageDocument, messageLocation, messagePhoto, messageVenue, or messageVideo without caption
+//@can_add_option True, if an option can be added to the poll using addPollOption
+messagePoll poll:poll description:formattedText media:MessageContent can_add_option:Bool = MessageContent;
 
 //@description A stake dice message. The dice value is randomly generated by the server
 //@initial_state The animated stickers with the initial dice animation; may be null if unknown. The update updateMessageContent will be sent when the sticker became known
@@ -5584,17 +5650,20 @@ inputMessageInvoice invoice:invoice title:string description:string photo_url:st
 
 //@description A message with a poll. Polls can't be sent to secret chats and channel direct messages chats. Polls can be sent to a private chat only if the chat is a chat with a bot or the Saved Messages chat
 //@question Poll question; 1-255 characters (up to 300 characters for bots). Only custom emoji entities are allowed to be added and only by Premium users
-//@options List of poll answer options; 2-getOption("poll_answer_count_max") options
+//@options List of poll answer options; 1-getOption("poll_answer_count_max") options
+//@param_description Poll description; pass null to use an empty description; 0-getOption("message_caption_length_max") characters
 //@is_anonymous True, if the poll voters are anonymous. Non-anonymous polls can't be sent or forwarded to channels
 //@allows_multiple_answers True, if multiple answer options can be chosen simultaneously
 //@allows_revoting True, if the poll can be answered multiple times
+//@member_only True, if only the users that are members of the chat for more than a day will be able to vote
+//@country_codes The list of two-letter ISO 3166-1 alpha-2 codes of countries, users from which will be able to vote. If empty, then all users can participate in the poll
 //@shuffle_options True, if poll options must be shown in a fixed random order
 //@hide_results_until_closes True, if the poll results will appear only after the poll closes
 //@type Type of the poll
 //@open_period Amount of time the poll will be active after creation, in seconds; 0-getOption("poll_open_period_max"); pass 0 if not specified
 //@close_date Point in time (Unix timestamp) when the poll will automatically be closed; must be 0-getOption("poll_open_period_max") seconds in the future; pass 0 if not specified
 //@is_closed True, if the poll needs to be sent already closed; for bots only
-inputMessagePoll question:formattedText options:vector<inputPollOption> is_anonymous:Bool allows_multiple_answers:Bool allows_revoting:Bool shuffle_options:Bool hide_results_until_closes:Bool type:PollType open_period:int32 close_date:int32 is_closed:Bool = InputMessageContent;
+inputMessagePoll question:formattedText options:vector<inputPollOption> description:formattedText is_anonymous:Bool allows_multiple_answers:Bool allows_revoting:Bool member_only:Bool country_codes:vector<string> shuffle_options:Bool hide_results_until_closes:Bool type:InputPollType open_period:int32 close_date:int32 is_closed:Bool = InputMessageContent;
 
 //@description A stake dice message
 //@state_hash Hash of the stake dice state. The state hash can be used only if it was received recently enough. Otherwise, a new state must be requested using getStakeDiceState
@@ -5624,7 +5693,6 @@ inputMessageForwarded from_chat_id:int53 message_id:int53 in_game_share:Bool rep
 
 //@description Contains properties of a message and describes actions that can be done with the message right now
 //@can_add_offer True, if an offer can be added to the message using addOffer
-//@can_add_poll_option True, if a poll option can be added to the message's poll using addPollOption
 //@can_add_tasks True, if tasks can be added to the message's checklist using addChecklistTasks if the current user has Telegram Premium subscription
 //@can_be_approved True, if the message is a suggested post that can be approved by the user using approveSuggestedPost
 //@can_be_copied True, if content of the message can be copied using inputMessageForwarded or forwardMessages with copy options
@@ -5649,9 +5717,10 @@ inputMessageForwarded from_chat_id:int53 message_id:int53 in_game_share:Bool rep
 //@can_get_link True, if a link can be generated for the message using getMessageLink
 //@can_get_media_timestamp_links True, if media timestamp links can be generated for media timestamp entities in the message text, caption or link preview description using getMessageLink
 //@can_get_message_thread True, if information about the message thread is available through getMessageThread and getMessageThreadHistory
+//@can_get_poll_vote_statistics True, if the message is a poll and vote statistics are available through getPollVoteStatistics
 //@can_get_read_date True, if read date of the message can be received through getMessageReadDate
 //@can_get_statistics True, if message statistics are available through getMessageStatistics and message forwards can be received using getMessagePublicForwards
-//@can_get_video_advertisements True, if advertisements for video of the message can be received though getVideoMessageAdvertisements
+//@can_get_video_advertisements True, if advertisements for video of the message can be received through getVideoMessageAdvertisements
 //@can_get_viewers True, if chat members already viewed the message can be received through getMessageViewers
 //@can_mark_tasks_as_done True, if tasks can be marked as done or not done in the message's checklist using markChecklistTasksAsDone if the current user has Telegram Premium subscription
 //@can_recognize_speech True, if speech can be recognized for the message through recognizeSpeech
@@ -5662,7 +5731,7 @@ inputMessageForwarded from_chat_id:int53 message_id:int53 in_game_share:Bool rep
 //@has_protected_content_by_current_user True, if content of the message can't be saved locally, because it is protected by the current user; if true, then can_be_saved is false
 //@has_protected_content_by_other_user True, if content of the message can't be saved locally, because it is protected by the other user; if true, then can_be_saved is false
 //@need_show_statistics True, if message statistics must be available from context menu of the message
-messageProperties can_add_offer:Bool can_add_poll_option:Bool can_add_tasks:Bool can_be_approved:Bool can_be_copied:Bool can_be_copied_to_secret_chat:Bool can_be_declined:Bool can_be_deleted_only_for_self:Bool can_be_deleted_for_all_users:Bool can_be_edited:Bool can_be_forwarded:Bool can_be_paid:Bool can_be_pinned:Bool can_be_replied:Bool can_be_replied_in_another_chat:Bool can_be_saved:Bool can_be_shared_in_story:Bool can_edit_media:Bool can_edit_scheduling_state:Bool can_edit_suggested_post_info:Bool can_get_author:Bool can_get_embedding_code:Bool can_get_link:Bool can_get_media_timestamp_links:Bool can_get_message_thread:Bool can_get_read_date:Bool can_get_statistics:Bool can_get_video_advertisements:Bool can_get_viewers:Bool can_mark_tasks_as_done:Bool can_recognize_speech:Bool can_report_chat:Bool can_report_reactions:Bool can_report_supergroup_spam:Bool can_set_fact_check:Bool has_protected_content_by_current_user:Bool has_protected_content_by_other_user:Bool need_show_statistics:Bool = MessageProperties;
+messageProperties can_add_offer:Bool can_add_tasks:Bool can_be_approved:Bool can_be_copied:Bool can_be_copied_to_secret_chat:Bool can_be_declined:Bool can_be_deleted_only_for_self:Bool can_be_deleted_for_all_users:Bool can_be_edited:Bool can_be_forwarded:Bool can_be_paid:Bool can_be_pinned:Bool can_be_replied:Bool can_be_replied_in_another_chat:Bool can_be_saved:Bool can_be_shared_in_story:Bool can_edit_media:Bool can_edit_scheduling_state:Bool can_edit_suggested_post_info:Bool can_get_author:Bool can_get_embedding_code:Bool can_get_link:Bool can_get_media_timestamp_links:Bool can_get_message_thread:Bool can_get_poll_vote_statistics:Bool can_get_read_date:Bool can_get_statistics:Bool can_get_video_advertisements:Bool can_get_viewers:Bool can_mark_tasks_as_done:Bool can_recognize_speech:Bool can_report_chat:Bool can_report_reactions:Bool can_report_supergroup_spam:Bool can_set_fact_check:Bool has_protected_content_by_current_user:Bool has_protected_content_by_other_user:Bool need_show_statistics:Bool = MessageProperties;
 
 //@description Contains properties of a poll option and describes actions that can be done with the option right now
 //@can_be_deleted True, if the option can be deleted using deletePollOption
@@ -6166,7 +6235,7 @@ storyInfo story_id:int32 date:int32 is_for_close_friends:Bool is_live:Bool = Sto
 //@description Describes active stories posted by a chat
 //@chat_id Identifier of the chat that posted the stories
 //@list Identifier of the story list in which the stories are shown; may be null if the stories aren't shown in a story list
-//@order A parameter used to determine order of the stories in the story list; 0 if the stories doesn't need to be shown in the story list. Stories must be sorted by the pair (order, story_poster_chat_id) in descending order
+//@order A parameter used to determine order of the stories in the story list; 0 if the stories don't need to be shown in the story list. Stories must be sorted by the pair (order, story_poster_chat_id) in descending order
 //@can_be_archived True, if the stories are shown in the main story list and can be archived; otherwise, the stories can be hidden from the main story list
 //-only by calling removeTopChat with topChatCategoryUsers and the chat_id. Stories of the current user can't be archived nor hidden using removeTopChat
 //@max_read_story_id Identifier of the last read active story
@@ -7101,6 +7170,9 @@ inlineQueryResultsButton text:string type:InlineQueryResultsButtonType = InlineQ
 inlineQueryResults inline_query_id:int64 button:inlineQueryResultsButton results:vector<InlineQueryResult> next_offset:string = InlineQueryResults;
 
 
+//@description Contains identifier of a sent guest message @id Unique identifier for the message
+inlineMessageId id:string = InlineMessageId;
+
 //@description Represents an inline message that can be sent via the bot
 //@id Unique identifier for the message
 //@expiration_date Point in time (Unix timestamp) when the message can't be used anymore
@@ -7443,6 +7515,9 @@ premiumLimitTypeSimilarChatCount = PremiumLimitType;
 
 //@description The maximum number of owned bots
 premiumLimitTypeOwnedBotCount = PremiumLimitType;
+
+//@description The maximum number of added text composition styles
+premiumLimitTypeCustomTextCompositionStyleCount = PremiumLimitType;
 
 
 //@class PremiumFeature @description Describes a feature available to Premium users
@@ -8169,6 +8244,9 @@ pushMessageContentChecklistTasksAdded task_count:int32 = PushMessageContent;
 
 //@description Some tasks from a checklist were marked as done or not done @task_count Number of changed tasks
 pushMessageContentChecklistTasksDone task_count:int32 = PushMessageContent;
+
+//@description An option was added to a poll @text Text of the option
+pushMessageContentPollOptionAdded text:string = PushMessageContent;
 
 //@description A forwarded messages @total_count Number of forwarded messages
 pushMessageContentMessageForwards total_count:int32 = PushMessageContent;
@@ -8938,7 +9016,7 @@ internalLinkTypeQrCodeAuthentication = InternalLinkType;
 //-If the chat is found, the chat is a chat with a bot and the bot has can_manage_bots == true, then show bot creation confirmation dialog
 //-with the given suggested_bot_username and suggested_bot_name. If user agrees, call createBot with via_link == true to create the bot
 //@manager_bot_username Username of the bot which will manage the new bot
-//@suggested_bot_username Suggested username for the bot
+//@suggested_bot_username Suggested username for the bot; always ends with "bot" case-insensitive
 //@suggested_bot_name Suggested name for the bot; may be empty if not specified
 internalLinkTypeRequestManagedBot manager_bot_username:string suggested_bot_username:string suggested_bot_name:string = InternalLinkType;
 
@@ -8975,6 +9053,11 @@ internalLinkTypeStory story_poster_username:string story_id:int32 = InternalLink
 //@story_album_owner_username Username of the owner of the story album
 //@story_album_id Story album identifier
 internalLinkTypeStoryAlbum story_album_owner_username:string story_album_id:int32 = InternalLinkType;
+
+//@description The link is a link to a text composition style. Call searchTextCompositionStyle with the given style name to get information about the style.
+//-If the style is found and the user wants to add it, then call addTextCompositionStyle
+//@style_name Name of the style
+internalLinkTypeTextCompositionStyle style_name:string = InternalLinkType;
 
 //@description The link is a link to a cloud theme. TDLib has no theme support yet @theme_name Name of the theme
 internalLinkTypeTheme theme_name:string = InternalLinkType;
@@ -9086,7 +9169,7 @@ fileTypeSecretThumbnail = FileType;
 //@description The file is a file from Secure storage used for storing Telegram Passport files
 fileTypeSecure = FileType;
 
-//@description The file is a seld-destructing video for a live photo in a private chat
+//@description The file is a self-destructing video for a live photo in a private chat
 fileTypeSelfDestructingLivePhotoVideo = FileType;
 
 //@description The file is a self-destructing photo in a private chat
@@ -9583,6 +9666,10 @@ messageStatistics message_interaction_graph:StatisticalGraph message_reaction_gr
 //@story_reaction_graph A graph containing number of story reactions
 storyStatistics story_interaction_graph:StatisticalGraph story_reaction_graph:StatisticalGraph = StoryStatistics;
 
+//@description A detailed statistics about poll votes
+//@vote_graph A graph containing distribution of votes in the poll
+pollVoteStatistics vote_graph:StatisticalGraph = PollVoteStatistics;
+
 
 //@class RevenueWithdrawalState @description Describes state of a revenue withdrawal
 
@@ -9764,8 +9851,15 @@ updateMessageMentionRead chat_id:int53 message_id:int53 unread_mention_count:int
 //@chat_id Chat identifier
 //@message_id Message identifier
 //@unread_reactions The new list of unread reactions
-//@unread_reaction_count The new number of messages with unread reactions left in the chat
+//@unread_reaction_count The new number of messages with unread reactions in the chat
 updateMessageUnreadReactions chat_id:int53 message_id:int53 unread_reactions:vector<unreadReaction> unread_reaction_count:int32 = Update;
+
+//@description Unread votes were added or removed from a poll message
+//@chat_id Chat identifier
+//@message_id Message identifier
+//@contains_unread_poll_votes True, if the message is a poll message with unread votes
+//@unread_poll_vote_count The new number of messages with unread poll votes in the chat
+updateMessageContainsUnreadPollVotes chat_id:int53 message_id:int53 contains_unread_poll_votes:Bool unread_poll_vote_count:int32 = Update;
 
 //@description A fact-check added to a message was changed
 //@chat_id Chat identifier
@@ -10392,6 +10486,12 @@ updateNewInlineQuery id:int64 sender_user_id:int53 user_location:location chat_t
 //@inline_message_id Identifier of the sent inline message, if known
 updateNewChosenInlineResult sender_user_id:int53 user_location:location query:string result_id:string inline_message_id:string = Update;
 
+//@description A new incoming guest query; for bots only
+//@id Unique query identifier
+//@message The message with the query
+//@reference_messages The list of reference messages
+updateNewGuestQuery id:int64 message:message reference_messages:vector<message> = Update;
+
 //@description A new incoming callback query; for bots only
 //@id Unique query identifier
 //@sender_user_id Identifier of the user who sent the query
@@ -10451,10 +10551,10 @@ updatePoll poll:poll = Update;
 //@option_positions 0-based identifiers of answer options, that were chosen by the user
 updatePollAnswer poll_id:int64 voter_id:MessageSender option_ids:vector<string> option_positions:vector<int32> = Update;
 
-//@description A bot was created to be managed by the current bot; for bots only
-//@user_id Identifier of the user that created the bot
+//@description A bot that can be managed by the current bot was created or updated; for bots only
+//@user_id Identifier of the user who created the bot
 //@bot_user_id Identifier of the created managed bot
-updateNewManagedBot user_id:int53 bot_user_id:int53 = Update;
+updateManagedBot user_id:int53 bot_user_id:int53 = Update;
 
 //@description User rights changed in a chat; for bots only
 //@chat_id Chat identifier
@@ -11305,7 +11405,42 @@ getMessageEmbeddingCode chat_id:int53 message_id:int53 for_album:Bool = Text;
 getMessageLinkInfo url:string = MessageLinkInfo;
 
 
-//@description Translates a text to the given language. If the current user is a Telegram Premium user, then text formatting is preserved
+//@description Creates a custom text composition style
+//@title Title of the style; 1-getOption("text_composition_style_title_length_max") characters
+//@custom_emoji_id Identifier of the custom emoji corresponding to the style
+//@prompt Prompt that will be used for text composition; 1-getOption("text_composition_style_prompt_length_max") characters
+//@show_creator True, if the current user should be shown as the creator of the style
+createTextCompositionStyle title:string custom_emoji_id:int64 prompt:string show_creator:Bool = TextCompositionStyle;
+
+//@description Edits a custom text composition style that was created by the current user
+//@name Name of the style
+//@title Title of the style; 1-getOption("text_composition_style_title_length_max") characters
+//@custom_emoji_id Identifier of the custom emoji corresponding to the style
+//@prompt Prompt that will be used for text composition; 1-getOption("text_composition_style_prompt_length_max") characters
+//@show_creator True, if the current user should be shown as the creator of the style
+editTextCompositionStyle name:string title:string custom_emoji_id:int64 prompt:string show_creator:Bool = TextCompositionStyle;
+
+//@description Deletes a custom text composition style that was created by the current user
+//@name Name of the style
+deleteTextCompositionStyle name:string = Ok;
+
+//@description Searched a custom text composition style by its name @name Name of the style
+searchTextCompositionStyle name:string = TextCompositionStyle;
+
+//@description Returns an example of usage of a custom text composition style
+//@name Name of the style
+//@example_number 0-based unique number of the requested example; must be non-negative and less than getOption("text_composition_style_example_count")
+getTextCompositionStyleExample name:string example_number:int32 = TextCompositionStyleExample;
+
+//@description Adds a custom text composition style to the list of used by the user styles. May return an error with a message "TONES_SAVED_TOO_MANY" if the maximum number of added custom styles has been reached
+//@name Name of the style
+addTextCompositionStyle name:string = Ok;
+
+//@description Removes a custom text composition style from the list of used by the user styles
+//@name Name of the style
+removeTextCompositionStyle name:string = Ok;
+
+//@description Translates a text to the given language; must not be used in secret chats. If the current user is a Telegram Premium user, then text formatting is preserved
 //@text Text to translate
 //@to_language_code Language code of the language to which the message is translated. Must be one of
 //-"af", "sq", "am", "ar", "hy", "az", "eu", "be", "bn", "bs", "bg", "ca", "ceb", "zh-CN", "zh", "zh-Hans", "zh-TW", "zh-Hant", "co", "hr", "cs", "da", "nl", "en", "eo", "et",
@@ -11315,7 +11450,7 @@ getMessageLinkInfo url:string = MessageLinkInfo;
 //@tone Tone of the translation; must be one of "", "formal", "neutral", "casual"; defaults to "neutral"
 translateText text:formattedText to_language_code:string tone:string = FormattedText;
 
-//@description Extracts text or caption of the given message and translates it to the given language. If the current user is a Telegram Premium user, then text formatting is preserved
+//@description Extracts text or caption of the given message and translates it to the given language; must not be used in secret chats. If the current user is a Telegram Premium user, then text formatting is preserved
 //@chat_id Identifier of the chat to which the message belongs
 //@message_id Identifier of the message
 //@to_language_code Language code of the language to which the message is translated. See translateText.to_language_code for the list of supported values
@@ -11329,14 +11464,14 @@ translateMessageText chat_id:int53 message_id:int53 to_language_code:string tone
 //@tone Tone of the summarization; see translateText.tone for the list of supported values
 summarizeMessage chat_id:int53 message_id:int53 translate_to_language_code:string tone:string = FormattedText;
 
-//@description Changes text using an AI model. May return an error with a message "AICOMPOSE_FLOOD_PREMIUM" if Telegram Premium is required to send further requests
+//@description Changes text using an AI model; must not be used in secret chats. May return an error with a message "AICOMPOSE_FLOOD_PREMIUM" if Telegram Premium is required to send further requests
 //@text The original text
 //@translate_to_language_code Pass a language code to which the text will be translated; pass an empty string if translation isn't needed. See translateText.to_language_code for the list of supported values
 //@style_name Name of the style of the resulted text; handle updateTextCompositionStyles to get the list of supported styles; pass an empty string to keep the current style of the text
 //@add_emojis Pass true to add emoji to the text
 composeTextWithAi text:formattedText translate_to_language_code:string style_name:string add_emojis:Bool = FormattedText;
 
-//@description Fixes text using an AI model. May return an error with a message "AICOMPOSE_FLOOD_PREMIUM" if Telegram Premium is required to send further requests
+//@description Fixes text using an AI model; must not be used in secret chats. May return an error with a message "AICOMPOSE_FLOOD_PREMIUM" if Telegram Premium is required to send further requests
 //@text The original text
 fixTextWithAi text:formattedText = FixedText;
 
@@ -11995,6 +12130,18 @@ getJsonString json_value:JsonValue = Text;
 getThemeParametersJsonString theme:themeParameters = Text;
 
 
+//@description Adds an option to a poll
+//@chat_id Identifier of the chat to which the poll belongs
+//@message_id Identifier of the message containing the poll. Use messagePoll.can_add_option to check whether an option can be added
+//@option The new option
+addPollOption chat_id:int53 message_id:int53 option:inputPollOption = Ok;
+
+//@description Deletes an option from a poll
+//@chat_id Identifier of the chat to which the poll belongs
+//@message_id Identifier of the message containing the poll
+//@option_id Unique identifier of the option. Use pollOptionProperties.can_be_deleted to check whether the option can be deleted by the user
+deletePollOption chat_id:int53 message_id:int53 option_id:string = Ok;
+
 //@description Changes the user answer to a poll
 //@chat_id Identifier of the chat to which the poll belongs
 //@message_id Identifier of the message containing the poll
@@ -12009,6 +12156,12 @@ setPollAnswer chat_id:int53 message_id:int53 option_ids:vector<int32> = Ok;
 //@offset Number of voters to skip in the result; must be non-negative
 //@limit The maximum number of voters to be returned; must be positive and can't be greater than 50. For optimal performance, the number of returned voters is chosen by TDLib and can be smaller than the specified limit, even if the end of the voter list has not been reached
 getPollVoters chat_id:int53 message_id:int53 option_id:int32 offset:int32 limit:int32 = PollVoters;
+
+//@description Returns statistics of poll votes in a poll
+//@chat_id Identifier of the chat to which the poll belongs
+//@message_id Identifier of the message containing the poll. Use messageProperties.can_get_poll_vote_statistics to check whether the method can be used for a message
+//@is_dark Pass true if a dark theme is used by the application
+getPollVoteStatistics chat_id:int53 message_id:int53 is_dark:Bool = PollVoteStatistics;
 
 //@description Stops a poll
 //@chat_id Identifier of the chat to which the poll belongs
@@ -12090,6 +12243,11 @@ getInlineQueryResults bot_user_id:int53 chat_id:int53 user_location:location que
 //@cache_time Allowed time to cache the results of the query, in seconds
 //@next_offset Offset for the next inline query; pass an empty string if there are no more results
 answerInlineQuery inline_query_id:int64 is_personal:Bool button:inlineQueryResultsButton results:vector<InputInlineQueryResult> cache_time:int32 next_offset:string = Ok;
+
+//@description Sets the result of a guest query; for bots only
+//@guest_query_id Identifier of the guest query
+//@result The result of the query
+answerGuestQuery guest_query_id:int64 result:InputInlineQueryResult = InlineMessageId;
 
 //@description Saves an inline message to be sent by the given user; for bots only
 //@user_id Identifier of the user
@@ -12242,7 +12400,7 @@ sendChatAction chat_id:int53 topic_id:MessageTopic business_connection_id:string
 //@chat_id Chat identifier
 //@forum_topic_id The forum topic identifier in which the message will be sent; pass 0 if none
 //@draft_id Unique identifier of the draft
-//@text Draft text of the message
+//@text Draft text of the message; pass null to show a "Thinking..." placeholder
 sendTextMessageDraft chat_id:int53 forum_topic_id:int32 draft_id:int64 text:formattedText = Ok;
 
 
@@ -12271,7 +12429,7 @@ clickAnimatedEmojiMessage chat_id:int53 message_id:int53 = Sticker;
 
 //@description Informs TDLib that an audio was listened by the user
 //@audio_file_id Identifier of the file with an audio
-//@duration Duration of the listening to the audio
+//@duration Duration of the listening to the audio, in seconds
 listenToAudio audio_file_id:int32 duration:int32 = Ok;
 
 //@description Informs TDLib about details of a message view by the user from a chat, a message thread or a forum topic history. The method must be called if
@@ -13621,8 +13779,11 @@ getUserProfileAudios user_id:int53 offset:int32 limit:int32 = Audios;
 isProfileAudio file_id:int32 = Ok;
 
 //@description Adds an audio file to the beginning of the profile audio files of the current user
-//@file_id Identifier of the audio file to be added. The file must have been uploaded to the server
-addProfileAudio file_id:int32 = Ok;
+//@audio The audio file to be added
+//@duration Duration of the audio, in seconds; may be replaced by the server; ignored for already uploaded files
+//@title Title of the audio; 0-64 characters; may be replaced by the server; ignored for already uploaded files
+//@performer Performer of the audio; 0-64 characters, may be replaced by the server; ignored for already uploaded files
+addProfileAudio audio:InputFile duration:int32 title:string performer:string = Ok;
 
 //@description Changes position of an audio file in the profile audio files of the current user
 //@file_id Identifier of the file from profile audio files, which position will be changed
@@ -14045,10 +14206,16 @@ checkBotUsername username:string = CheckChatUsernameResult;
 //@via_link Pass true if the bot is created from an internalLinkTypeRequestManagedBot link
 createBot manager_bot_user_id:int53 name:string username:string via_link:Bool = User;
 
-//@description Returns token of a created bot
-//@bot_user_id Identifier of the created bot
+//@description Returns token of a managed bot; for bots only
+//@bot_user_id Identifier of the managed bot
 //@revoke Pass true to revoke the current token and create a new one
-getBotToken bot_user_id:int53 revoke:Bool = Text;
+getManagedBotToken bot_user_id:int53 revoke:Bool = Text;
+
+//@description Returns access settings of a managed bot; for bots only @bot_user_id Identifier of the managed bot
+getManagedBotAccessSettings bot_user_id:int53 = BotAccessSettings;
+
+//@description Sets access settings of a managed bot; for bots only @bot_user_id Identifier of the managed bot @settings New access settings
+setManagedBotAccessSettings bot_user_id:int53 settings:botAccessSettings = Ok;
 
 //@description Sets the name of a bot. Can be called only if userTypeBot.can_be_edited == true
 //@bot_user_id Identifier of the target bot
@@ -14459,7 +14626,7 @@ getUpgradedGiftValueInfo name:string = UpgradedGiftValueInfo;
 //@password The 2-step verification password of the current user
 getUpgradedGiftWithdrawalUrl received_gift_id:string password:string = HttpUrl;
 
-//@description Returns promotional anumation for upgraded gifts
+//@description Returns promotional animation for upgraded gifts
 getUpgradedGiftsPromotionalAnimation = Animation;
 
 //@description Changes resale price of a unique gift owned by the current user

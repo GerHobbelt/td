@@ -82,6 +82,8 @@ TopDialogCategory get_top_dialog_category(const telegram_api::object_ptr<telegra
       return TopDialogCategory::ForwardChats;
     case telegram_api::topPeerCategoryBotsApp::ID:
       return TopDialogCategory::BotApp;
+    case telegram_api::topPeerCategoryBotsGuestChat::ID:
+      return TopDialogCategory::BotInline;
     default:
       UNREACHABLE();
       return TopDialogCategory::Size;
