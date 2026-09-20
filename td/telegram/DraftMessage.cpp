@@ -8,13 +8,18 @@
 
 #include "td/telegram/Dependencies.h"
 #include "td/telegram/Global.h"
+#include "td/telegram/MessageContent.h"
 #include "td/telegram/MessageContentDupType.h"
+#include "td/telegram/MessageCopyOptions.h"
 #include "td/telegram/MessageEntity.h"
+#include "td/telegram/MessageId.h"
 #include "td/telegram/MessageSelfDestructType.h"
 #include "td/telegram/MessagesManager.h"
+#include "td/telegram/RichMessage.h"
 #include "td/telegram/SuggestedPost.h"
 #include "td/telegram/Td.h"
 #include "td/telegram/telegram_api.h"
+#include "td/telegram/UserId.h"
 
 #include "td/utils/logging.h"
 #include "td/utils/tl_helpers.h"
@@ -266,7 +271,7 @@ unique_ptr<DraftMessage> DraftMessage::clone(Td *td, const unique_ptr<DraftMessa
   result->input_message_text_ = draft_message->input_message_text_;
   if (draft_message->rich_message_content_ != nullptr) {
     result->rich_message_content_ = dup_message_content(td, dialog_id, draft_message->rich_message_content_.get(),
-                                                        MessageContentDupType::Forward, MessageCopyOptions());
+                                                        MessageContentDupType::Send, false, MessageCopyOptions());
   }
   if (draft_message->local_content_ != nullptr) {
     switch (draft_message->local_content_->get_type()) {

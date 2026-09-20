@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.10 FATAL_ERROR)
 
-project(TDLib VERSION 1.8.66 LANGUAGES CXX C)
+project(TDLib VERSION 1.8.67 LANGUAGES CXX C)
 
 if (NOT DEFINED CMAKE_MODULE_PATH)
   set(CMAKE_MODULE_PATH "")
@@ -483,6 +483,7 @@ set(TDLIB_SOURCE_PART1
   td/telegram/GroupCallParticipantOrder.cpp
   td/telegram/GroupCallVideoPayload.cpp
   td/telegram/HashtagHints.cpp
+  td/telegram/InlineKeyboardButton.cpp
   td/telegram/InlineMessageManager.cpp
   td/telegram/InlineQueriesManager.cpp
   td/telegram/InputBusinessChatLink.cpp
@@ -887,6 +888,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/GroupCallParticipantOrder.h
   td/telegram/GroupCallVideoPayload.h
   td/telegram/HashtagHints.h
+  td/telegram/InlineKeyboardButton.h
   td/telegram/InlineMessageManager.h
   td/telegram/InlineQueriesManager.h
   td/telegram/InputBusinessChatLink.h
@@ -1212,6 +1214,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/Game.hpp
   td/telegram/GiveawayParameters.hpp
   td/telegram/GroupCallMessageLimit.hpp
+  td/telegram/InlineKeyboardButton.hpp
   td/telegram/InputInvoice.hpp
   td/telegram/InputMessageText.hpp
   td/telegram/KeyboardButton.hpp

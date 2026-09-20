@@ -1087,8 +1087,9 @@ chatPermissions can_send_basic_messages:Bool can_send_audios:Bool can_send_docum
 //@can_delete_stories True, if the administrator can delete stories posted by other users; applicable to supergroups and channels only
 //@can_manage_direct_messages True, if the administrator can answer to channel direct messages; applicable to channels only
 //@can_manage_tags True, if the administrator can change tags of other users; applicable to basic groups and supergroups only
+//@can_send_welcome_messages True, if the administrator can manage and send welcome messages
 //@is_anonymous True, if the administrator isn't shown in the chat member list and sends messages anonymously; applicable to supergroups only
-chatAdministratorRights can_manage_chat:Bool can_change_info:Bool can_post_messages:Bool can_edit_messages:Bool can_delete_messages:Bool can_invite_users:Bool can_restrict_members:Bool can_pin_messages:Bool can_manage_topics:Bool can_promote_members:Bool can_manage_video_chats:Bool can_post_stories:Bool can_edit_stories:Bool can_delete_stories:Bool can_manage_direct_messages:Bool can_manage_tags:Bool is_anonymous:Bool = ChatAdministratorRights;
+chatAdministratorRights can_manage_chat:Bool can_change_info:Bool can_post_messages:Bool can_edit_messages:Bool can_delete_messages:Bool can_invite_users:Bool can_restrict_members:Bool can_pin_messages:Bool can_manage_topics:Bool can_promote_members:Bool can_manage_video_chats:Bool can_post_stories:Bool can_edit_stories:Bool can_delete_stories:Bool can_manage_direct_messages:Bool can_manage_tags:Bool can_send_welcome_messages:Bool is_anonymous:Bool = ChatAdministratorRights;
 
 
 //@description Contains parameters of the application theme
@@ -2259,6 +2260,9 @@ profileAccentColors palette_colors:vector<int32> background_colors:vector<int32>
 profileAccentColor id:int32 light_theme_colors:profileAccentColors dark_theme_colors:profileAccentColors min_supergroup_chat_boost_level:int32 min_channel_chat_boost_level:int32 = ProfileAccentColor;
 
 
+//@description Contains identifier of a community @id Community identifier
+communityId id:int53 = CommunityId;
+
 //@description Describes actions that a user is allowed to take in a community
 //@can_edit_chat_list True, if the user can change the chats added to the community
 communityPermissions can_edit_chat_list:Bool = CommunityPermissions;
@@ -2305,6 +2309,14 @@ community id:int53 have_access:Bool name:string photo:chatPhotoInfo date:int32 s
 //@can_view_history True, if message history of the chat can be viewed
 //@is_hidden True, if the chat is hidden in the list of community chats; for community administrators only
 communityChat chat_id:int53 can_view_history:Bool is_hidden:Bool = CommunityChat;
+
+//@description Contains full information about a community
+//@photo Photo of the community
+//@chats Chats belonging to the community
+//@administrator_count Number of privileged users in the community; 0 if the current user isn't an administrator of the community
+//@banned_count Number of users banned from the community; 0 if the current user isn't an administrator of the community
+//@add_chat_request_count Number of pending requests for addition of chats to the community; 0 if the current user isn't an administrator of the community
+communityFullInfo photo:chatPhoto chats:vector<communityChat> administrator_count:int32 banned_count:int32 add_chat_request_count:int32 = CommunityFullInfo;
 
 
 //@description Contains description of user rating
@@ -3095,6 +3107,13 @@ inputMessageReplyToEphemeralMessage ephemeral_message_id:int32 = InputMessageRep
 //@country_code A two-letter ISO 3166-1 alpha-2 country code of the country for which the fact-check is shown
 factCheck text:formattedText country_code:string = FactCheck;
 
+//@description Describes an ephemeral content of a regular message, which must be shown instead of the regular content
+//@can_be_saved True, if content of the message can be saved locally
+//@has_timestamped_media True, if media timestamp entities refers to a media in this message as opposed to a media in the replied message
+//@content Content of the message
+//@reply_markup Reply markup for the message; may be null if none
+ephemeralMessageContent can_be_saved:Bool has_timestamped_media:Bool content:MessageContent reply_markup:ReplyMarkup = EphemeralMessageContent;
+
 
 //@description Describes a message
 //@id Message identifier; unique for the chat to which the message belongs
@@ -3139,9 +3158,11 @@ factCheck text:formattedText country_code:string = FactCheck;
 //@restriction_info Information about the restrictions that must be applied to the message content; may be null if none
 //@summary_language_code IETF language tag of the message language on which it can be summarized; empty if summary isn't available for the message
 //@content Content of the message
+//@ephemeral_content Content of the message, which is visible only to the current user and must be shown instead of the regular content; may be null if none
 //@reply_markup Reply markup for the message; may be null if none
 //@ephemeral_message_id Unique identifier of the ephemeral message if the message is ephemeral; for bots only
-message id:int53 sender_id:MessageSender receiver_id:MessageSender chat_id:int53 sending_state:MessageSendingState scheduling_state:MessageSchedulingState is_outgoing:Bool is_pinned:Bool is_from_offline:Bool can_be_saved:Bool has_timestamped_media:Bool is_channel_post:Bool is_paid_star_suggested_post:Bool is_paid_gram_suggested_post:Bool contains_unread_mention:Bool contains_unread_poll_votes:Bool date:int32 edit_date:int32 forward_info:messageForwardInfo import_info:messageImportInfo interaction_info:messageInteractionInfo unread_reactions:vector<unreadReaction> fact_check:factCheck suggested_post_info:suggestedPostInfo reply_to:MessageReplyTo topic_id:MessageTopic self_destruct_type:MessageSelfDestructType self_destruct_in:double auto_delete_in:double via_bot_user_id:int53 guest_bot_caller_id:MessageSender sender_business_bot_user_id:int53 sender_boost_count:int32 sender_tag:string paid_message_star_count:int53 author_signature:string media_album_id:int64 effect_id:int64 restriction_info:restrictionInfo summary_language_code:string content:MessageContent reply_markup:ReplyMarkup ephemeral_message_id:int32 = Message;
+//@chat_instance Identifier that uniquely corresponds to the chat to which the message was sent; for bots only
+message id:int53 sender_id:MessageSender receiver_id:MessageSender chat_id:int53 sending_state:MessageSendingState scheduling_state:MessageSchedulingState is_outgoing:Bool is_pinned:Bool is_from_offline:Bool can_be_saved:Bool has_timestamped_media:Bool is_channel_post:Bool is_paid_star_suggested_post:Bool is_paid_gram_suggested_post:Bool contains_unread_mention:Bool contains_unread_poll_votes:Bool date:int32 edit_date:int32 forward_info:messageForwardInfo import_info:messageImportInfo interaction_info:messageInteractionInfo unread_reactions:vector<unreadReaction> fact_check:factCheck suggested_post_info:suggestedPostInfo reply_to:MessageReplyTo topic_id:MessageTopic self_destruct_type:MessageSelfDestructType self_destruct_in:double auto_delete_in:double via_bot_user_id:int53 guest_bot_caller_id:MessageSender sender_business_bot_user_id:int53 sender_boost_count:int32 sender_tag:string paid_message_star_count:int53 author_signature:string media_album_id:int64 effect_id:int64 restriction_info:restrictionInfo summary_language_code:string content:MessageContent ephemeral_content:ephemeralMessageContent reply_markup:ReplyMarkup ephemeral_message_id:int32 chat_instance:int64 = Message;
 
 
 //@description Contains a list of messages @total_count Approximate total number of messages found @messages List of messages; messages may be null
@@ -3683,7 +3704,7 @@ buttonStyleDanger = ButtonStyle;
 //@description The button has green color
 buttonStyleSuccess = ButtonStyle;
 
-//@description The button must be shown as a link. The style is allowed only for callback inline buttons inside rich messages
+//@description The button must be shown as a link. The style is allowed only for callback buttons in inlineButton
 buttonStyleLink = ButtonStyle;
 
 
@@ -3752,7 +3773,10 @@ keyboardButton text:string icon_custom_emoji_id:int64 style:ButtonStyle type:Key
 //@description A button that opens a specified URL @url HTTP or tg:// URL to open. If the link is of the type internalLinkTypeWebApp, then the button must be marked as a Web App button
 inlineKeyboardButtonTypeUrl url:string = InlineKeyboardButtonType;
 
-//@description A button that opens a specified URL and automatically authorize the current user by calling getLoginUrlInfo @url An HTTP URL to pass to getLoginUrlInfo @id Unique button identifier @forward_text If non-empty, new text of the button in forwarded messages
+//@description A button that opens a specified URL and automatically authorize the current user by calling getLoginUrlInfo; not supported in ephemeral messages
+//@url An HTTP URL to pass to getLoginUrlInfo
+//@id Unique button identifier
+//@forward_text If non-empty, new text of the button in forwarded messages
 inlineKeyboardButtonTypeLoginUrl url:string id:int53 forward_text:string = InlineKeyboardButtonType;
 
 //@description A button that opens a Web App by calling openWebApp @url An HTTP URL to pass to openWebApp
@@ -3996,6 +4020,16 @@ builtInThemeArctic = BuiltInTheme;
 themeSettings base_theme:BuiltInTheme accent_color:int32 background:background outgoing_message_fill:BackgroundFill animate_outgoing_message_fill:Bool outgoing_message_accent_color:int32 = ThemeSettings;
 
 
+//@description Represents a button inside a rich message
+//@text Text of the button; only richTexts, richTextPlain, and richTextCustomEmoji are allowed
+//@style Style of the button
+//@type Type of the button; must be one of inlineKeyboardButtonTypeUrl, inlineKeyboardButtonTypeLoginUrl, inlineKeyboardButtonTypeWebApp, inlineKeyboardButtonTypeCallback,
+//-inlineKeyboardButtonTypeSwitchInline, inlineKeyboardButtonTypeUser, inlineKeyboardButtonTypeCopyText. Additionally,
+//-inlineKeyboardButtonTypeCallbackWithPassword and inlineKeyboardButtonTypeDisabled may be received in incoming messages. Regular users may use only inlineKeyboardButtonTypeUrl,
+//-inlineKeyboardButtonTypeUser and inlineKeyboardButtonTypeCopyText
+inlineButton text:RichText style:ButtonStyle type:InlineKeyboardButtonType = InlineButton;
+
+
 //@class RichText @description Describes a formatted text object
 
 //@description A plain text @text Text
@@ -4072,6 +4106,9 @@ richTextIcon document:document width:int32 height:int32 = RichText;
 
 //@description A mathematical expression @expression The expression in LaTeX format
 richTextMathematicalExpression expression:string = RichText;
+
+//@description A button @button The button
+richTextButton button:inlineButton = RichText;
 
 //@description A rich text replacing another rich text; not supported in inputRichMessage @text Text @old_text The old text
 richTextDiff text:RichText old_text:RichText = RichText;
@@ -4207,6 +4244,11 @@ pageBlockList items:vector<pageBlockListItem> = PageBlock;
 //@credit Quote credit; may be null if none
 pageBlockBlockQuote blocks:vector<PageBlock> credit:RichText = PageBlock;
 
+//@description An expandable block quote
+//@text Text of the quote
+//@credit Quote credit; may be null if none
+pageBlockExpandableBlockQuote text:RichText credit:RichText = PageBlock;
+
 //@description A pull quote
 //@text Quote text
 //@credit Quote credit; may be null if none
@@ -4220,12 +4262,12 @@ pageBlockPullQuote text:RichText credit:RichText = PageBlock;
 pageBlockAnimation animation:animation caption:pageBlockCaption need_autoplay:Bool has_spoiler:Bool = PageBlock;
 
 //@description An audio file
-//@audio Audio file; may be null
+//@audio Audio file
 //@caption Audio file caption; may be null if none
 pageBlockAudio audio:audio caption:pageBlockCaption = PageBlock;
 
 //@description A general file
-//@document The file; may be null
+//@document The file
 //@caption File caption; may be null if none
 pageBlockDocument document:document caption:pageBlockCaption = PageBlock;
 
@@ -4245,7 +4287,7 @@ pageBlockPhoto photo:photo caption:pageBlockCaption url:string has_spoiler:Bool 
 pageBlockVideo video:video caption:pageBlockCaption need_autoplay:Bool is_looped:Bool has_spoiler:Bool = PageBlock;
 
 //@description A voice note
-//@voice_note Voice note; may be null
+//@voice_note Voice note
 //@caption Voice note caption; may be null if none
 pageBlockVoiceNote voice_note:voiceNote caption:pageBlockCaption = PageBlock;
 
@@ -4294,7 +4336,8 @@ pageBlockChatLink title:string photo:chatPhotoInfo accent_color_id:int32 usernam
 //@cells Table cells
 //@is_bordered True, if the table is bordered
 //@is_striped True, if the table is striped
-pageBlockTable caption:RichText cells:vector<vector<pageBlockTableCell>> is_bordered:Bool is_striped:Bool = PageBlock;
+//@is_compact True, if table cells must have smaller indents
+pageBlockTable caption:RichText cells:vector<vector<pageBlockTableCell>> is_bordered:Bool is_striped:Bool is_compact:Bool = PageBlock;
 
 //@description A collapsible block
 //@header Always visible heading for the block
@@ -4314,6 +4357,14 @@ pageBlockRelatedArticles header:RichText articles:vector<pageBlockRelatedArticle
 //@height Map height
 //@caption Block caption; may be null if none
 pageBlockMap location:location zoom:int32 width:int32 height:int32 caption:pageBlockCaption = PageBlock;
+
+//@description A list of buttons shown in a row
+//@buttons The buttons
+//@align Horizontal alignment of the buttons; may be null if the buttons must be shown full-width
+pageBlockButtonRow buttons:vector<inlineButton> align:PageBlockHorizontalAlignment = PageBlock;
+
+//@description Represents a block unsupported by the current application version
+pageBlockUnsupported = PageBlock;
 
 
 //@description Describes an instant view page for a web page
@@ -5299,6 +5350,9 @@ messageChatJoinByLink = MessageContent;
 //@description A new member was accepted to the chat by an administrator
 messageChatJoinByRequest = MessageContent;
 
+//@description A new member joined the chat from a community @community_id Identifier of the community from which the user joined the chat
+messageChatJoinFromCommunity community_id:int53 = MessageContent;
+
 //@description A chat member was deleted @user_id User identifier of the deleted chat member
 messageChatDeleteMember user_id:int53 = MessageContent;
 
@@ -5365,8 +5419,10 @@ messageCustomServiceAction text:string = MessageContent;
 //@description A new high score was achieved in a game @game_message_id Identifier of the message with the game, can be an identifier of a deleted message @game_id Identifier of the game; may be different from the games presented in the message with the game @score New score
 messageGameScore game_message_id:int53 game_id:int64 score:int32 = MessageContent;
 
-//@description A bot managed by another bot was created by the user @bot_user_id User identifier of the created bot
-messageManagedBotCreated bot_user_id:int53 = MessageContent;
+//@description A bot managed by another bot was created by the user
+//@bot_user_id User identifier of the created bot
+//@manager_bot_user_id Identifier of the bot which will manage the new bot
+messageManagedBotCreated bot_user_id:int53 manager_bot_user_id:int53 = MessageContent;
 
 //@description A payment has been sent to a bot or a business account
 //@invoice_chat_id Identifier of the chat, containing the corresponding invoice message
@@ -5518,6 +5574,8 @@ messageGift gift:gift sender_id:MessageSender receiver_id:MessageSender received
 //@receiver_id Receiver of the gift
 //@origin Origin of the upgraded gift
 //@received_gift_id Unique identifier of the received gift for the current user; only for the receiver of the gift
+//@text Message added to the gift
+//@is_private True, if the sender and gift text are shown only to the gift receiver; otherwise, everyone will be able to see them
 //@is_saved True, if the gift is displayed on the user's or the channel's profile page; only for the receiver of the gift
 //@can_be_transferred True, if the gift can be transferred to another owner; only for the receiver of the gift
 //@was_transferred True, if the gift has already been transferred to another owner; only for the receiver of the gift
@@ -5527,7 +5585,7 @@ messageGift gift:gift sender_id:MessageSender receiver_id:MessageSender received
 //@next_resale_date Point in time (Unix timestamp) when the gift can be resold to another user; can be in the past; 0 if the gift can't be resold; only for the receiver of the gift
 //@export_date Point in time (Unix timestamp) when the gift can be transferred to the TON blockchain as an NFT; can be in the past; 0 if NFT export isn't possible; only for the receiver of the gift
 //@craft_date Point in time (Unix timestamp) when the gift can be used to craft another gift; can be in the past; only for the receiver of the gift
-messageUpgradedGift gift:upgradedGift sender_id:MessageSender receiver_id:MessageSender origin:UpgradedGiftOrigin received_gift_id:string is_saved:Bool can_be_transferred:Bool was_transferred:Bool transfer_star_count:int53 drop_original_details_star_count:int53 next_transfer_date:int32 next_resale_date:int32 export_date:int32 craft_date:int32 = MessageContent;
+messageUpgradedGift gift:upgradedGift sender_id:MessageSender receiver_id:MessageSender origin:UpgradedGiftOrigin received_gift_id:string text:formattedText is_private:Bool is_saved:Bool can_be_transferred:Bool was_transferred:Bool transfer_star_count:int53 drop_original_details_star_count:int53 next_transfer_date:int32 next_resale_date:int32 export_date:int32 craft_date:int32 = MessageContent;
 
 //@description A gift which purchase, upgrade or transfer were refunded
 //@gift The gift
@@ -5946,6 +6004,9 @@ inputPageBlockList items:vector<inputPageBlockListItem> = InputPageBlock;
 //@description A block quote @blocks Quote blocks @credit Quote credit; pass null if none
 inputPageBlockBlockQuote blocks:vector<InputPageBlock> credit:RichText = InputPageBlock;
 
+//@description An expandable block quote @text Quote text @credit Quote credit; pass null if none
+inputPageBlockExpandableBlockQuote text:RichText credit:RichText = InputPageBlock;
+
 //@description A pull quote @text Quote text @credit Quote credit; pass null if none
 inputPageBlockPullQuote text:RichText credit:RichText = InputPageBlock;
 
@@ -5985,9 +6046,10 @@ inputPageBlockSlideshow blocks:vector<InputPageBlock> caption:pageBlockCaption =
 //@description A table
 //@caption Table caption
 //@cells Table cells
-//@is_bordered True, if the table is bordered
-//@is_striped True, if the table is striped
-inputPageBlockTable caption:RichText cells:vector<vector<pageBlockTableCell>> is_bordered:Bool is_striped:Bool = InputPageBlock;
+//@is_bordered Pass true if the table is bordered
+//@is_striped Pass true if the table is striped
+//@is_compact Pass true if table cells must have smaller indents
+inputPageBlockTable caption:RichText cells:vector<vector<pageBlockTableCell>> is_bordered:Bool is_striped:Bool is_compact:Bool = InputPageBlock;
 
 //@description A collapsible block
 //@header Always visible heading for the block
@@ -6002,6 +6064,11 @@ inputPageBlockDetails header:RichText blocks:vector<InputPageBlock> is_open:Bool
 //@height Map height; 0-10000
 //@caption Block caption; pass null if none
 inputPageBlockMap location:location zoom:int32 width:int32 height:int32 caption:pageBlockCaption = InputPageBlock;
+
+//@description A list of buttons shown in a row
+//@buttons The buttons
+//@align Horizontal alignment of the buttons; pass null if the buttons must be shown full-width
+inputPageBlockButtonRow buttons:vector<inlineButton> align:PageBlockHorizontalAlignment = InputPageBlock;
 
 
 //@class InputMessageContent @description The content of a message to send
@@ -10353,6 +10420,9 @@ updateMessageSendFailed message:message old_message_id:int53 error:error = Updat
 //@description The message content has changed @chat_id Chat identifier @message_id Message identifier @new_content New message content
 updateMessageContent chat_id:int53 message_id:int53 new_content:MessageContent = Update;
 
+//@description The message ephemeral content has changed @chat_id Chat identifier @message_id Message identifier @ephemeral_content New ephemeral content of the message; may be null if none
+updateMessageEphemeralContent chat_id:int53 message_id:int53 ephemeral_content:ephemeralMessageContent = Update;
+
 //@description A message was edited. Changes in the message content will come in a separate updateMessageContent
 //@chat_id Chat identifier
 //@message_id Message identifier
@@ -10637,12 +10707,20 @@ updateDeleteMessages chat_id:int53 message_ids:vector<int53> is_permanent:Bool f
 updateChatAction chat_id:int53 topic_id:MessageTopic sender_id:MessageSender action:ChatAction = Update;
 
 //@description A new pending text or rich message was received in a chat with a bot. The message must be shown in the chat for at most getOption("pending_text_message_period") seconds,
-//-replace any other pending message with the same draft_id, and be deleted whenever any incoming message from the bot in the message thread is received
+//-replace any other pending message with the same draft_id with animation, and be deleted whenever any incoming message or a pending message with another draft_id is received in the message thread
 //@chat_id Chat identifier
 //@forum_topic_id The forum topic identifier in which the message will be sent; 0 if none
 //@draft_id Unique identifier of the message draft within the message thread
+//@can_stop True, if a button that calls stopPendingMessage to stop further message generation must be shown
+//@keep_on_stop True, if the pending message must not be automatically deleted when the user presses the Stop button
 //@content Content of the message; always of the type messageText or messageRichMessage
-updatePendingMessage chat_id:int53 forum_topic_id:int32 draft_id:int64 content:MessageContent = Update;
+updatePendingMessage chat_id:int53 forum_topic_id:int32 draft_id:int64 can_stop:Bool keep_on_stop:Bool content:MessageContent = Update;
+
+//@description A message draft generation was stopped by the user
+//@chat_id Chat identifier
+//@forum_topic_id The forum topic identifier of the message draft
+//@draft_id Identifier of the message draft within the message thread
+updateStopMessageDraft chat_id:int53 forum_topic_id:int32 draft_id:int64 = Update;
 
 //@description Some data of a community has changed. This update is guaranteed to come before the community identifier is returned to the application @community New data about the community
 updateCommunity community:community = Update;
@@ -10670,6 +10748,9 @@ updateBasicGroupFullInfo basic_group_id:int53 basic_group_full_info:basicGroupFu
 
 //@description Some data in supergroupFullInfo has been changed @supergroup_id Identifier of the supergroup or channel @supergroup_full_info New full information about the supergroup
 updateSupergroupFullInfo supergroup_id:int53 supergroup_full_info:supergroupFullInfo = Update;
+
+//@description Some data in communityFullInfo has been changed @community_id Identifier of the community @community_full_info New full information about the community
+updateCommunityFullInfo community_id:int53 community_full_info:communityFullInfo = Update;
 
 //@description A service notification from the server was received. Upon receiving this the application must show a popup with the content of the notification
 //@type Notification type. If type begins with "AUTH_KEY_DROP_", then two buttons "Cancel" and "Log out" must be shown under notification; if user presses the second, all local data must be destroyed using Destroy method
@@ -11714,6 +11795,22 @@ toggleSavedMessagesTopicIsPinned saved_messages_topic_id:int53 is_pinned:Bool = 
 setPinnedSavedMessagesTopics saved_messages_topic_ids:vector<int53> = Ok;
 
 
+//@description Returns full information about a community. The data will be sent through update. @community_id Community identifier
+loadCommunityFullInfo community_id:int53 = Ok;
+
+//@description Creates a new community for the given chat. Returns identifier of the created community
+//@name Name of the new community
+//@chat_id Identifier of the chat in the community; only chats with owned bots and owned basic group, supergroup and channel chats are allowed;
+//-basic group chats will be automatically upgraded to supergroup chats
+//@is_chat_hidden Pass true if the chat will be visible only to administrators of the community
+createCommunity name:string chat_id:int53 is_chat_hidden:Bool = CommunityId;
+
+//@description Changes name of the given community; requires can_change_info administrator right in the community
+//@community_id Identifier of the community
+//@name New name of the community
+setCommunityName community_id:int53 name:string = Ok;
+
+
 //@description Returns a list of common group chats with a given user. Chats are sorted by their type and creation date
 //@user_id User identifier
 //@offset_chat_id Chat identifier starting from which to return chats; use 0 for the first request
@@ -12159,14 +12256,16 @@ resendMessages chat_id:int53 message_ids:vector<int53> quote:inputTextQuote paid
 //@topic_id Topic in which the message will be sent; pass null if none
 //@receiver_user_id Identifier of the user who will receive the message
 //@callback_query_id Identifier of the callback query which triggered the message; for bots only
+//@replace_callback_query_message Pass true if the ephemeral message must replace the message from which the callback query originated; for bots only
 //@reply_to Information about the message to be replied; pass null if none. The message can be an incoming ephemeral message
+//@protect_content Pass true if the content of the message must be protected from forwarding and saving; for bots only
 //@sending_id Non-persistent identifier, which will be returned back in messageSendingStatePending object and can be used to match sent messages and corresponding updateNewMessage updates
 //@only_preview Pass true to get a fake message instead of actually sending them
 //@reply_markup Markup for replying to the message; pass null if none; for bots only
 //@input_message_content The content of the message to be sent. Must be one of the following types: inputMessageText, inputMessageAnimation,
 //-inputMessageAudio, inputMessageDocument, inputMessagePhoto, inputMessageRichMessage, inputMessageSticker, inputMessageVideo, inputMessageVideoNote, inputMessageVoiceNote,
 //-inputMessageLocation, inputMessageVenue, inputMessageContact
-sendEphemeralMessage chat_id:int53 topic_id:MessageTopic receiver_user_id:int53 callback_query_id:int64 reply_to:InputMessageReplyTo sending_id:int32 only_preview:Bool reply_markup:ReplyMarkup input_message_content:InputMessageContent = Message;
+sendEphemeralMessage chat_id:int53 topic_id:MessageTopic receiver_user_id:int53 callback_query_id:int64 replace_callback_query_message:Bool reply_to:InputMessageReplyTo protect_content:Bool sending_id:int32 only_preview:Bool reply_markup:ReplyMarkup input_message_content:InputMessageContent = Message;
 
 //@description Adds a local message to a chat. The message is persistent across application restarts only if the message database is used. Returns the added message
 //@chat_id Target chat; channel direct messages chats aren't supported
@@ -12293,11 +12392,24 @@ editEphemeralMessage chat_id:int53 receiver_user_id:int53 ephemeral_message_id:i
 //@show_caption_above_media Pass true to show the caption above the media; otherwise, the caption will be shown below the media. May be true only for animation, photo, and video messages
 editEphemeralMessageCaption chat_id:int53 receiver_user_id:int53 ephemeral_message_id:int32 reply_markup:ReplyMarkup caption:formattedText show_caption_above_media:Bool = Ok;
 
+//@description Edits the message from which a callback query has originated with an ephemeral message; for bots only
+//@callback_query_id Identifier of the callback query
+//@protect_content Pass true if the content of the message must be protected from forwarding and saving
+//@reply_markup The new message reply markup; pass null if none
+//@input_message_content New content of the message. Must be one of the following types: inputMessageText, inputMessageAnimation,
+//-inputMessageAudio, inputMessageDocument, inputMessagePhoto, inputMessageRichMessage, inputMessageSticker, inputMessageVideo, inputMessageVideoNote, inputMessageVoiceNote
+editCallbackQueryMessage callback_query_id:int64 protect_content:Bool reply_markup:ReplyMarkup input_message_content:InputMessageContent = Ok;
+
 //@description Edits the time when a scheduled message will be sent. Scheduling state of all messages in the same album or forwarded together with the message will be also changed
 //@chat_id The chat the message belongs to
 //@message_id Identifier of the message. Use messageProperties.can_edit_scheduling_state to check whether the message is suitable
 //@scheduling_state The new message scheduling state; pass null to send the message immediately. Must be null for messages in the state messageSchedulingStateSendWhenVideoProcessed
 editMessageSchedulingState chat_id:int53 message_id:int53 scheduling_state:MessageSchedulingState = Ok;
+
+//@description Removes message ephemeral content and reverts message state to the original
+//@chat_id The chat the message belongs to
+//@message_id Identifier of the message
+deleteMessageEphemeralContent chat_id:int53 message_id:int53 = Ok;
 
 
 //@description Changes the fact-check of a message. Can be only used if messageProperties.can_set_fact_check == true
@@ -12501,7 +12613,7 @@ addQuickReplyShortcutInlineQueryResultMessage shortcut_name:string reply_to_mess
 addQuickReplyShortcutMessageAlbum shortcut_name:string reply_to_message_id:int53 input_message_contents:vector<InputMessageContent> = QuickReplyMessages;
 
 //@description Re-adds quick reply messages which failed to add. Can be called only for messages for which messageSendingStateFailed.can_retry is true and after specified in messageSendingStateFailed.retry_after time passed.
-//-If a message is re-added, the corresponding failed to send message is deleted. Returns the sent messages in the same order as the message identifiers passed in message_ids. If a message can't be readded, null will be returned instead of the message
+//-If a message is re-added, the corresponding failed to send message is deleted. Returns the sent messages in the same order as the message identifiers passed in message_ids. If a message can't be re-added, null will be returned instead of the message
 //@shortcut_name Name of the target shortcut
 //@message_ids Identifiers of the quick reply messages to re-add. Message identifiers must be in a strictly increasing order
 readdQuickReplyShortcutMessages shortcut_name:string message_ids:vector<int53> = QuickReplyMessages;
@@ -12515,30 +12627,30 @@ readdQuickReplyShortcutMessages shortcut_name:string message_ids:vector<int53> =
 editQuickReplyMessage shortcut_id:int32 message_id:int53 input_message_content:InputMessageContent = Ok;
 
 
-//@description Loads welcome messages of a chat; requires can_change_info administrator right in the chat. The loaded messages will be sent through updateChatWelcomeMessages
+//@description Loads welcome messages of a chat; requires can_send_welcome_messages administrator right in the chat. The loaded messages will be sent through updateChatWelcomeMessages
 //@chat_id The identifier of the chat
 loadChatWelcomeMessages chat_id:int53 = Ok;
 
-//@description Adds a message to the list of welcome messages of a chat; requires can_change_info administrator right in the chat
+//@description Adds a message to the list of welcome messages of a chat; requires can_send_welcome_messages administrator right in the chat. There can be up to getOption("welcome_message_count_max") welcome messages in a chat
 //@chat_id The identifier of the chat
 //@input_message_content The content of the message to be sent. Must be one of the following types: inputMessageText, inputMessageAnimation,
 //-inputMessageAudio, inputMessageDocument, inputMessagePhoto, inputMessageRichMessage, inputMessageSticker, inputMessageVideo, inputMessageVideoNote, inputMessageVoiceNote,
 //-inputMessageLocation, inputMessageVenue, inputMessageContact
 addChatWelcomeMessage chat_id:int53 input_message_content:InputMessageContent = Ok;
 
-//@description Edits a welcome message of a chat; requires can_change_info administrator right in the chat
+//@description Edits a welcome message of a chat; requires can_send_welcome_messages administrator right in the chat
 //@chat_id The identifier of the chat
 //@welcome_message_id The identifier of the welcome message
 //@input_message_content New content of the message. Must be one of the following types: inputMessageText, inputMessageAnimation,
 //-inputMessageAudio, inputMessageDocument, inputMessagePhoto, inputMessageRichMessage, inputMessageSticker, inputMessageVideo, inputMessageVideoNote, inputMessageVoiceNote
 editChatWelcomeMessage chat_id:int53 welcome_message_id:int32 input_message_content:InputMessageContent = Ok;
 
-//@description Deletes a welcome message of a chat; requires can_change_info administrator right in the chat
+//@description Deletes a welcome message of a chat; requires can_send_welcome_messages administrator right in the chat
 //@chat_id The identifier of the chat
 //@welcome_message_id The identifier of the welcome message
 deleteChatWelcomeMessage chat_id:int53 welcome_message_id:int32 = Ok;
 
-//@description Deletes all welcome messages of a chat; requires can_change_info administrator right in the chat @chat_id The identifier of the chat
+//@description Deletes all welcome messages of a chat; requires can_send_welcome_messages administrator right in the chat @chat_id The identifier of the chat
 deleteAllChatWelcomeMessages chat_id:int53 = Ok;
 
 
@@ -13082,15 +13194,25 @@ sendChatAction chat_id:int53 topic_id:MessageTopic business_connection_id:string
 //@chat_id Chat identifier
 //@forum_topic_id The forum topic identifier in which the message will be sent; pass 0 if none
 //@draft_id Unique identifier of the draft
+//@can_stop Pass true to show the user a button to stop further drafts
+//@keep_on_stop Pass true to keep the current draft when the user stops further generation
 //@text Draft text of the message; pass null to show a "Thinking..." placeholder
-sendTextMessageDraft chat_id:int53 forum_topic_id:int32 draft_id:int64 text:formattedText = Ok;
+sendTextMessageDraft chat_id:int53 forum_topic_id:int32 draft_id:int64 can_stop:Bool keep_on_stop:Bool text:formattedText = Ok;
 
 //@description Sends a draft for a being generated rich message; for bots only
 //@chat_id Chat identifier
 //@forum_topic_id The forum topic identifier in which the message will be sent; pass 0 if none
 //@draft_id Unique identifier of the draft
+//@can_stop Pass true to show the user a button to stop further drafts
+//@keep_on_stop Pass true to keep the current draft when the user stops further generation
 //@message Draft of the message; file upload isn't supported
-sendRichMessageDraft chat_id:int53 forum_topic_id:int32 draft_id:int64 message:inputRichMessage = Ok;
+sendRichMessageDraft chat_id:int53 forum_topic_id:int32 draft_id:int64 can_stop:Bool keep_on_stop:Bool message:inputRichMessage = Ok;
+
+//@description Stops a pending message generation by a bot
+//@chat_id Identifier of the chat with the bot
+//@topic_id Identifier of the topic in which the action is performed; pass null if none
+//@draft_id Unique identifier of the message draft within the message thread
+stopPendingMessage chat_id:int53 topic_id:MessageTopic draft_id:int64 = Ok;
 
 
 //@description Informs TDLib that the chat is opened by the user. Many useful activities depend on the chat being opened or closed (e.g., in supergroups and channels all updates are received only for opened chats) @chat_id Chat identifier
@@ -15276,7 +15398,10 @@ dropGiftOriginalDetails received_gift_id:string star_count:int53 = Ok;
 //@gift_name Name of the upgraded gift to send
 //@owner_id Identifier of the user or the channel chat that will receive the gift
 //@price The price that the user agreed to pay for the gift
-sendResoldGift gift_name:string owner_id:MessageSender price:GiftResalePrice = GiftResaleResult;
+//@text Text to show along with the gift; 0-getOption("gift_text_length_max") characters. Only Bold, Italic, Underline, Strikethrough, Spoiler, CustomEmoji, and DateTime entities are allowed.
+//-Must be empty if the receiver enabled paid messages and the price of the gift is less than the price of a paid message to the user
+//@is_private Pass true to show gift text and sender only to the gift receiver; otherwise, everyone will be able to see them
+sendResoldGift gift_name:string owner_id:MessageSender price:GiftResalePrice text:formattedText is_private:Bool = GiftResaleResult;
 
 //@description Sends an offer to purchase an upgraded gift
 //@owner_id Identifier of the user or the channel chat that currently owns the gift and will receive the offer

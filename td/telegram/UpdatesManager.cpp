@@ -1000,7 +1000,6 @@ bool UpdatesManager::is_acceptable_message(const telegram_api::Message *message_
         case telegram_api::messageActionPollAppendAnswer::ID:
         case telegram_api::messageActionPollDeleteAnswer::ID:
         case telegram_api::messageActionManagedBotCreated::ID:
-        case telegram_api::messageActionChatJoinedViaCommunity::ID:
           break;
         case telegram_api::messageActionChatCreate::ID: {
           auto action = static_cast<const telegram_api::messageActionChatCreate *>(action_ptr);
@@ -1120,6 +1119,13 @@ bool UpdatesManager::is_acceptable_message(const telegram_api::Message *message_
         }
         case telegram_api::messageActionChangeCommunity::ID: {
           auto action = static_cast<const telegram_api::messageActionChangeCommunity *>(action_ptr);
+          if (action->community_id_ != 0 && !is_acceptable_community(CommunityId(action->community_id_))) {
+            return false;
+          }
+          break;
+        }
+        case telegram_api::messageActionChatJoinedViaCommunity::ID: {
+          auto action = static_cast<const telegram_api::messageActionChatJoinedViaCommunity *>(action_ptr);
           if (action->community_id_ != 0 && !is_acceptable_community(CommunityId(action->community_id_))) {
             return false;
           }
@@ -1753,6 +1759,34 @@ vector<DialogId> UpdatesManager::get_chat_dialog_ids(const telegram_api::Updates
     td::remove(dialog_ids, DialogId(ChatManager::get_unsupported_channel_id()));
   }
   return dialog_ids;
+}
+
+CommunityId UpdatesManager::get_community_id(const telegram_api::Updates *updates_ptr) {
+  CommunityId community_id;
+  auto updates = get_updates(updates_ptr);
+  if (updates != nullptr) {
+    for (auto &update : *updates) {
+      if (update->get_id() == telegram_api::updateChannel::ID) {
+        auto channel_id = static_cast<const telegram_api::updateChannel *>(update.get())->channel_id_;
+        if (ChannelId(channel_id).is_regular_channel()) {
+          continue;
+        }
+        if (community_id.is_valid()) {
+          LOG(ERROR) << "Receive multiple updateChannel";
+          return {};
+        }
+        community_id = CommunityId(channel_id);
+        if (!community_id.is_valid()) {
+          LOG(ERROR) << "Receive " << community_id;
+          return {};
+        }
+      }
+    }
+  }
+  if (!community_id.is_valid()) {
+    LOG(ERROR) << "Receive no community";
+  }
+  return community_id;
 }
 
 int32 UpdatesManager::get_update_edit_message_pts(const telegram_api::Updates *updates_ptr,
@@ -4528,8 +4562,9 @@ void UpdatesManager::on_update(tl_object_ptr<telegram_api::updateBotCallbackQuer
 
 void UpdatesManager::on_update(tl_object_ptr<telegram_api::updateEphemeralBotCallbackQuery> update,
                                Promise<Unit> &&promise) {
-  td_->callback_queries_manager_->on_new_ephemeral_callback_query(
-      update->query_id_, UserId(update->user_id_), std::move(update->data_), std::move(update->message_));
+  td_->callback_queries_manager_->on_new_ephemeral_callback_query(update->query_id_, UserId(update->user_id_),
+                                                                  std::move(update->data_), update->chat_instance_,
+                                                                  std::move(update->message_));
   promise.set_value(Unit());
 }
 

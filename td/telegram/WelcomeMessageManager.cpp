@@ -15,6 +15,7 @@
 #include "td/telegram/files/FileManager.h"
 #include "td/telegram/files/FileUploadId.h"
 #include "td/telegram/Global.h"
+#include "td/telegram/logevent/LogEvent.h"
 #include "td/telegram/MessageContent.h"
 #include "td/telegram/MessageEntity.h"
 #include "td/telegram/MessageId.h"
@@ -31,9 +32,12 @@
 #include "td/db/SqliteKeyValueAsync.h"
 
 #include "td/utils/algorithm.h"
+#include "td/utils/buffer.h"
 #include "td/utils/logging.h"
 #include "td/utils/Random.h"
+#include "td/utils/SliceBuilder.h"
 #include "td/utils/Status.h"
+#include "td/utils/tl_helpers.h"
 
 namespace td {
 
@@ -354,8 +358,8 @@ Status WelcomeMessageManager::can_access_welcome_messages(DialogId dialog_id) {
   if (dialog_id.get_type() == DialogType::User) {
     return Status::Error(400, "Chat can't have welcome messages");
   }
-  if (!td_->dialog_manager_->get_dialog_status(dialog_id).can_change_info_and_settings_as_administrator()) {
-    return Status::Error(400, "Have no enough rights");
+  if (!td_->dialog_manager_->get_dialog_status(dialog_id).can_manage_welcome_messages()) {
+    return Status::Error(400, "Have not enough rights");
   }
   return Status::OK();
 }
@@ -879,7 +883,7 @@ vector<FileId> WelcomeMessageManager::get_dialog_welcome_message_file_ids(
     const vector<unique_ptr<WelcomeMessage>> &messages) const {
   vector<FileId> file_ids;
   for (auto &message : messages) {
-    td::append(file_ids, get_message_content_file_ids(message->content_.get(), td_));
+    append(file_ids, get_message_content_file_ids(message->content_.get(), td_));
   }
   return file_ids;
 }

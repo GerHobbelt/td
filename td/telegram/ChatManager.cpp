@@ -5127,7 +5127,7 @@ void ChatManager::on_load_channel_full_from_database(ChannelId channel_id, strin
   Dependencies dependencies;
   dependencies.add(channel_id);
   // must not depend on the linked_dialog_id/monoforum_dialog_id itself, because message database can be disabled
-  // the Dialog will be forcely created in update_channel_full
+  // the Dialog will be forcibly created in update_channel_full
   dependencies.add_dialog_dependencies(DialogId(channel_full->linked_channel_id));
   dependencies.add_dialog_dependencies(DialogId(channel_full->monoforum_channel_id));
   dependencies.add(channel_full->linked_community_id);
@@ -7711,12 +7711,13 @@ void ChatManager::on_update_channel_status(Channel *c, ChannelId channel_id, Dia
   if (c->is_monoforum) {
     if (status.is_member()) {
       // monoforums have no member tags
-      status = c->is_admined_monoforum && !td_->auth_manager_->is_bot()
-                   ? DialogParticipantStatus::Administrator(
-                         AdministratorRights(true, true, false, false, false, false, false, false, false, false, false,
-                                             false, false, false, false, false, false, false, ChannelType::Megagroup),
-                         string(), false)
-                   : DialogParticipantStatus::Member(0, string());
+      status =
+          c->is_admined_monoforum && !td_->auth_manager_->is_bot()
+              ? DialogParticipantStatus::Administrator(
+                    AdministratorRights(true, true, false, false, false, false, false, false, false, false, false,
+                                        false, false, false, false, false, false, false, false, ChannelType::Megagroup),
+                    string(), false)
+              : DialogParticipantStatus::Member(0, string());
     } else {
       status = DialogParticipantStatus::Left();
     }
@@ -8146,6 +8147,21 @@ void ChatManager::on_update_channel_linked_channel_id(ChannelId channel_id, Chan
     on_update_channel_full_linked_channel_id(channel_full, group_channel_id, channel_id);
     if (channel_full != nullptr) {
       update_channel_full(channel_full, group_channel_id, "on_update_channel_linked_channel_id 4");
+    }
+  }
+}
+
+void ChatManager::on_update_channel_linked_community_id(ChannelId channel_id, CommunityId linked_community_id) {
+  auto c = get_channel(channel_id);
+  if (c != nullptr && c->linked_community_id != linked_community_id) {
+    c->linked_community_id = linked_community_id;
+    c->need_save_to_database = true;
+    update_channel(c, channel_id);
+
+    auto channel_full = get_channel_full_force(channel_id, true, "on_update_channel_linked_community_id");
+    if (channel_full != nullptr) {
+      on_update_channel_full_linked_community_id(channel_full, channel_id, linked_community_id);
+      update_channel_full(channel_full, channel_id, "on_update_channel_linked_community_id");
     }
   }
 }

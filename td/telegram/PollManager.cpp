@@ -13,6 +13,7 @@
 #include "td/telegram/Dependencies.h"
 #include "td/telegram/DialogId.h"
 #include "td/telegram/DialogManager.h"
+#include "td/telegram/files/FileUploadId.h"
 #include "td/telegram/ForumTopicManager.h"
 #include "td/telegram/Global.h"
 #include "td/telegram/logevent/LogEvent.h"
@@ -22,6 +23,7 @@
 #include "td/telegram/MessageCopyOptions.h"
 #include "td/telegram/MessageId.h"
 #include "td/telegram/MessageQueryManager.h"
+#include "td/telegram/MessageSelfDestructType.h"
 #include "td/telegram/MessageSender.h"
 #include "td/telegram/MessagesManager.h"
 #include "td/telegram/OnlineManager.h"
@@ -1981,14 +1983,13 @@ void PollManager::on_online() {
 
 vector<unique_ptr<MessageContent>> PollManager::get_individual_message_contents(
     PollId poll_id, const MessageContent *attached_media) const {
-  return transform(get_individual_message_content_refs(poll_id, attached_media),
-                   [td = td_](const MessageContent *content) {
-                     if (content == nullptr) {
-                       return create_empty_text_message_content();
-                     }
-                     return dup_message_content(td, DialogId(), content, MessageContentDupType::ServerCopy,
-                                                MessageCopyOptions(true, false));
-                   });
+  return transform(
+      get_individual_message_content_refs(poll_id, attached_media), [td = td_](const MessageContent *content) {
+        if (content == nullptr) {
+          return create_empty_text_message_content();
+        }
+        return dup_message_content(td, DialogId(), content, MessageContentDupType::Send, false, MessageCopyOptions());
+      });
 }
 
 vector<MessageContent *> PollManager::get_individual_message_content_refs(PollId poll_id,
@@ -2049,7 +2050,7 @@ PollId PollManager::dup_poll(DialogId dialog_id, PollId poll_id) {
   unique_ptr<MessageContent> explanation_media;
   if (poll->explanation_media_ != nullptr) {
     explanation_media = dup_message_content(td_, dialog_id, poll->explanation_media_.get(), MessageContentDupType::Copy,
-                                            MessageCopyOptions(true, false));
+                                            false, MessageCopyOptions(true, false));
   }
   bool is_broadcast = td_->dialog_manager_->is_broadcast_channel(dialog_id);
   return create_poll(std::move(question), std::move(options), poll->is_anonymous_, poll->allow_multiple_answers_,

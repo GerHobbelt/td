@@ -8,13 +8,11 @@
 
 #include "td/telegram/AccessRights.h"
 #include "td/telegram/AuthManager.h"
-#include "td/telegram/BusinessConnectionId.h"
 #include "td/telegram/ChatManager.h"
 #include "td/telegram/Dependencies.h"
 #include "td/telegram/DialogManager.h"
 #include "td/telegram/FileReferenceManager.h"
 #include "td/telegram/files/FileManager.h"
-#include "td/telegram/files/FileType.h"
 #include "td/telegram/files/FileUploadId.h"
 #include "td/telegram/Global.h"
 #include "td/telegram/InlineQueriesManager.h"
@@ -1961,7 +1959,7 @@ Result<td_api::object_ptr<td_api::quickReplyMessage>> QuickReplyManager::send_me
   reply_to_message_id = get_input_reply_to_message_id(s, reply_to_message_id);
 
   auto content = dup_message_content(td_, td_->dialog_manager_->get_my_dialog_id(), message_content.content.get(),
-                                     MessageContentDupType::Send, MessageCopyOptions());
+                                     MessageContentDupType::Send, false, MessageCopyOptions());
   auto *m = add_local_message(s, reply_to_message_id, std::move(content), message_content.invert_media,
                               message_content.via_bot_user_id, false, message_content.disable_web_page_preview,
                               std::move(message_content.emoji));
@@ -1994,12 +1992,14 @@ Result<td_api::object_ptr<td_api::quickReplyMessage>> QuickReplyManager::send_in
   if (!hide_via_bot) {
     via_bot_user_id = td_->inline_queries_manager_->get_inline_bot_user_id(query_id);
   }
+  bool is_via_bot = via_bot_user_id.is_valid();
   auto content =
       dup_message_content(td_, td_->dialog_manager_->get_my_dialog_id(), message_content->message_content.get(),
-                          MessageContentDupType::SendViaBot, MessageCopyOptions());
+                          MessageContentDupType::SendViaBot, is_via_bot, MessageCopyOptions());
   auto *m = add_local_message(s, reply_to_message_id, std::move(content), message_content->invert_media,
                               via_bot_user_id, hide_via_bot, message_content->disable_web_page_preview, string());
-  m->reply_markup = dup_reply_markup(message_content->message_reply_markup);
+  m->reply_markup = dup_reply_markup(message_content->message_reply_markup, td_->dialog_manager_->get_my_dialog_id(),
+                                     MessageContentDupType::SendViaBot, is_via_bot);
   m->inline_query_id = query_id;
   m->inline_result_id = result_id;
 
@@ -2037,7 +2037,7 @@ Result<td_api::object_ptr<td_api::quickReplyMessages>> QuickReplyManager::send_m
   vector<td_api::object_ptr<td_api::quickReplyMessage>> messages;
   for (auto &message_content : message_contents) {
     auto content = dup_message_content(td_, td_->dialog_manager_->get_my_dialog_id(), message_content.content.get(),
-                                       MessageContentDupType::Send, MessageCopyOptions());
+                                       MessageContentDupType::Send, false, MessageCopyOptions());
     auto *m = add_local_message(s, reply_to_message_id, std::move(content), message_content.invert_media,
                                 message_content.via_bot_user_id, false, message_content.disable_web_page_preview,
                                 std::move(message_content.emoji));
@@ -2234,7 +2234,7 @@ void QuickReplyManager::on_send_media_group_file_reference_error(QuickReplyShort
     request.results.push_back(Status::OK());
   }
 
-  for (auto upload_id : upload_ids) {
+  for (const auto &upload_id : upload_ids) {
     td_->message_query_manager_->start_upload_message_content(upload_id, true);
   }
 }
@@ -2292,7 +2292,7 @@ Result<td_api::object_ptr<td_api::quickReplyMessages>> QuickReplyManager::resend
     unique_ptr<MessageContent> content =
         dup_message_content(td_, td_->dialog_manager_->get_my_dialog_id(), m->content.get(),
                             m->inline_query_id != 0 ? MessageContentDupType::SendViaBot : MessageContentDupType::Send,
-                            MessageCopyOptions());
+                            m->via_bot_user_id.is_valid(), MessageCopyOptions());
     if (content == nullptr) {
       LOG(INFO) << "Can't resend " << m->message_id;
       continue;
@@ -2414,8 +2414,9 @@ void QuickReplyManager::edit_quick_reply_message(
   }
 
   auto old_file_ids = get_message_file_ids(m);
-  m->edited_content = dup_message_content(td_, td_->dialog_manager_->get_my_dialog_id(), message_content.content.get(),
-                                          MessageContentDupType::Send, MessageCopyOptions());
+  m->edited_content =
+      dup_message_content(td_, td_->dialog_manager_->get_my_dialog_id(), message_content.content.get(),
+                          MessageContentDupType::Send, m->via_bot_user_id.is_valid(), MessageCopyOptions());
   CHECK(m->edited_content != nullptr);
   m->edited_invert_media = message_content.invert_media;
   m->edited_disable_web_page_preview = message_content.disable_web_page_preview;
@@ -2765,8 +2766,9 @@ Result<vector<QuickReplyManager::QuickReplyMessageContent>> QuickReplyManager::g
     if (!message->message_id.is_server()) {
       continue;
     }
-    auto content = dup_message_content(td_, dialog_id, message->content.get(), MessageContentDupType::ServerCopy,
-                                       MessageCopyOptions(true, false));
+    auto content = dup_message_content(td_, dialog_id, message->content.get(), MessageContentDupType::SendQuickReply,
+                                       message->via_bot_user_id.is_valid(), MessageCopyOptions());
+    CHECK(content != nullptr);
 
     auto can_send_status = can_send_message_content(dialog_id, content.get(), false, true, td_);
     if (can_send_status.is_error()) {
@@ -2778,10 +2780,11 @@ Result<vector<QuickReplyManager::QuickReplyMessageContent>> QuickReplyManager::g
     auto disable_web_page_preview = message->disable_web_page_preview &&
                                     content->get_type() == MessageContentType::Text &&
                                     !has_message_content_web_page(content.get());
+    auto via_bot_user_id = message->hide_via_bot ? UserId() : message->via_bot_user_id;
     result.push_back({std::move(content), message->message_id, message->reply_to_message_id,
-                      dup_reply_markup(message->reply_markup),
-                      message->hide_via_bot ? UserId() : message->via_bot_user_id, message->media_album_id,
-                      message->invert_media, disable_web_page_preview});
+                      dup_reply_markup(message->reply_markup, td_->dialog_manager_->get_my_dialog_id(),
+                                       MessageContentDupType::SendQuickReply, via_bot_user_id.is_valid()),
+                      via_bot_user_id, message->media_album_id, message->invert_media, disable_web_page_preview});
   }
 
   return std::move(result);
@@ -3047,20 +3050,25 @@ void QuickReplyManager::sort_quick_reply_messages(vector<unique_ptr<QuickReplyMe
             });
 }
 
-QuickReplyManager::QuickReplyMessageUniqueId QuickReplyManager::get_quick_reply_unique_id(const QuickReplyMessage *m) {
-  return QuickReplyMessageUniqueId(m->message_id, m->edit_date);
+bool QuickReplyManager::is_legacy_quick_reply_message(const QuickReplyMessage *m) const {
+  return need_reget_message_content(td_, m->content.get()) || (m->legacy_layer != 0 && m->legacy_layer < MTPROTO_LAYER);
+}
+
+QuickReplyManager::QuickReplyMessageUniqueId QuickReplyManager::get_quick_reply_unique_id(
+    const QuickReplyMessage *m) const {
+  return QuickReplyMessageUniqueId(m->message_id, is_legacy_quick_reply_message(m) ? -1 : m->edit_date);
 }
 
 vector<QuickReplyManager::QuickReplyMessageUniqueId> QuickReplyManager::get_quick_reply_unique_ids(
-    const vector<unique_ptr<QuickReplyMessage>> &messages) {
+    const vector<unique_ptr<QuickReplyMessage>> &messages) const {
   return transform(
-      messages, [](const unique_ptr<QuickReplyMessage> &message) { return get_quick_reply_unique_id(message.get()); });
+      messages, [&](const unique_ptr<QuickReplyMessage> &message) { return get_quick_reply_unique_id(message.get()); });
 }
 
 vector<QuickReplyManager::QuickReplyMessageUniqueId> QuickReplyManager::get_server_quick_reply_unique_ids(
-    const vector<unique_ptr<QuickReplyMessage>> &messages) {
+    const vector<unique_ptr<QuickReplyMessage>> &messages) const {
   auto message_ids = get_quick_reply_unique_ids(messages);
-  td::remove_if(message_ids, [](const QuickReplyMessageUniqueId &message_id) { return !message_id.first.is_server(); });
+  td::remove_if(message_ids, [](const QuickReplyMessageUniqueId &unique_id) { return !unique_id.first.is_server(); });
   return message_ids;
 }
 
@@ -3077,7 +3085,7 @@ void QuickReplyManager::update_shortcut_from(Shortcut *new_shortcut, Shortcut *o
   if (is_partial) {
     // only the first server message is known
     // delete all definitely deleted server messages and insert the new message in the correct place
-    auto old_message_ids = get_quick_reply_unique_ids(old_shortcut->messages_);
+    auto old_unique_ids = get_quick_reply_unique_ids(old_shortcut->messages_);
     auto new_first_message_id = new_shortcut->messages_[0]->message_id;
     auto it = old_shortcut->messages_.begin();
     while (it != old_shortcut->messages_.end() && (*it)->message_id < new_first_message_id) {
@@ -3095,7 +3103,7 @@ void QuickReplyManager::update_shortcut_from(Shortcut *new_shortcut, Shortcut *o
       update_quick_reply_message(*it, std::move(new_shortcut->messages_[0]));
     }
     new_shortcut->messages_ = std::move(old_shortcut->messages_);
-    *are_messages_changed = (old_message_ids != get_quick_reply_unique_ids(new_shortcut->messages_));
+    *are_messages_changed = (old_unique_ids != get_quick_reply_unique_ids(new_shortcut->messages_));
 
     int32 server_total_count = 0;
     for (const auto &message : new_shortcut->messages_) {
@@ -3107,10 +3115,10 @@ void QuickReplyManager::update_shortcut_from(Shortcut *new_shortcut, Shortcut *o
       new_shortcut->server_total_count_ = server_total_count;
     }
   } else {
-    auto old_server_message_ids = get_server_quick_reply_unique_ids(old_shortcut->messages_);
-    auto new_server_message_ids = get_server_quick_reply_unique_ids(new_shortcut->messages_);
-    CHECK(static_cast<size_t>(new_shortcut->server_total_count_) == new_server_message_ids.size());
-    if (old_server_message_ids == new_server_message_ids) {
+    auto old_server_unique_ids = get_server_quick_reply_unique_ids(old_shortcut->messages_);
+    auto new_server_unique_ids = get_server_quick_reply_unique_ids(new_shortcut->messages_);
+    CHECK(static_cast<size_t>(new_shortcut->server_total_count_) == new_server_unique_ids.size());
+    if (old_server_unique_ids == new_server_unique_ids) {
       *are_messages_changed = false;
       new_shortcut->messages_ = std::move(old_shortcut->messages_);
     } else {
@@ -3199,8 +3207,7 @@ void QuickReplyManager::load_quick_reply_shortcuts() {
       register_new_message(message.get(), "load_quick_reply_shortcuts");
 
       if (message->message_id.is_server()) {
-        if (need_reget_message_content(td_, message->content.get()) ||
-            (message->legacy_layer != 0 && message->legacy_layer < MTPROTO_LAYER)) {
+        if (is_legacy_quick_reply_message(message.get())) {
           reload_quick_reply_message(shortcut->shortcut_id_, message->message_id, Promise<Unit>());
         }
         if (message->edited_content != nullptr) {

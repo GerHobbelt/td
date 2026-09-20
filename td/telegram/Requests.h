@@ -456,6 +456,12 @@ class Requests {
 
   void on_request(uint64 id, const td_api::setPinnedSavedMessagesTopics &request);
 
+  void on_request(uint64 id, const td_api::loadCommunityFullInfo &request);
+
+  void on_request(uint64 id, td_api::createCommunity &request);
+
+  void on_request(uint64 id, td_api::setCommunityName &request);
+
   void on_request(uint64 id, td_api::searchPublicChat &request);
 
   void on_request(uint64 id, td_api::searchPublicChats &request);
@@ -708,7 +714,11 @@ class Requests {
 
   void on_request(uint64 id, td_api::editEphemeralMessageCaption &request);
 
+  void on_request(uint64 id, td_api::editCallbackQueryMessage &request);
+
   void on_request(uint64 id, td_api::editMessageSchedulingState &request);
+
+  void on_request(uint64 id, const td_api::deleteMessageEphemeralContent &request);
 
   void on_request(uint64 id, td_api::setMessageFactCheck &request);
 
@@ -851,6 +861,8 @@ class Requests {
   void on_request(uint64 id, td_api::sendTextMessageDraft &request);
 
   void on_request(uint64 id, td_api::sendRichMessageDraft &request);
+
+  void on_request(uint64 id, const td_api::stopPendingMessage &request);
 
   void on_request(uint64 id, td_api::forwardMessages &request);
 
