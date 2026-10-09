@@ -1434,6 +1434,10 @@ class Requests {
 
   void on_request(uint64 id, const td_api::setBotProfilePhoto &request);
 
+  void on_request(uint64 id, td_api::addBotSecondaryUsername &request);
+
+  void on_request(uint64 id, const td_api::deleteBotSecondaryUsername &request);
+
   void on_request(uint64 id, td_api::toggleBotUsernameIsActive &request);
 
   void on_request(uint64 id, td_api::reorderBotActiveUsernames &request);
@@ -1720,6 +1724,8 @@ class Requests {
 
   void on_request(uint64 id, td_api::getTonWalletSecretPhrase &request);
 
+  void on_request(uint64 id, const td_api::getTonWalletOwnershipProofChallenge &request);
+
   void on_request(uint64 id, td_api::enableTonWalletBackup &request);
 
   void on_request(uint64 id, td_api::disableTonWalletBackup &request);
@@ -1733,6 +1739,8 @@ class Requests {
   void on_request(uint64 id, td_api::replaceTonWallet &request);
 
   void on_request(uint64 id, const td_api::getCurrencyExchangeRates &request);
+
+  void on_request(uint64 id, td_api::getTonWalletNfts &request);
 
   void on_request(uint64 id, const td_api::getTonConnectSessions &request);
 

@@ -2178,13 +2178,13 @@ tonCenterApiRequestTypeGet query:string = TonCenterApiRequestType;
 tonCenterApiRequestTypePost payload:string = TonCenterApiRequestType;
 
 
-//@class TonWalletTransferReceiver @description Represents expected receiver of a TON Wallet transfer
+//@class TonWalletTransferReceiver @description Represents expected receiver of a TON wallet transfer
 
 //@description The receiver is specified by its username @username Username of the user. Use searchPublicChat to find the user, check that it is a regular user,
-//-and then use createUserTonWallet to get information about the user's TON Wallet
+//-and then use createUserTonWallet to get information about the user's TON wallet
 tonWalletTransferReceiverUser username:string = TonWalletTransferReceiver;
 
-//@description The receiver is specified by its address @address Address of the receiver. Use getAddressTonWallet to get information about the user's TON Wallet
+//@description The receiver is specified by its address @address Address of the receiver. Use getAddressTonWallet to get information about the user's TON wallet
 tonWalletTransferReceiverAddress address:string = TonWalletTransferReceiver;
 
 
@@ -2204,6 +2204,17 @@ userTonWalletAddress user_id:int53 wallet_address:string public_key:bytes = User
 
 //@description Represents a list of TON wallet addresses of users @addresses A list of TON wallet addresses
 userTonWalletAddresses addresses:vector<userTonWalletAddress> = UserTonWalletAddresses;
+
+//@description Represents a challenge for TON wallet ownership proof
+//@payload Payload of the challenge
+//@domain Domain of the proof requester
+tonWalletOwnershipProofChallenge payload:string domain:string = TonWalletOwnershipProofChallenge;
+
+//@description Represents a proof of TON wallet ownership
+//@public_key Public key of the wallet
+//@timestamp The current UNIX timestamp which was used to create the proof
+//@signature The signature prooving the ownership
+tonWalletOwnershipProof public_key:bytes timestamp:int32 signature:bytes = TonWalletOwnershipProof;
 
 //@description Represents state of gasless transfers for the current user
 //@left_count Number of left gasless transfers. The daily available number of gasless transfers is available as getOption("ton_wallet_gasless_transfer_daily_count_max")
@@ -2236,7 +2247,7 @@ currencies currencies:vector<string> = Currencies;
 
 //@description Describes a payment method of an on-ramp provider
 //@name Name of the method
-//@is_available True, if the method is available for the user
+//@is_available True, if the method is available to the user
 onRampPaymentMethod name:string is_available:Bool = OnRampPaymentMethod;
 
 //@description Describes availability of cryptocurrency purchase through an on-ramp provider
@@ -2259,7 +2270,7 @@ onRampPaymentLimits payment_method:string base_currency_min_amount:string base_c
 //@payment_method The payment method to be used
 //@expiration_date Point in time (Unix timestamp) when the quote will expire
 //@base_currency_amount Paid amount of the base currency
-//@cryptocurrency_amount Received amount of the cryptocurrency
+//@cryptocurrency_amount Purchased amount of the cryptocurrency
 //@cryptocurrency_price The price of the cryptocurrency
 //@fee_amount Fee amount
 //@extra_fee_amount Extra fee amount
@@ -2273,7 +2284,7 @@ onRampPaymentQuote payment_method:string expiration_date:int32 base_currency_amo
 //@url HTTPS URL to be opened in a WebView to complete the purchase
 onRampPaymentSession session_id:string expiration_date:int32 url:string = OnRampPaymentSession;
 
-//@description Describes state of the wallet of the current user in the TON Blockchain
+//@description Describes state of the wallet of the current user in the TON blockchain
 //@address Address of the wallet; may be empty if none
 //@public_key Public key of the wallet; may be empty if none
 //@gram_amount The total amount of owned TON Grams, in the smallest units of the cryptocurrency
@@ -2282,6 +2293,31 @@ onRampPaymentSession session_id:string expiration_date:int32 url:string = OnRamp
 //@can_enable_backup True, if the user can enable backup for the wallet key
 //@can_export_phrase True, if the wallet key can be exported using getTonWalletSecretPhrase
 tonWalletState address:string public_key:bytes gram_amount:int53 is_being_created:Bool is_backup_enabled:Bool can_enable_backup:Bool can_export_phrase:Bool = TonWalletState;
+
+//@description Represents an attribute of an NFT in the TON blockchain
+//@trait_type Trait type
+//@value Value of the attribute
+tonNftAttribute trait_type:string value:string = TonNftAttribute;
+
+//@description Represents an NFT in the TON blockchain
+//@collection_address Address of the collection to which the NFT belongs; may be empty if unknown
+//@address Address of the NFT
+//@owner_address Address of the owner of the NFT
+//@index Index of the NFT among all NFTs from the collection as a decimal number
+//@name Name of the NFT
+//@param_description Description of the NFT
+//@image Image of the NFT; may be null if none
+//@thumbnail Thumbnail of the NFT; may be null if none
+//@content Content of the NFT; may be null if none
+//@sticker Sticker of the NFT; may be null if none
+//@attributes Attributes of the NFT
+//@extra Additional data about the NFT; may be null if none
+tonNft collection_address:string address:string owner_address:string index:string name:string description:string image:photoSize thumbnail:photoSize content:document sticker:sticker attributes:vector<tonNftAttribute> extra:JsonValue = TonNft;
+
+//@description Represents a list of TON NFTs
+//@nfts List of NFTs
+//@next_offset The offset for the next request. If empty, then there are no more results
+tonNfts nfts:vector<tonNft> next_offset:string = TonNfts;
 
 
 //@class TonWalletTransactionState @description Describes state of a transaction with a TON wallet
@@ -2293,7 +2329,7 @@ tonWalletTransactionStateSucceeded tx_hash:string = TonWalletTransactionState;
 tonWalletTransactionStateFailed = TonWalletTransactionState;
 
 
-//@class TonWalletTransactionType @description Describes type of a transaction with a TON wallet
+//@class TonWalletTransactionType @description Describes type of transaction with a TON wallet
 
 //@description The transaction is a deposit from an on-ramp provider
 //@amount The amount of received cryptocurrency, in the smallest units of the cryptocurrency
@@ -2309,6 +2345,13 @@ tonWalletTransactionTypeOnRampDeposit amount:int53 fee_amount:int53 provider_nam
 //@is_comment_encrypted True, if the comment is encrypted and must be decrypted using the user's private key
 tonWalletTransactionTypeTransfer amount:int53 fee_amount:int53 is_gasless:Bool comment:string is_comment_encrypted:Bool = TonWalletTransactionType;
 
+//@description A transfer of a TON NFT to or from the wallet
+//@nft The transferred NFT
+//@fee_amount The fee amount paid for the transaction, in the smallest units of the cryptocurrency
+//@comment Comment added to the transaction
+//@is_comment_encrypted True, if the comment is encrypted and must be decrypted using the user's private key
+tonWalletTransactionTypeNftTransfer nft:tonNft fee_amount:int53 comment:string is_comment_encrypted:Bool = TonWalletTransactionType;
+
 //@description Change of the wallet key
 //@fee_amount The fee amount paid for the transaction in TON Grams, in the smallest units of the cryptocurrency
 tonWalletTransactionTypeKeyChange fee_amount:int53 = TonWalletTransactionType;
@@ -2317,7 +2360,7 @@ tonWalletTransactionTypeKeyChange fee_amount:int53 = TonWalletTransactionType;
 //@description Represents a transaction with the TON wallet of the current user
 //@id Unique identifier of the transaction
 //@peer_address Address in the TON blockchain of the transaction peer; may be empty if the transaction isn't a wallet transfer
-//@peer_user_id Identifier of the other user that participated in the transaction; 0 if unknown
+//@peer_user_id Identifier of the other user who participated in the transaction; 0 if unknown
 //@peer_domain Identifier of the domain assigned to the peer address; may be empty if none
 //@date Point in time (Unix timestamp) when the transaction was completed
 //@state State of the transaction
@@ -2386,7 +2429,7 @@ tonConnectConnectItemAddress network:string = TonConnectConnectItem;
 tonConnectConnectItemProof payload:string = TonConnectConnectItem;
 
 
-//@description Contains information about a request to connect the user's TON Wallet to a dApp using TON Connect
+//@description Contains information about a request to connect the user's TON wallet to a dApp using TON Connect
 //@manifest_url URL of the manifest of the dApp
 //@items Items requested from the wallet
 tonConnectConnectRequest manifest_url:string items:vector<TonConnectConnectItem> = TonConnectConnectRequest;
@@ -2401,7 +2444,7 @@ tonConnectConnectRequest manifest_url:string items:vector<TonConnectConnectItem>
 //@state Session state
 tonConnectSession id:int64 dapp_client_id:string wallet_client_id:string creation_date:int32 manifest:TonConnectManifest nonce:bytes state:TonConnectSessionState = TonConnectSession;
 
-//@description Contains a list of TON connect sessions @sessions The list of sessions
+//@description Contains a list of TON Connect sessions @sessions The list of sessions
 tonConnectSessions sessions:vector<tonConnectSession> = TonConnectSessions;
 
 //@description Represents a pending TON Connect request
@@ -2635,7 +2678,9 @@ emojiStatusCustomEmojis custom_emoji_ids:vector<int64> = EmojiStatusCustomEmojis
 //@disabled_usernames List of currently disabled usernames; the username can be activated with toggleUsernameIsActive, toggleBotUsernameIsActive, or toggleSupergroupUsernameIsActive
 //@editable_username Active or disabled username, which may be changed with setUsername or setSupergroupUsername
 //@collectible_usernames Collectible usernames that were purchased at https://fragment.com and can be passed to getCollectibleItemInfo for more details
-usernames active_usernames:vector<string> disabled_usernames:vector<string> editable_username:string collectible_usernames:vector<string> = Usernames;
+//@secondary_username Secondary non-collectible username; for bots only. Can't be used in toggleBotUsernameIsActive; use addBotSecondaryUsername or removeBotSecondaryUsername to edit it
+//-If the username is disabled, then Telegram Premium subscription is required to re-enable it
+usernames active_usernames:vector<string> disabled_usernames:vector<string> editable_username:string collectible_usernames:vector<string> secondary_username:string = Usernames;
 
 
 //@description Represents a user
@@ -5825,10 +5870,10 @@ messageGiveawayPrizeStars star_count:int53 transaction_id:string boosted_chat_id
 //@is_comment_encrypted True, if the comment is encrypted and must be decrypted using the receiver's or sender's private key
 messageTonWalletTransfer transaction_id:string peer_address:string amount:int53 comment:string is_comment_encrypted:Bool = MessageContent;
 
-//@description A request from a dApp was received thriugh TON Connect
+//@description A request from a dApp was received through TON Connect
 //@session_id Unique identifier of the TON Connect session
 //@state State of the request
-//@dapp_name Name of the dApp
+//@dapp_name Name of the dApp; may be empty if unknown
 //@topic Topic of the request; may be empty if none
 //@trace_id Identifier to trace the request; may be empty if none
 messageTonConnectRequest session_id:int64 state:TonConnectRequestState dapp_name:string topic:string trace_id:string = MessageContent;
@@ -8985,6 +9030,15 @@ pushMessageContentPremiumGiftCode month_count:int32 = PushMessageContent;
 //@is_pinned True, if the message is a pinned message with the specified content
 pushMessageContentGiveaway winner_count:int32 prize:GiveawayPrize is_pinned:Bool = PushMessageContent;
 
+//@description A message with a TON wallet transfer
+//@amount String representation of the received amount
+//@comment Comment added to the transaction if it is public
+pushMessageContentTonWalletTransfer amount:string comment:string = PushMessageContent;
+
+//@description A message with a request from a dApp was received through TON Connect
+//@dapp_name Name of the dApp; may be empty if unknown
+pushMessageContentTonConnectRequest dapp_name:string = PushMessageContent;
+
 //@description A message with a gift
 //@star_count Number of Telegram Stars that sender paid for the gift
 //@is_prepaid_upgrade True, if the message is about prepaid upgrade of the gift by another user instead of actual receiving of a new gift
@@ -9872,7 +9926,7 @@ internalLinkTypeQrCodeAuthentication = InternalLinkType;
 //-If the chat is found, the chat is a chat with a bot and the bot has can_manage_bots == true, then show bot creation confirmation dialog
 //-with the given suggested_bot_username and suggested_bot_name. If user agrees, call createBot with via_link == true to create the bot
 //@manager_bot_username Username of the bot which will manage the new bot
-//@suggested_bot_username Suggested username for the bot; always ends with "bot" case-insensitive
+//@suggested_bot_username Suggested username for the bot; always ends with "bot" or a string from updateAllowedBotUsernamePremiumSuffixes case-insensitive
 //@suggested_bot_name Suggested name for the bot; may be empty if not specified
 internalLinkTypeRequestManagedBot manager_bot_username:string suggested_bot_username:string suggested_bot_name:string = InternalLinkType;
 
@@ -9927,7 +9981,7 @@ internalLinkTypeTheme theme_name:string = InternalLinkType;
 //@trace_id Identifier to trace the connection request
 internalLinkTypeTonConnect version:int32 dapp_client_id:string connect_request:tonConnectConnectRequest return_strategy:string rpc_request:string trace_id:string = InternalLinkType;
 
-//@description The link is a link for sending Grams from the user's TON Wallet
+//@description The link is a link for sending Grams from the user's TON wallet
 //@receiver Chosen receiver of the transfer; may be null if none
 //@gram_amount The pre-filled amount of TON Grams to send; in the smallest units of the cryptocurrency
 internalLinkTypeTonWalletTransfer receiver:TonWalletTransferReceiver gram_amount:int53 = InternalLinkType;
@@ -10323,7 +10377,7 @@ suggestedActionCheckPhoneNumber = SuggestedAction;
 //@description Suggests the user to view a hint about the meaning of one and two check marks on sent messages
 suggestedActionViewChecksHint = SuggestedAction;
 
-//@description Suggests the user to view a hint about receiving of the first TON Wallet transfer
+//@description Suggests the user to view a hint about receiving of the first TON wallet transfer
 suggestedActionViewFirstTonWalletTransferHint = SuggestedAction;
 
 //@description Suggests the user to convert specified supergroup to a broadcast group @supergroup_id Supergroup identifier
@@ -11226,6 +11280,10 @@ updateStoryListChatCount story_list:StoryList chat_count:int32 = Update;
 //@active_until_date Point in time (Unix timestamp) until stealth mode is active; 0 if it is disabled
 //@cooldown_until_date Point in time (Unix timestamp) when stealth mode can be enabled again; 0 if there is no active cooldown
 updateStoryStealthMode active_until_date:int32 cooldown_until_date:int32 = Update;
+
+//@description Lists of suffixes allowed in secondary bot usernames, which can be added additionally to the main username if the bot's owner has a Telegram Premium subscription
+//@suffixes The list of allowed suffixes
+updateAllowedBotUsernamePremiumSuffixes suffixes:vector<string> = Update;
 
 //@description Lists of bots which Mini Apps must be allowed to read text from clipboard and must be opened without a warning
 //@bot_user_ids List of user identifiers of the bots; the corresponding users may not be sent using updateUser updates and may not be accessible
@@ -13203,7 +13261,8 @@ getMessageEffect effect_id:int64 = MessageEffect;
 //@quote_position Approximate quote position in UTF-16 code units
 searchQuote text:formattedText quote:formattedText quote_position:int32 = FoundPosition;
 
-//@description Returns all entities (mentions, hashtags, cashtags, bot commands, bank card numbers, TON addresses, URLs, and email addresses) found in the text. Can be called synchronously @text The text in which to look for entities
+//@description Returns all entities (mentions, hashtags, cashtags, bot commands, bank card numbers, TON blockchain addresses, URLs, and email addresses) found in the text. Can be called synchronously
+//@text The text in which to look for entities
 getTextEntities text:string = TextEntities;
 
 //@description Parses Bold, Italic, Underline, Strikethrough, Spoiler, CustomEmoji, BlockQuote, ExpandableBlockQuote, Code, Pre, PreCode, TextUrl,
@@ -15350,15 +15409,18 @@ reorderBotMediaPreviews bot_user_id:int53 language_code:string file_ids:vector<i
 deleteBotMediaPreviews bot_user_id:int53 language_code:string file_ids:vector<int32> = Ok;
 
 
-//@description Checks whether a username can be set for a new bot. Use checkChatUsername to check username for other chat types
+//@description Checks whether a username can be set for a new bot or assigned as a secondary username to an existing bot. Use checkChatUsername to check username for other chat types
 //@username Username to be checked
-checkBotUsername username:string = CheckChatUsernameResult;
+//@is_secondary Pass true to check whether the username is suitable as a secondary username for an existing bot; pass false to check whether the username is suitable for createBot
+checkBotUsername username:string is_secondary:Bool = CheckChatUsernameResult;
 
 //@description Creates a bot which will be managed by another bot. Returns the created bot. May return an error with a message "BOT_CREATE_LIMIT_EXCEEDED"
 //-if the user already owns the maximum allowed number of bots as per getOption("owned_bot_count_max"). An internal link "https://t.me/BotFather?start=deletebot" can be processed to handle the error
 //@manager_bot_user_id Identifier of the bot that will manage the created bot
 //@name Name of the bot; 1-64 characters
-//@username Username of the bot. The username must end with "bot". Use checkBotUsername to find whether the name is suitable
+//@username Username of the bot. The username must end with "bot" or a string from updateAllowedBotUsernamePremiumSuffixes case-insensitive.
+//-Use checkBotUsername to find whether the name is suitable. If the username doesn't end with "bot", then the current user must have Telegram Premium subscription,
+//-the chosen username will be assigened as secondary and an additional regular username ending with "bot" will be automatically assigned to the created bot
 //@via_link Pass true if the bot is created from an internalLinkTypeRequestManagedBot link
 createBot manager_bot_user_id:int53 name:string username:string via_link:Bool = User;
 
@@ -15386,6 +15448,15 @@ getBotName bot_user_id:int53 language_code:string = Text;
 
 //@description Changes a profile photo for a bot @bot_user_id Identifier of the target bot @photo Profile photo to set; pass null to delete the chat photo
 setBotProfilePhoto bot_user_id:int53 photo:InputChatPhoto = Ok;
+
+//@description Adds a secondary username to a bot. Can be called only if userTypeBot.can_be_edited == true, the bot has no secondary username and the current user has Telegram Premium subscription
+//@bot_user_id Identifier of the target bot
+//@username The new secondary username; must be non-empty. Use checkBotUsername to check username validness
+addBotSecondaryUsername bot_user_id:int53 username:string = Ok;
+
+//@description Removes a secondary username from a bot. Can be called only if userTypeBot.can_be_edited == true and the bot has a secondary username
+//@bot_user_id Identifier of the target bot
+deleteBotSecondaryUsername bot_user_id:int53 = Ok;
 
 //@description Changes active state for a username of a bot. The editable username can be disabled only if there are other active usernames.
 //-May return an error with a message "USERNAMES_ACTIVE_TOO_MUCH" if the maximum number of active usernames has been reached. Can be called only if userTypeBot.can_be_edited == true
@@ -16066,7 +16137,7 @@ getChatRevenueTransactions chat_id:int53 offset:string limit:int32 = ChatRevenue
 //@limit The maximum number of transactions to return
 getTonTransactions direction:TransactionDirection offset:string limit:int32 = TonTransactions;
 
-//@description Returns the list of TON wallet transactions of the current user
+//@description Returns the list of TON wallet transactions of the current user; can be used only if getOption("can_use_ton_wallet")
 //@direction Direction of the transactions to receive; pass null to get all transactions
 //@offset Offset of the first transaction to return as received from the previous request; use empty string to get the first chunk of results
 //@limit The maximum number of transactions to return
@@ -16079,67 +16150,74 @@ getTonWalletTransaction transaction_id:string = TonWalletTransaction;
 getTonWalletTransactionByMsgHash msg_hash:string = TonWalletTransaction;
 
 
-//@description Loads state of the TON wallet of the current user
+//@description Loads state of the TON wallet of the current user; can be used only if getOption("can_use_ton_wallet")
 loadTonWalletState = Ok;
 
-//@description Loads or reloads the current state of gasless transfers for the current user
+//@description Loads or reloads the current state of gasless transfers for the current user; can be used only if getOption("can_use_ton_wallet")
 loadTonWalletGaslessTransfersInfo = Ok;
 
-//@description Returns information about balance of the current user in the bot https://t.me/walt
+//@description Returns information about balance of the current user in the bot https://t.me/walt; can be used only if getOption("can_use_ton_wallet")
 checkWalletBotBalance = WalletBotBalance;
 
-//@description Returns TON wallet addresses of the specified users
-//@user_ids Identifiers of the users, which wallet addresses have to be returned. If a user has no TON wallet, it will be skipped in the result
+//@description Returns TON wallet addresses of the specified users; can be used only if getOption("can_use_ton_wallet")
+//@user_ids Identifiers of the users whose wallet addresses have to be returned. If a user has no TON wallet, it will be skipped in the result
 getUserTonWalletAddresses user_ids:vector<int53> = UserTonWalletAddresses;
 
-//@description Creates a TON wallet for the specified regular user. The current user must have positive TON wallet balance @user_id Identifier of the user
+//@description Creates a TON wallet for the specified regular user; can be used only if getOption("can_use_ton_wallet"). The current user must have positive TON wallet balance @user_id Identifier of the user
 createUserTonWallet user_id:int53 = UserTonWalletAddress;
 
-//@description Returns information about a TON wallet with the given address @address Address in the TON blockchain
+//@description Returns information about a TON wallet with the given address; can be used only if getOption("can_use_ton_wallet") @address Address in the TON blockchain
 getAddressTonWallet address:string = UserTonWalletAddress;
 
 //@description Returns the secret phrase of the user's TON wallet as a space separated list of words. Works only if tonWalletState.can_export_phrase is true
-//@password Password of the current user; pass an empty string unless receive an error PASSWORD_MISSING for a passwordless request
+//@password Password of the current user; pass an empty string unless receive an error with a message "PASSWORD_MISSING" for a passwordless request
 getTonWalletSecretPhrase password:string = Text;
 
+//@description Returns a challenge which may be used to proof ownership of a TON wallet; can be used only if getOption("can_use_ton_wallet")
+getTonWalletOwnershipProofChallenge = TonWalletOwnershipProofChallenge;
+
 //@description Enables backup of the TON wallet of the user. Works only if tonWalletState.can_enable_backup is true
-//@password Password of the current user; pass an empty string if the user has no password
 //@secret_phrase The secret phrase of the user's TON wallet as a space separated list of words
-enableTonWalletBackup password:string secret_phrase:string = Ok;
+//@proof Proof of the TON wallet ownership; use getTonWalletOwnershipProofChallenge to get a challenge for the proof
+enableTonWalletBackup secret_phrase:string proof:tonWalletOwnershipProof = Ok;
 
 //@description Disables backup of the TON wallet of the user. Works only if tonWalletState.is_backup_enabled is true
 //@password Password of the current user; pass an empty string if the user has no password
 disableTonWalletBackup password:string = Ok;
 
 //@description Disables backup of the TON wallet of the user using proof of wallet ownership instead of the password. Works only if tonWalletState.is_backup_enabled is true
-//@address Normalized address of the TON wallet in the URL-safe base64 format
-//@private_key Private key of the TON wallet; the key will be used only to proof ownership of the address
-disableTonWalletBackupWithProof address:string private_key:bytes = Ok;
+//@proof Proof of the TON wallet ownership; use getTonWalletOwnershipProofChallenge to get a challenge for the proof
+disableTonWalletBackupWithProof proof:tonWalletOwnershipProof = Ok;
 
-//@description Sends a cryptocurrency from the user's TON wallet
+//@description Sends a cryptocurrency from the user's TON wallet; can be used only if getOption("can_use_ton_wallet")
 //@regular_transfer_data Serialized data for regular cryptocurrency transfer request. The minimum allowed transfer amount is getOption("ton_wallet_transfer_amount_min")
 //@gasless_transfer_data Serialized data for gasless cryptocurrency transfer request; pass an empty string to force a regular request.
 //-The minimum allowed transfer amount for a gassless transfer is getOption("ton_wallet_gasless_transfer_amount_min")
 sendTonWalletTransfer regular_transfer_data:bytes gasless_transfer_data:bytes = TonWalletTransferResult;
 
-//@description Deletes the current TON wallet of the user and creates a new one
+//@description Deletes the current TON wallet of the user and creates a new one; can be used only if getOption("can_use_ton_wallet")
 //@password Password of the current user; pass an empty string if the user has no password
 deleteTonWallet password:string = Ok;
 
-//@description Replaces the current TON wallet with another existing v6r2 wallet
+//@description Replaces the current TON wallet with another existing v6r2 wallet or changes private key of the current TON wallet; can be used only if getOption("can_use_ton_wallet")
 //@password Password of the current user; pass an empty string if the user has no password
-//@address Normalized address of the new TON wallet in the URL-safe base64 format
-//@private_key Private key of the TON wallet; the key will be used only to proof ownership of the address
-replaceTonWallet password:string address:string private_key:bytes = Ok;
+//@anchor_public_key Original public key of the new TON wallet
+//@proof Proof of ownership of the new private key of the TON wallet; use getTonWalletOwnershipProofChallenge to get a challenge for the proof
+replaceTonWallet password:string anchor_public_key:bytes proof:tonWalletOwnershipProof = Ok;
 
 //@description Returns exchange rates of currencies to USD
 getCurrencyExchangeRates = CurrencyExchangeRates;
 
+//@description Returns NFTs stored on the TON wallet of the user; can be used only if getOption("can_use_ton_wallet")
+//@offset Offset of the first entry to return as received from the previous request; use empty string to get the first chunk of results
+//@limit The maximum number of NFTs to be returned; must be positive and can't be greater than 20
+getTonWalletNfts offset:string limit:int32 = TonNfts;
 
-//@description Returns active TON Connect sessions
+
+//@description Returns active TON Connect sessions; can be used only if getOption("can_use_ton_wallet")
 getTonConnectSessions = TonConnectSessions;
 
-//@description Creates a TON Connect session
+//@description Creates a TON Connect session; can be used only if getOption("can_use_ton_wallet")
 //@dapp_client_id Hex-encoded public X25519 key of the dApp
 //@manifest_url URL of the manifest of the dApp
 createTonConnectSession dapp_client_id:string manifest_url:string = TonConnectSession;
@@ -16152,7 +16230,7 @@ setTonConnectSessionWalletClientId session_id:int64 wallet_client_id:string = To
 //@description Accepts or rejects a TON Connect session
 //@session_id Unique identifier of the session
 //@challenge_answer Answer to the challenge received from setTonConnectSessionWalletClientId
-//@is_error True, if the request is rejected
+//@is_error Pass true to reject the request; pass false to accept it
 //@body Body of the result
 //@trace_id Identifier to trace the connection request
 sendTonConnectSessionConnectResult session_id:int64 challenge_answer:bytes is_error:Bool body:bytes trace_id:string = Ok;

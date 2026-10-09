@@ -8432,10 +8432,10 @@ class CliClient final : public Actor {
       get_args(args, bot_user_id, language_code, file_ids);
       send_request(
           td_api::make_object<td_api::deleteBotMediaPreviews>(bot_user_id, language_code, as_file_ids(file_ids)));
-    } else if (op == "cbun") {
+    } else if (op == "cbun" || op == "cbun2") {
       string username;
       get_args(args, username);
-      send_request(td_api::make_object<td_api::checkBotUsername>(username));
+      send_request(td_api::make_object<td_api::checkBotUsername>(username, op == "cbun2"));
     } else if (op == "cb" || op == "cbl") {
       UserId manager_bot_user_id;
       string name;
@@ -8476,6 +8476,15 @@ class CliClient final : public Actor {
       InputChatPhoto input_chat_photo;
       get_args(args, bot_user_id, input_chat_photo);
       send_request(td_api::make_object<td_api::setBotProfilePhoto>(bot_user_id, input_chat_photo));
+    } else if (op == "absun") {
+      UserId bot_user_id;
+      string username;
+      get_args(args, bot_user_id, username);
+      send_request(td_api::make_object<td_api::addBotSecondaryUsername>(bot_user_id, username));
+    } else if (op == "dbsun") {
+      UserId bot_user_id;
+      get_args(args, bot_user_id);
+      send_request(td_api::make_object<td_api::deleteBotSecondaryUsername>(bot_user_id));
     } else if (op == "tbunia") {
       UserId bot_user_id;
       string username;
@@ -8830,21 +8839,12 @@ class CliClient final : public Actor {
       string password;
       get_args(args, password);
       send_request(td_api::make_object<td_api::getTonWalletSecretPhrase>(password));
-    } else if (op == "etwb") {
-      string password;
-      string secret_phrase;
-      get_args(args, password, secret_phrase);
-      send_request(td_api::make_object<td_api::enableTonWalletBackup>(password, secret_phrase));
+    } else if (op == "gtwopc") {
+      send_request(td_api::make_object<td_api::getTonWalletOwnershipProofChallenge>());
     } else if (op == "dtwb") {
       string password;
       get_args(args, password);
       send_request(td_api::make_object<td_api::disableTonWalletBackup>(password));
-    } else if (op == "dtwbwp") {
-      string address;
-      string private_key;
-      get_args(args, address, private_key);
-      send_request(
-          td_api::make_object<td_api::disableTonWalletBackupWithProof>(address, hex_decode(private_key).move_as_ok()));
     } else if (op == "stwt") {
       string regular_transfer_data;
       string gasless_transfer_data;
@@ -8855,15 +8855,13 @@ class CliClient final : public Actor {
       string password;
       get_args(args, password);
       send_request(td_api::make_object<td_api::deleteTonWallet>(password));
-    } else if (op == "replaceTonWallet") {
-      string password;
-      string address;
-      string private_key;
-      get_args(args, password, address, private_key);
-      send_request(
-          td_api::make_object<td_api::replaceTonWallet>(password, address, hex_decode(private_key).move_as_ok()));
     } else if (op == "gcer") {
       send_request(td_api::make_object<td_api::getCurrencyExchangeRates>());
+    } else if (op == "gtwn") {
+      string limit;
+      string offset;
+      get_args(args, limit, offset);
+      send_request(td_api::make_object<td_api::getTonWalletNfts>(offset, as_limit(limit)));
     } else if (op == "gtcs") {
       send_request(td_api::make_object<td_api::getTonConnectSessions>());
     } else if (op == "ctwcs") {

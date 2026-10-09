@@ -3489,7 +3489,7 @@ void Requests::on_request(uint64 id, td_api::checkChatUsername &request) {
           promise.set_value(DialogManager::get_check_chat_username_result_object(result.ok()));
         }
       });
-  td_->dialog_manager_->check_dialog_username(DialogId(request.chat_id_), request.username_, false,
+  td_->dialog_manager_->check_dialog_username(DialogId(request.chat_id_), request.username_, false, false,
                                               std::move(query_promise));
 }
 
@@ -6995,7 +6995,8 @@ void Requests::on_request(uint64 id, td_api::checkBotUsername &request) {
           promise.set_value(DialogManager::get_check_chat_username_result_object(result.ok()));
         }
       });
-  td_->dialog_manager_->check_dialog_username(DialogId(), request.username_, true, std::move(query_promise));
+  td_->dialog_manager_->check_dialog_username(DialogId(), request.username_, true, request.is_secondary_,
+                                              std::move(query_promise));
 }
 
 void Requests::on_request(uint64 id, td_api::createBot &request) {
@@ -7041,6 +7042,19 @@ void Requests::on_request(uint64 id, const td_api::getBotName &request) {
 void Requests::on_request(uint64 id, const td_api::setBotProfilePhoto &request) {
   CREATE_OK_REQUEST_PROMISE();
   td_->user_manager_->set_bot_profile_photo(UserId(request.bot_user_id_), request.photo_, std::move(promise));
+}
+
+void Requests::on_request(uint64 id, td_api::addBotSecondaryUsername &request) {
+  CHECK_IS_USER();
+  CLEAN_INPUT_STRING(request.username_);
+  CREATE_OK_REQUEST_PROMISE();
+  td_->user_manager_->add_bot_username(UserId(request.bot_user_id_), std::move(request.username_), std::move(promise));
+}
+
+void Requests::on_request(uint64 id, const td_api::deleteBotSecondaryUsername &request) {
+  CHECK_IS_USER();
+  CREATE_OK_REQUEST_PROMISE();
+  td_->user_manager_->delete_bot_username(UserId(request.bot_user_id_), std::move(promise));
 }
 
 void Requests::on_request(uint64 id, td_api::toggleBotUsernameIsActive &request) {
@@ -7987,12 +8001,18 @@ void Requests::on_request(uint64 id, td_api::getTonWalletSecretPhrase &request) 
   td_->ton_wallet_manager_->get_ton_wallet_secret_phrase(request.password_, std::move(promise));
 }
 
+void Requests::on_request(uint64 id, const td_api::getTonWalletOwnershipProofChallenge &request) {
+  CHECK_IS_USER();
+  CREATE_REQUEST_PROMISE();
+  td_->ton_wallet_manager_->get_ton_wallet_proof_challenge(std::move(promise));
+}
+
 void Requests::on_request(uint64 id, td_api::enableTonWalletBackup &request) {
   CHECK_IS_USER();
-  CLEAN_INPUT_STRING(request.password_);
   CLEAN_INPUT_STRING(request.secret_phrase_);
   CREATE_OK_REQUEST_PROMISE();
-  td_->ton_wallet_manager_->enable_ton_wallet_backup(request.password_, request.secret_phrase_, std::move(promise));
+  td_->ton_wallet_manager_->enable_ton_wallet_backup(request.secret_phrase_, std::move(request.proof_),
+                                                     std::move(promise));
 }
 
 void Requests::on_request(uint64 id, td_api::disableTonWalletBackup &request) {
@@ -8004,10 +8024,8 @@ void Requests::on_request(uint64 id, td_api::disableTonWalletBackup &request) {
 
 void Requests::on_request(uint64 id, td_api::disableTonWalletBackupWithProof &request) {
   CHECK_IS_USER();
-  CLEAN_INPUT_STRING(request.address_);
   CREATE_OK_REQUEST_PROMISE();
-  td_->ton_wallet_manager_->disable_ton_wallet_backup_with_proof(request.address_, request.private_key_,
-                                                                 std::move(promise));
+  td_->ton_wallet_manager_->disable_ton_wallet_backup_with_proof(std::move(request.proof_), std::move(promise));
 }
 
 void Requests::on_request(uint64 id, const td_api::sendTonWalletTransfer &request) {
@@ -8027,9 +8045,8 @@ void Requests::on_request(uint64 id, td_api::deleteTonWallet &request) {
 void Requests::on_request(uint64 id, td_api::replaceTonWallet &request) {
   CHECK_IS_USER();
   CLEAN_INPUT_STRING(request.password_);
-  CLEAN_INPUT_STRING(request.address_);
   CREATE_OK_REQUEST_PROMISE();
-  td_->ton_wallet_manager_->replace_ton_wallet(request.password_, request.address_, request.private_key_,
+  td_->ton_wallet_manager_->replace_ton_wallet(request.password_, request.anchor_public_key_, std::move(request.proof_),
                                                std::move(promise));
 }
 
@@ -8037,6 +8054,13 @@ void Requests::on_request(uint64 id, const td_api::getCurrencyExchangeRates &req
   CHECK_IS_USER();
   CREATE_REQUEST_PROMISE();
   td_->ton_wallet_manager_->get_currency_rates(std::move(promise));
+}
+
+void Requests::on_request(uint64 id, td_api::getTonWalletNfts &request) {
+  CHECK_IS_USER();
+  CLEAN_INPUT_STRING(request.offset_);
+  CREATE_REQUEST_PROMISE();
+  td_->ton_wallet_manager_->get_nfts(request.offset_, request.limit_, std::move(promise));
 }
 
 void Requests::on_request(uint64 id, const td_api::getTonConnectSessions &request) {

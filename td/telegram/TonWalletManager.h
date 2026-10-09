@@ -9,6 +9,7 @@
 #include "td/telegram/files/FileId.h"
 #include "td/telegram/MessageId.h"
 #include "td/telegram/net/DcId.h"
+#include "td/telegram/PhotoSize.h"
 #include "td/telegram/td_api.h"
 #include "td/telegram/telegram_api.h"
 #include "td/telegram/UserId.h"
@@ -17,9 +18,12 @@
 
 #include "td/e2e/e2e_api.h"
 
+#include "td/utils/buffer.h"
 #include "td/utils/common.h"
+#include "td/utils/FlatHashMap.h"
 #include "td/utils/Promise.h"
 #include "td/utils/Slice.h"
+#include "td/utils/Status.h"
 
 namespace td {
 
@@ -51,11 +55,16 @@ class TonWalletManager final : public Actor {
 
   void get_ton_wallet_secret_phrase(const string &password, Promise<string> &&promise);
 
-  void enable_ton_wallet_backup(const string &password, const string &secret_phrase, Promise<Unit> &&promise);
+  void get_ton_wallet_proof_challenge(Promise<td_api::object_ptr<td_api::tonWalletOwnershipProofChallenge>> &&promise);
+
+  void enable_ton_wallet_backup(const string &secret_phrase,
+                                td_api::object_ptr<td_api::tonWalletOwnershipProof> &&ownership_proof,
+                                Promise<Unit> &&promise);
 
   void disable_ton_wallet_backup(const string &password, Promise<Unit> &&promise);
 
-  void disable_ton_wallet_backup_with_proof(const string &address, const string &private_key, Promise<Unit> &&promise);
+  void disable_ton_wallet_backup_with_proof(td_api::object_ptr<td_api::tonWalletOwnershipProof> &&ownership_proof,
+                                            Promise<Unit> &&promise);
 
   void get_ton_wallet_gasless_info(Promise<Unit> &&promise);
 
@@ -64,7 +73,8 @@ class TonWalletManager final : public Actor {
 
   void delete_ton_wallet(const string &password, Promise<Unit> &&promise);
 
-  void replace_ton_wallet(const string &password, const string &address, const string &private_key,
+  void replace_ton_wallet(const string &password, const string &anchor_public_key,
+                          td_api::object_ptr<td_api::tonWalletOwnershipProof> &&ownership_proof,
                           Promise<Unit> &&promise);
 
   void get_ton_wallet_transactions(const string &offset, int32 limit,
@@ -78,6 +88,8 @@ class TonWalletManager final : public Actor {
                                               Promise<td_api::object_ptr<td_api::tonWalletTransaction>> &&promise);
 
   void get_currency_rates(Promise<td_api::object_ptr<td_api::currencyExchangeRates>> &&promise);
+
+  void get_nfts(const string &offset, int32 limit, Promise<td_api::object_ptr<td_api::tonNfts>> &&promise);
 
   void get_ton_connect_sessions(Promise<td_api::object_ptr<td_api::tonConnectSessions>> &&promise);
 
@@ -135,9 +147,13 @@ class TonWalletManager final : public Actor {
 
   void get_ton_center_streaming_api_url(Promise<td_api::object_ptr<td_api::tonCenterStreamingApiUrl>> &&promise);
 
+  static td_api::object_ptr<td_api::tonWalletTransaction> get_ton_wallet_transaction_object(
+      Td *td, telegram_api::object_ptr<telegram_api::walletTransaction> &&transaction);
+
   void get_current_state(vector<td_api::object_ptr<td_api::Update>> &updates) const;
 
  private:
+  class GetTonNftsQuery;
   class GetTonConnectSessionsQuery;
   class CreateTonConnectSessionQuery;
   class RegisterTonConnectKeyQuery;
@@ -190,6 +206,36 @@ class TonWalletManager final : public Actor {
 
   friend bool operator==(const WalletGaslessInfo &lhs, const WalletGaslessInfo &rhs);
 
+  class NftAttribute {
+    string trait_type_;
+    string value_;
+
+   public:
+    explicit NftAttribute(telegram_api::object_ptr<telegram_api::wallet_nftAttribute> &&attribute);
+
+    td_api::object_ptr<td_api::tonNftAttribute> get_ton_nft_attribute_object() const;
+  };
+
+  class Nft {
+    string collection_address_;
+    string address_;
+    string owner_address_;
+    string index_;
+    string name_;
+    string description_;
+    PhotoSize image_;
+    PhotoSize image_small_;
+    FileId content_url_file_id_;
+    FileId lottie_file_id_;
+    vector<NftAttribute> attributes_;
+    string extra_;
+
+   public:
+    Nft(Td *td, telegram_api::object_ptr<telegram_api::wallet_nftItem> &&item);
+
+    td_api::object_ptr<td_api::tonNft> get_ton_nft_object(Td *td) const;
+  };
+
   class TonConnectManifest {
     string url_;
     string name_;
@@ -214,7 +260,7 @@ class TonWalletManager final : public Actor {
     bool is_closed_ = false;
 
    public:
-    explicit TonConnectSession(Td *td, telegram_api::object_ptr<telegram_api::tonConnectSession> &&session);
+    TonConnectSession(Td *td, telegram_api::object_ptr<telegram_api::tonConnectSession> &&session);
 
     td_api::object_ptr<td_api::tonConnectSession> get_ton_connect_session_object(Td *td) const;
   };
@@ -238,7 +284,7 @@ class TonWalletManager final : public Actor {
     vector<TonConnectRequest> requests_;
 
    public:
-    explicit TonConnectRequests(Td *td, telegram_api::object_ptr<telegram_api::wallet_tonConnectPending> &&requests);
+    TonConnectRequests(Td *td, telegram_api::object_ptr<telegram_api::wallet_tonConnectPending> &&requests);
 
     td_api::object_ptr<td_api::tonConnectRequests> get_ton_connect_requests_object(Td *td) const;
   };
@@ -256,6 +302,9 @@ class TonWalletManager final : public Actor {
   struct WalletOwnershipProof {
     BufferSlice public_key_;
     telegram_api::object_ptr<telegram_api::walletOwnershipProof> proof_;
+
+    static Result<WalletOwnershipProof> get_wallet_ownership_proof(
+        td_api::object_ptr<td_api::tonWalletOwnershipProof> &&proof);
   };
 
   void timeout_expired() final;
@@ -287,29 +336,15 @@ class TonWalletManager final : public Actor {
       Result<telegram_api::object_ptr<telegram_api::wallet_encryptedSecretPhrasePart>> r_part, uint64 query_id,
       tde2e_api::PrivateKeyId private_key_id);
 
-  void do_enable_ton_wallet_backup(telegram_api::object_ptr<telegram_api::InputCheckPasswordSRP> &&input_password,
-                                   const string &secret_phrase, Promise<Unit> &&promise);
-
   void do_disable_ton_wallet_backup(telegram_api::object_ptr<telegram_api::InputCheckPasswordSRP> &&input_password,
                                     Promise<Unit> &&promise);
-
-  void do_disable_ton_wallet_backup_with_proof(WalletOwnershipProof &&proof, Promise<Unit> &&promise);
 
   void do_delete_ton_wallet(telegram_api::object_ptr<telegram_api::InputCheckPasswordSRP> &&input_password,
                             Promise<Unit> &&promise);
 
-  void get_wallet_ownership_proof(const string &address, const string &private_key,
-                                  Promise<WalletOwnershipProof> &&promise);
-
-  void get_wallet_ownership_proof_with_challenge(
-      telegram_api::object_ptr<telegram_api::wallet_proofChallenge> &&challenge, const string &address,
-      const string &private_key, Promise<WalletOwnershipProof> &&promise);
-
-  void do_replace_ton_wallet(telegram_api::object_ptr<telegram_api::InputCheckPasswordSRP> &&input_password,
-                             const string &address, const string &private_key, Promise<Unit> &&promise);
-
   void do_replace_ton_wallet_with_proof(telegram_api::object_ptr<telegram_api::InputCheckPasswordSRP> &&input_password,
-                                        WalletOwnershipProof &&proof, Promise<Unit> &&promise);
+                                        const string &anchor_public_key, WalletOwnershipProof &&proof,
+                                        Promise<Unit> &&promise);
 
   void do_get_ton_wallet_transactions(const string &offset, int32 limit,
                                       td_api::object_ptr<td_api::TransactionDirection> &&direction,

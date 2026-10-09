@@ -618,18 +618,18 @@ static td_api::object_ptr<td_api::WebAppOpenMode> get_web_app_open_mode_object(c
 
 static Result<td_api::object_ptr<td_api::tonConnectConnectRequest>> get_ton_connect_connect_request_object(string r) {
   TRY_RESULT(value, json_decode(r));
-  if (value.type() != td::JsonValue::Type::Object) {
-    return td::Status::Error(400, "Request must be an Object");
+  if (value.type() != JsonValue::Type::Object) {
+    return Status::Error(400, "Request must be an Object");
   }
   auto &request = value.get_object();
   TRY_RESULT(manifest_url, request.get_required_string_field("manifestUrl"));
   TRY_RESULT(checked_manifest_url, LinkManager::check_link(manifest_url));
   vector<td_api::object_ptr<td_api::TonConnectConnectItem>> connect_items;
-  TRY_RESULT(items, request.extract_optional_field("items", td::JsonValue::Type::Array));
-  if (items.type() == td::JsonValue::Type::Array) {
+  TRY_RESULT(items, request.extract_optional_field("items", JsonValue::Type::Array));
+  if (items.type() == JsonValue::Type::Array) {
     for (auto &item_value : items.get_array()) {
-      if (item_value.type() != td::JsonValue::Type::Object) {
-        return td::Status::Error(400, "Item must be an Object");
+      if (item_value.type() != JsonValue::Type::Object) {
+        return Status::Error(400, "Item must be an Object");
       }
       auto &item = item_value.get_object();
       TRY_RESULT(item_name, item.get_required_string_field("name"));
@@ -1220,9 +1220,17 @@ class LinkManager::InternalLinkRequestManagedBot final : public InternalLink {
   string bot_name_;
 
   td_api::object_ptr<td_api::InternalLinkType> get_internal_link_type_object() const final {
-    auto size = bot_username_.size();
-    if (size < 3u || to_lower(bot_username_[size - 3]) != 'b' || to_lower(bot_username_[size - 2]) != 'o' ||
-        to_lower(bot_username_[size - 1]) != 't') {
+    auto username = to_lower(bot_username_);
+    bool is_found = ends_with(username, "bot");
+    if (!is_found && Scheduler::context() != nullptr) {  // for tests only
+      auto suffixes = full_split(G()->get_option_string("bot_allowed_suffixes"), ' ');
+      for (const auto &suffix : suffixes) {
+        if (ends_with(username, suffix)) {
+          is_found = true;
+        }
+      }
+    }
+    if (!is_found) {
       return td_api::make_object<td_api::internalLinkTypeRequestManagedBot>(
           manager_bot_username_, PSTRING() << bot_username_ << "bot", bot_name_);
     }
@@ -3163,15 +3171,17 @@ unique_ptr<LinkManager::InternalLink> LinkManager::get_internal_link_ton_connect
   if (r_version.is_error()) {
     return nullptr;
   }
-  auto r = url_query.get_arg("r").str();
+  auto get_arg = [&](Slice name) {
+    return url_query.get_arg(name).str();
+  };
+  auto r = get_arg("r");
   auto r_connect_request = get_ton_connect_connect_request_object(r);
   if (r_connect_request.is_error()) {
     LOG(INFO) << r_connect_request.error();
     return nullptr;
   }
-  return td::make_unique<InternalLinkTonConnect>(r_version.move_as_ok(), url_query.get_arg("id").str(), std::move(r),
-                                                 url_query.get_arg("ret").str(), url_query.get_arg("e").str(),
-                                                 url_query.get_arg("trace_id").str());
+  return td::make_unique<InternalLinkTonConnect>(r_version.move_as_ok(), get_arg("id"), std::move(r), get_arg("ret"),
+                                                 get_arg("e"), get_arg("trace_id"));
 }
 
 unique_ptr<LinkManager::InternalLink> LinkManager::get_internal_link_passport(
