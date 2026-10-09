@@ -1724,6 +1724,8 @@ class Requests {
 
   void on_request(uint64 id, td_api::disableTonWalletBackup &request);
 
+  void on_request(uint64 id, td_api::disableTonWalletBackupWithProof &request);
+
   void on_request(uint64 id, const td_api::sendTonWalletTransfer &request);
 
   void on_request(uint64 id, td_api::deleteTonWallet &request);
@@ -1738,9 +1740,19 @@ class Requests {
 
   void on_request(uint64 id, td_api::setTonConnectSessionWalletClientId &request);
 
+  void on_request(uint64 id, td_api::sendTonConnectSessionConnectResult &request);
+
   void on_request(uint64 id, const td_api::getTonConnectSessionPendingRequests &request);
 
   void on_request(uint64 id, td_api::getTonConnectDAppPendingRequests &request);
+
+  void on_request(uint64 id, td_api::claimTonConnectRequest &request);
+
+  void on_request(uint64 id, td_api::answerTonConnectRequest &request);
+
+  void on_request(uint64 id, const td_api::getTonConnectSessionNextEventId &request);
+
+  void on_request(uint64 id, const td_api::disconnectTonConnectSession &request);
 
   void on_request(uint64 id, td_api::getOnRampProviders &request);
 

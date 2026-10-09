@@ -7957,7 +7957,7 @@ void Requests::on_request(uint64 id, const td_api::loadTonWalletGaslessTransfers
 
 void Requests::on_request(uint64 id, const td_api::checkWalletBotBalance &request) {
   CHECK_IS_USER();
-  CREATE_OK_REQUEST_PROMISE();
+  CREATE_REQUEST_PROMISE();
   td_->ton_wallet_manager_->get_existing_wallet_balance(std::move(promise));
 }
 
@@ -8000,6 +8000,14 @@ void Requests::on_request(uint64 id, td_api::disableTonWalletBackup &request) {
   CLEAN_INPUT_STRING(request.password_);
   CREATE_OK_REQUEST_PROMISE();
   td_->ton_wallet_manager_->disable_ton_wallet_backup(request.password_, std::move(promise));
+}
+
+void Requests::on_request(uint64 id, td_api::disableTonWalletBackupWithProof &request) {
+  CHECK_IS_USER();
+  CLEAN_INPUT_STRING(request.address_);
+  CREATE_OK_REQUEST_PROMISE();
+  td_->ton_wallet_manager_->disable_ton_wallet_backup_with_proof(request.address_, request.private_key_,
+                                                                 std::move(promise));
 }
 
 void Requests::on_request(uint64 id, const td_api::sendTonWalletTransfer &request) {
@@ -8054,6 +8062,14 @@ void Requests::on_request(uint64 id, td_api::setTonConnectSessionWalletClientId 
                                                      std::move(promise));
 }
 
+void Requests::on_request(uint64 id, td_api::sendTonConnectSessionConnectResult &request) {
+  CHECK_IS_USER();
+  CLEAN_INPUT_STRING(request.trace_id_);
+  CREATE_OK_REQUEST_PROMISE();
+  td_->ton_wallet_manager_->submit_ton_connect_result(request.session_id_, request.challenge_answer_, request.is_error_,
+                                                      request.body_, request.trace_id_, std::move(promise));
+}
+
 void Requests::on_request(uint64 id, const td_api::getTonConnectSessionPendingRequests &request) {
   CHECK_IS_USER();
   CREATE_REQUEST_PROMISE();
@@ -8065,6 +8081,35 @@ void Requests::on_request(uint64 id, td_api::getTonConnectDAppPendingRequests &r
   CLEAN_INPUT_STRING(request.dapp_client_id_);
   CREATE_REQUEST_PROMISE();
   td_->ton_wallet_manager_->get_ton_connect_requests(true, 0, request.dapp_client_id_, std::move(promise));
+}
+
+void Requests::on_request(uint64 id, td_api::claimTonConnectRequest &request) {
+  CHECK_IS_USER();
+  CLEAN_INPUT_STRING(request.dapp_request_id_);
+  CREATE_OK_REQUEST_PROMISE();
+  td_->ton_wallet_manager_->claim_ton_connect_request(request.session_id_, MessageId(request.message_id_),
+                                                      request.dapp_request_id_, request.is_rejected_,
+                                                      std::move(promise));
+}
+
+void Requests::on_request(uint64 id, td_api::answerTonConnectRequest &request) {
+  CHECK_IS_USER();
+  CLEAN_INPUT_STRING(request.trace_id_);
+  CREATE_OK_REQUEST_PROMISE();
+  td_->ton_wallet_manager_->submit_ton_connect_response(request.session_id_, MessageId(request.message_id_),
+                                                        request.trace_id_, request.body_, std::move(promise));
+}
+
+void Requests::on_request(uint64 id, const td_api::getTonConnectSessionNextEventId &request) {
+  CHECK_IS_USER();
+  CREATE_REQUEST_PROMISE();
+  td_->ton_wallet_manager_->get_ton_connect_next_event_id(request.session_id_, std::move(promise));
+}
+
+void Requests::on_request(uint64 id, const td_api::disconnectTonConnectSession &request) {
+  CHECK_IS_USER();
+  CREATE_OK_REQUEST_PROMISE();
+  td_->ton_wallet_manager_->close_ton_connect_session(request.session_id_, request.body_, std::move(promise));
 }
 
 void Requests::on_request(uint64 id, td_api::getOnRampProviders &request) {

@@ -850,7 +850,7 @@ botVerificationParameters icon_custom_emoji_id:int64 organization_name:string de
 //@description Describes verification status provided by a bot
 //@bot_user_id Identifier of the bot that provided the verification
 //@icon_custom_emoji_id Identifier of the custom emoji that is used as the verification sign
-//@custom_description Custom description of verification reason set by the bot. Can contain only Mention, Hashtag, Cashtag, PhoneNumber, BankCardNumber, Url, and EmailAddress entities
+//@custom_description Custom description of verification reason set by the bot. Can contain only Mention, Hashtag, Cashtag, PhoneNumber, BankCardNumber, TonAddress, Url, and EmailAddress entities
 botVerification bot_user_id:int53 icon_custom_emoji_id:int64 custom_description:formattedText = BotVerification;
 
 //@description Contains information about verification status of a chat or a user
@@ -2191,6 +2191,11 @@ tonWalletTransferReceiverAddress address:string = TonWalletTransferReceiver;
 //@description Contains an HTTP URL for TON Center Streaming API @url The URL @expires_in Time after which the URL expires
 tonCenterStreamingApiUrl url:string expires_in:int32 = TonCenterStreamingApiUrl;
 
+//@description Describes balance of the current user in the bot https://t.me/walt
+//@has_balance True, if the user has positive TON Gram balance
+//@url The URL to open to launch the bot; may be empty if none
+walletBotBalance has_balance:Bool url:string = WalletBotBalance;
+
 //@description Contains TON wallet address of a user
 //@user_id Identifier of the user
 //@wallet_address Address of the user's wallet in the TON blockchain
@@ -2290,6 +2295,12 @@ tonWalletTransactionStateFailed = TonWalletTransactionState;
 
 //@class TonWalletTransactionType @description Describes type of a transaction with a TON wallet
 
+//@description The transaction is a deposit from an on-ramp provider
+//@amount The amount of received cryptocurrency, in the smallest units of the cryptocurrency
+//@fee_amount The fee amount paid for the transaction, in the smallest units of the cryptocurrency
+//@provider_name Name of the on-ramp provider
+tonWalletTransactionTypeOnRampDeposit amount:int53 fee_amount:int53 provider_name:string = TonWalletTransactionType;
+
 //@description A transfer of TON Grams to or from the wallet
 //@amount The amount of received cryptocurrency, in the smallest units of the cryptocurrency; negative for outgoing transactions
 //@fee_amount The fee amount paid for the transaction, in the smallest units of the cryptocurrency
@@ -2366,7 +2377,21 @@ tonConnectSessionStateClosing = TonConnectSessionState;
 tonConnectSessionStateClosed = TonConnectSessionState;
 
 
-//@description Represents a TON Connect session
+//@class TonConnectConnectItem @description Represents a data item to share with a dApp
+
+//@description Address of the wallet @network Stringified TON network global_id (e.g. "-239" for mainnet); may be empty
+tonConnectConnectItemAddress network:string = TonConnectConnectItem;
+
+//@description Proof of the wallet ownership @payload Payload to be used for the proof (e.g. nonce + expiration timestamp)
+tonConnectConnectItemProof payload:string = TonConnectConnectItem;
+
+
+//@description Contains information about a request to connect the user's TON Wallet to a dApp using TON Connect
+//@manifest_url URL of the manifest of the dApp
+//@items Items requested from the wallet
+tonConnectConnectRequest manifest_url:string items:vector<TonConnectConnectItem> = TonConnectConnectRequest;
+
+//@description Represents a TON Connect session. See https://github.com/ton-blockchain/ton-connect/tree/main/spec for full TON Connect protocol documentation
 //@id Unique identifier of the session
 //@dapp_client_id Hex-encoded public X25519 key of the dApp
 //@wallet_client_id Hex-encoded public X25519 key of the current user's application; may be empty if none
@@ -2385,7 +2410,7 @@ tonConnectSessions sessions:vector<tonConnectSession> = TonConnectSessions;
 //@body Body of the request
 //@expiration_date Point in time (Unix timestamp) when the request will expire; 0 if never
 //@topic Topic of the request; may be empty if none
-//@trace_id Identifier to trace the connection request; may be empty if none
+//@trace_id Identifier to trace the request; may be empty if none
 tonConnectRequest session_id:int64 message_id:int53 body:bytes expiration_date:int32 topic:string trace_id:string = TonConnectRequest;
 
 //@description Represents a session with its pending TON Connect requests
@@ -2397,6 +2422,9 @@ tonConnectRequests session:tonConnectSession requests:vector<tonConnectRequest> 
 //@challenge 104-byte challenge
 //@event_id Unique identifier of the first outgoing event
 tonConnectChallenge challenge:bytes event_id:int64 = TonConnectChallenge;
+
+//@description Represents identifier of an event in a TON Connect session @event_id The event identifier
+tonConnectSessionEventId event_id:int64 = TonConnectSessionEventId;
 
 
 //@description Represents result of cryptocurrency transfer from the current user's TON wallet
@@ -4255,8 +4283,9 @@ builtInThemeArctic = BuiltInTheme;
 //@background The background to be used in chats; may be null
 //@outgoing_message_fill The fill to be used as a background for outgoing messages; may be null if the fill from the base theme must be used instead
 //@animate_outgoing_message_fill If true, the freeform gradient fill needs to be animated on every sent message
-//@outgoing_message_accent_color Accent color of outgoing messages in ARGB format
-themeSettings base_theme:BuiltInTheme accent_color:int32 background:background outgoing_message_fill:BackgroundFill animate_outgoing_message_fill:Bool outgoing_message_accent_color:int32 = ThemeSettings;
+//@has_outgoing_message_accent_color True, if there is chosen accent color for outgoing messages; otherwise, the color must be deduced from other theme settings
+//@outgoing_message_accent_color Accent color of outgoing messages in ARGB format; must be ignored if has_outgoing_message_accent_color is false
+themeSettings base_theme:BuiltInTheme accent_color:int32 background:background outgoing_message_fill:BackgroundFill animate_outgoing_message_fill:Bool has_outgoing_message_accent_color:Bool outgoing_message_accent_color:int32 = ThemeSettings;
 
 
 //@description Represents a button inside a rich message
@@ -4315,6 +4344,9 @@ richTextCashtag text:RichText cashtag:string = RichText;
 
 //@description A bank card number @text Text @bank_card_number The number of the bank card
 richTextBankCardNumber text:RichText bank_card_number:string = RichText;
+
+//@description An address in the TON blockchain @text Text @address The address
+richTextTonAddress text:RichText address:string = RichText;
 
 //@description A bot command @text Text @bot_command The bot command
 richTextBotCommand text:RichText bot_command:string = RichText;
@@ -5796,9 +5828,10 @@ messageTonWalletTransfer transaction_id:string peer_address:string amount:int53 
 //@description A request from a dApp was received thriugh TON Connect
 //@session_id Unique identifier of the TON Connect session
 //@state State of the request
+//@dapp_name Name of the dApp
 //@topic Topic of the request; may be empty if none
-//@trace_id Identifier to trace the connection request; may be empty if none
-messageTonConnectRequest session_id:int64 state:TonConnectRequestState topic:string trace_id:string = MessageContent;
+//@trace_id Identifier to trace the request; may be empty if none
+messageTonConnectRequest session_id:int64 state:TonConnectRequestState dapp_name:string topic:string trace_id:string = MessageContent;
 
 //@description A regular gift was received or sent by the current user, or the current user was notified about a channel gift
 //@gift The gift
@@ -5992,6 +6025,9 @@ textEntityTypePhoneNumber = TextEntityType;
 
 //@description A bank card number. The getBankCardInfo method can be used to get information about the bank card
 textEntityTypeBankCardNumber = TextEntityType;
+
+//@description An address in the TON blockchain
+textEntityTypeTonAddress = TextEntityType;
 
 //@description A bold text
 textEntityTypeBold = TextEntityType;
@@ -6510,10 +6546,11 @@ inputMessageForwarded from_chat_id:int53 message_id:int53 in_game_share:Bool rep
 //@can_report_reactions True, if reactions on the message can be reported through reportMessageReactions
 //@can_report_supergroup_spam True, if the message can be reported using reportSupergroupSpam
 //@can_set_fact_check True, if fact check for the message can be changed through setMessageFactCheck
+//@custom_emoji_ids Identifiers of custom emoji used in the message
 //@has_protected_content_by_current_user True, if content of the message can't be saved locally, because it is protected by the current user; if true, then can_be_saved is false
 //@has_protected_content_by_other_user True, if content of the message can't be saved locally, because it is protected by the other user; if true, then can_be_saved is false
 //@need_show_statistics True, if message statistics must be available from context menu of the message
-messageProperties can_add_offer:Bool can_add_tasks:Bool can_be_approved:Bool can_be_copied:Bool can_be_copied_to_secret_chat:Bool can_be_declined:Bool can_be_deleted_only_for_self:Bool can_be_deleted_for_all_users:Bool can_be_edited:Bool can_be_forwarded:Bool can_be_paid:Bool can_be_pinned:Bool can_be_replied:Bool can_be_replied_in_another_chat:Bool can_be_saved:Bool can_be_shared_in_story:Bool can_delete_reactions:Bool can_edit_media:Bool can_edit_scheduling_state:Bool can_edit_suggested_post_info:Bool can_get_author:Bool can_get_embedding_code:Bool can_get_link:Bool can_get_media_timestamp_links:Bool can_get_message_thread:Bool can_get_poll_vote_statistics:Bool can_get_read_date:Bool can_get_statistics:Bool can_get_video_advertisements:Bool can_get_viewers:Bool can_mark_tasks_as_done:Bool can_recognize_speech:Bool can_report_chat:Bool can_report_reactions:Bool can_report_supergroup_spam:Bool can_set_fact_check:Bool has_protected_content_by_current_user:Bool has_protected_content_by_other_user:Bool need_show_statistics:Bool = MessageProperties;
+messageProperties can_add_offer:Bool can_add_tasks:Bool can_be_approved:Bool can_be_copied:Bool can_be_copied_to_secret_chat:Bool can_be_declined:Bool can_be_deleted_only_for_self:Bool can_be_deleted_for_all_users:Bool can_be_edited:Bool can_be_forwarded:Bool can_be_paid:Bool can_be_pinned:Bool can_be_replied:Bool can_be_replied_in_another_chat:Bool can_be_saved:Bool can_be_shared_in_story:Bool can_delete_reactions:Bool can_edit_media:Bool can_edit_scheduling_state:Bool can_edit_suggested_post_info:Bool can_get_author:Bool can_get_embedding_code:Bool can_get_link:Bool can_get_media_timestamp_links:Bool can_get_message_thread:Bool can_get_poll_vote_statistics:Bool can_get_read_date:Bool can_get_statistics:Bool can_get_video_advertisements:Bool can_get_viewers:Bool can_mark_tasks_as_done:Bool can_recognize_speech:Bool can_report_chat:Bool can_report_reactions:Bool can_report_supergroup_spam:Bool can_set_fact_check:Bool custom_emoji_ids:vector<int64> has_protected_content_by_current_user:Bool has_protected_content_by_other_user:Bool need_show_statistics:Bool = MessageProperties;
 
 //@description Contains properties of a poll option and describes actions that can be done with the option right now
 //@can_be_deleted True, if the option can be deleted using deletePollOption
@@ -8614,7 +8651,8 @@ telegramPaymentPurposePremiumGiveaway parameters:giveawayParameters currency:str
 //@currency ISO 4217 currency code of the payment currency
 //@amount Paid amount, in the smallest units of the currency
 //@star_count Number of bought Telegram Stars
-//@chat_id Identifier of the chat that is supposed to receive the Telegram Stars; pass 0 if none
+//@chat_id Identifier of the chat that is supposed to receive the Telegram Stars; pass 0 if none. If non-zero and getOption("star_top_up_disabled"),
+//-then the payment isn't allowed and the user can't buy Telegram Stars in this place
 telegramPaymentPurposeStars currency:string amount:int53 star_count:int53 chat_id:int53 = TelegramPaymentPurpose;
 
 //@description The user buying Telegram Stars for other users
@@ -9880,6 +9918,15 @@ internalLinkTypeTextCompositionStyle style_name:string = InternalLinkType;
 //@description The link is a link to a cloud theme. TDLib has no theme support yet @theme_name Name of the theme
 internalLinkTypeTheme theme_name:string = InternalLinkType;
 
+//@description The link is a universal TON Connect link
+//@version TON Connect version
+//@dapp_client_id Hex-encoded public X25519 key of the dApp
+//@connect_request TON Connect connect request
+//@return_strategy Request return strategy; one of "back", "none", or a URL to open
+//@rpc_request Embedded RPC request represented as base64url-encoded JSON
+//@trace_id Identifier to trace the connection request
+internalLinkTypeTonConnect version:int32 dapp_client_id:string connect_request:tonConnectConnectRequest return_strategy:string rpc_request:string trace_id:string = InternalLinkType;
+
 //@description The link is a link for sending Grams from the user's TON Wallet
 //@receiver Chosen receiver of the transfer; may be null if none
 //@gram_amount The pre-filled amount of TON Grams to send; in the smallest units of the cryptocurrency
@@ -10275,6 +10322,9 @@ suggestedActionCheckPhoneNumber = SuggestedAction;
 
 //@description Suggests the user to view a hint about the meaning of one and two check marks on sent messages
 suggestedActionViewChecksHint = SuggestedAction;
+
+//@description Suggests the user to view a hint about receiving of the first TON Wallet transfer
+suggestedActionViewFirstTonWalletTransferHint = SuggestedAction;
 
 //@description Suggests the user to convert specified supergroup to a broadcast group @supergroup_id Supergroup identifier
 suggestedActionConvertToBroadcastGroup supergroup_id:int53 = SuggestedAction;
@@ -11289,8 +11339,11 @@ updateTonWalletState state:tonWalletState = Update;
 //@description The information about gasless transfers has changed @info The new state of the wallet
 updateTonWalletGaslessTransfersInfo info:tonWalletGaslessTransfersInfo = Update;
 
-//@description A session of a TON Connect request has changed @session The new state of the session
+//@description A session of a TON Connect has changed @session The new state of the session
 updateTonWalletTonConnectSession session:tonConnectSession = Update;
+
+//@description TON Connect sessions must be disconnected in a regular way @session_ids Identifiers of the sessions
+updateTonWalletTonConnectSessionDisconnectRequired session_ids:vector<int64> = Update;
 
 //@description The revenue earned from sponsored messages in a chat has changed. If chat revenue screen is opened, then getChatRevenueTransactions may be called to fetch new transactions
 //@chat_id Identifier of the chat
@@ -13150,7 +13203,7 @@ getMessageEffect effect_id:int64 = MessageEffect;
 //@quote_position Approximate quote position in UTF-16 code units
 searchQuote text:formattedText quote:formattedText quote_position:int32 = FoundPosition;
 
-//@description Returns all entities (mentions, hashtags, cashtags, bot commands, bank card numbers, URLs, and email addresses) found in the text. Can be called synchronously @text The text in which to look for entities
+//@description Returns all entities (mentions, hashtags, cashtags, bot commands, bank card numbers, TON addresses, URLs, and email addresses) found in the text. Can be called synchronously @text The text in which to look for entities
 getTextEntities text:string = TextEntities;
 
 //@description Parses Bold, Italic, Underline, Strikethrough, Spoiler, CustomEmoji, BlockQuote, ExpandableBlockQuote, Code, Pre, PreCode, TextUrl,
@@ -15967,7 +16020,7 @@ getDefaultMessageAutoDeleteTime = MessageAutoDeleteTime;
 //@description Removes a chat action bar without any other action @chat_id Chat identifier
 removeChatActionBar chat_id:int53 = Ok;
 
-//@description Reports a chat to the Telegram moderators. A chat can be reported only from the chat action bar, or if chat.can_be_reported
+//@description Reports a chat to the Telegram moderators. A chat can be reported only from the chat action bar, if chat.can_be_reported, or if messageProperties.can_report_chat
 //@chat_id Chat identifier
 //@option_id Option identifier chosen by the user; leave empty for the initial request
 //@message_ids Identifiers of reported messages. Use messageProperties.can_report_chat to check whether the message can be reported
@@ -16032,8 +16085,8 @@ loadTonWalletState = Ok;
 //@description Loads or reloads the current state of gasless transfers for the current user
 loadTonWalletGaslessTransfersInfo = Ok;
 
-//@description Returns Ok if the current user has positive TON Gram balance in the bot https://t.me/wallet
-checkWalletBotBalance = Ok;
+//@description Returns information about balance of the current user in the bot https://t.me/walt
+checkWalletBotBalance = WalletBotBalance;
 
 //@description Returns TON wallet addresses of the specified users
 //@user_ids Identifiers of the users, which wallet addresses have to be returned. If a user has no TON wallet, it will be skipped in the result
@@ -16057,6 +16110,11 @@ enableTonWalletBackup password:string secret_phrase:string = Ok;
 //@description Disables backup of the TON wallet of the user. Works only if tonWalletState.is_backup_enabled is true
 //@password Password of the current user; pass an empty string if the user has no password
 disableTonWalletBackup password:string = Ok;
+
+//@description Disables backup of the TON wallet of the user using proof of wallet ownership instead of the password. Works only if tonWalletState.is_backup_enabled is true
+//@address Normalized address of the TON wallet in the URL-safe base64 format
+//@private_key Private key of the TON wallet; the key will be used only to proof ownership of the address
+disableTonWalletBackupWithProof address:string private_key:bytes = Ok;
 
 //@description Sends a cryptocurrency from the user's TON wallet
 //@regular_transfer_data Serialized data for regular cryptocurrency transfer request. The minimum allowed transfer amount is getOption("ton_wallet_transfer_amount_min")
@@ -16086,16 +16144,46 @@ getTonConnectSessions = TonConnectSessions;
 //@manifest_url URL of the manifest of the dApp
 createTonConnectSession dapp_client_id:string manifest_url:string = TonConnectSession;
 
-//@description Sets wallet_client_id for a pending TON Connect session
+//@description Sets wallet_client_id for a pending TON Connect session. Then, sendTonConnectSessionConnectResult must be used to accept or reject the session
 //@session_id Unique identifier of the session
 //@wallet_client_id Hex-encoded public X25519 key of the current user's application calculated from the TON wallet private key and session parameters
 setTonConnectSessionWalletClientId session_id:int64 wallet_client_id:string = TonConnectChallenge;
+
+//@description Accepts or rejects a TON Connect session
+//@session_id Unique identifier of the session
+//@challenge_answer Answer to the challenge received from setTonConnectSessionWalletClientId
+//@is_error True, if the request is rejected
+//@body Body of the result
+//@trace_id Identifier to trace the connection request
+sendTonConnectSessionConnectResult session_id:int64 challenge_answer:bytes is_error:Bool body:bytes trace_id:string = Ok;
 
 //@description Returns pending requests in a TON Connect session @session_id Unique identifier of the session
 getTonConnectSessionPendingRequests session_id:int64 = TonConnectRequests;
 
 //@description Returns pending requests with a dApp through TON Connect @dapp_client_id Hex-encoded public X25519 key of the dApp
 getTonConnectDAppPendingRequests dapp_client_id:string = TonConnectRequests;
+
+//@description Claims a request received through TON Connect for processing on this device
+//@session_id Unique identifier of the TON Connect session
+//@message_id Identifier of the message with the request
+//@dapp_request_id Identifier of the request assigned by the dApp
+//@is_rejected Pass true to reject the request
+claimTonConnectRequest session_id:int64 message_id:int53 dapp_request_id:string is_rejected:Bool = Ok;
+
+//@description Sends an answer for a request received through TON Connect
+//@session_id Unique identifier of the TON Connect session
+//@message_id Identifier of the message with the request
+//@trace_id Identifier to trace the request
+//@body Body of the response
+answerTonConnectRequest session_id:int64 message_id:int53 trace_id:string body:bytes = Ok;
+
+//@description Returns the next event identifier for the given TON Connect session @session_id Unique identifier of the TON Connect session
+getTonConnectSessionNextEventId session_id:int64 = TonConnectSessionEventId;
+
+//@description Closes a TON Connect session
+//@session_id Unique identifier of the TON Connect session to close
+//@body Encrypted body of the disconnect event; may be empty if the session has already been closed. Use getTonConnectSessionNextEventId to get event identifier for the event
+disconnectTonConnectSession session_id:int64 body:bytes = Ok;
 
 
 //@description Returns available on-ramp providers @cryptocurrency Pass a cryptocurrency to receive only providers that support it; pass an empty string to receive all providers

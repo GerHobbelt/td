@@ -42,6 +42,7 @@
 #include "td/utils/buffer.h"
 #include "td/utils/FlatHashSet.h"
 #include "td/utils/HttpUrl.h"
+#include "td/utils/JsonBuilder.h"
 #include "td/utils/logging.h"
 #include "td/utils/misc.h"
 #include "td/utils/SliceBuilder.h"
@@ -613,6 +614,37 @@ static td_api::object_ptr<td_api::WebAppOpenMode> get_web_app_open_mode_object(c
     return td_api::make_object<td_api::webAppOpenModeFullScreen>();
   }
   return td_api::make_object<td_api::webAppOpenModeFullSize>();
+}
+
+static Result<td_api::object_ptr<td_api::tonConnectConnectRequest>> get_ton_connect_connect_request_object(string r) {
+  TRY_RESULT(value, json_decode(r));
+  if (value.type() != td::JsonValue::Type::Object) {
+    return td::Status::Error(400, "Request must be an Object");
+  }
+  auto &request = value.get_object();
+  TRY_RESULT(manifest_url, request.get_required_string_field("manifestUrl"));
+  TRY_RESULT(checked_manifest_url, LinkManager::check_link(manifest_url));
+  vector<td_api::object_ptr<td_api::TonConnectConnectItem>> connect_items;
+  TRY_RESULT(items, request.extract_optional_field("items", td::JsonValue::Type::Array));
+  if (items.type() == td::JsonValue::Type::Array) {
+    for (auto &item_value : items.get_array()) {
+      if (item_value.type() != td::JsonValue::Type::Object) {
+        return td::Status::Error(400, "Item must be an Object");
+      }
+      auto &item = item_value.get_object();
+      TRY_RESULT(item_name, item.get_required_string_field("name"));
+      if (item_name == "ton_addr") {
+        TRY_RESULT(network, item.get_optional_string_field("network"));
+        connect_items.push_back(td_api::make_object<td_api::tonConnectConnectItemAddress>(network));
+      } else if (item_name == "ton_proof") {
+        TRY_RESULT(payload, item.get_required_string_field("payload"));
+        connect_items.push_back(td_api::make_object<td_api::tonConnectConnectItemProof>(payload));
+      } else {
+        return Status::Error(400, "Invalid connect item");
+      }
+    }
+  }
+  return td_api::make_object<td_api::tonConnectConnectRequest>(checked_manifest_url, std::move(connect_items));
 }
 
 class LinkManager::InternalLinkAttachMenuBot final : public InternalLink {
@@ -1498,6 +1530,32 @@ class LinkManager::InternalLinkTheme final : public InternalLink {
   }
 };
 
+class LinkManager::InternalLinkTonConnect final : public InternalLink {
+  int32 version_;
+  string dapp_client_id_;
+  string connect_request_;
+  string return_strategy_;
+  string rpc_request_;
+  string trace_id_;
+
+  td_api::object_ptr<td_api::InternalLinkType> get_internal_link_type_object() const final {
+    return td_api::make_object<td_api::internalLinkTypeTonConnect>(
+        version_, dapp_client_id_, get_ton_connect_connect_request_object(connect_request_).move_as_ok(),
+        return_strategy_, rpc_request_, trace_id_);
+  }
+
+ public:
+  InternalLinkTonConnect(int32 version, string &&dapp_client_id, string &&connect_request, string &&return_strategy,
+                         string &&rpc_request, string &&trace_id)
+      : version_(version)
+      , dapp_client_id_(std::move(dapp_client_id))
+      , connect_request_(std::move(connect_request))
+      , return_strategy_(std::move(return_strategy))
+      , rpc_request_(std::move(rpc_request))
+      , trace_id_(std::move(trace_id)) {
+  }
+};
+
 class LinkManager::InternalLinkUnknownDeepLink final : public InternalLink {
   string link_;
 
@@ -2090,6 +2148,14 @@ LinkManager::LinkInfo LinkManager::get_link_info(Slice link) {
       link.remove_prefix(2);
     }
     is_tg = true;
+  } else if (tolower_begins_with(link, "tc:")) {
+    link.remove_prefix(3);
+    if (begins_with(link, "//")) {
+      link.remove_prefix(2);
+    }
+    result.type_ = LinkType::TonConnect;
+    result.query_ = link.str();
+    return result;
   }
 
   auto r_http_url = parse_url(link);
@@ -2199,6 +2265,8 @@ unique_ptr<LinkManager::InternalLink> LinkManager::parse_internal_link(Slice lin
       return nullptr;
     case LinkType::Tg:
       return parse_tg_link_query(info.query_, is_trusted);
+    case LinkType::TonConnect:
+      return parse_ton_connect_link_query(info.query_);
     case LinkType::TMe:
       return parse_t_me_link_query(info.query_, is_trusted);
     case LinkType::Telegraph:
@@ -2551,6 +2619,11 @@ unique_ptr<LinkManager::InternalLink> LinkManager::parse_tg_link_query(Slice que
     }
   } else if (path.size() == 1 && path[0] == "sendgrams") {
     // sendgrams?to=<receiver>&amount=<amount>
+    // sendgrams?v=...
+    auto link = get_internal_link_ton_connect(query, false);
+    if (link != nullptr) {
+      return link;
+    }
     auto receiver = get_arg("to");
     auto amount = get_arg("amount");
     if (is_valid_gram_receiver(receiver) && is_valid_gram_amount(amount)) {
@@ -2665,6 +2738,10 @@ unique_ptr<LinkManager::InternalLink> LinkManager::parse_tg_link_query(Slice que
     return td::make_unique<InternalLinkUnknownDeepLink>(PSTRING() << "tg://" << query);
   }
   return nullptr;
+}
+
+unique_ptr<LinkManager::InternalLink> LinkManager::parse_ton_connect_link_query(Slice query) {
+  return get_internal_link_ton_connect(query, true);
 }
 
 unique_ptr<LinkManager::InternalLink> LinkManager::parse_t_me_link_query(Slice query, bool is_trusted) {
@@ -2806,6 +2883,28 @@ unique_ptr<LinkManager::InternalLink> LinkManager::parse_t_me_link_query(Slice q
     }
   } else if (path[0] == "sendgrams") {
     // /sendgrams?to=<receiver>&amount=<amount>
+    // /sendgrams?startapp=tonconnect-...
+    auto startapp = get_arg("startapp");
+    if (begins_with(startapp, "tonconnect-")) {
+      string connect_query = "?";
+      for (size_t i = 11; i < startapp.size(); i++) {
+        if (startapp[i] == '_' && startapp[i + 1] == '_') {
+          i++;
+          connect_query += '=';
+        } else if (startapp[i] == '-' && startapp[i + 1] == '-') {
+          i++;
+          connect_query += '%';
+        } else if (startapp[i] == '-') {
+          connect_query += '&';
+        } else {
+          connect_query += startapp[i];
+        }
+      }
+      auto link = get_internal_link_ton_connect(connect_query, true);
+      if (link != nullptr) {
+        return link;
+      }
+    }
     auto receiver = get_arg("to");
     auto amount = get_arg("amount");
     if (is_valid_gram_receiver(receiver) && is_valid_gram_amount(amount)) {
@@ -3053,6 +3152,26 @@ unique_ptr<LinkManager::InternalLink> LinkManager::get_internal_link_message_dra
     }
   }
   return td::make_unique<InternalLinkMessageDraft>(std::move(full_text), contains_url);
+}
+
+unique_ptr<LinkManager::InternalLink> LinkManager::get_internal_link_ton_connect(Slice query, bool check_path) {
+  const auto url_query = parse_url_query(query);
+  if (check_path && !url_query.path_.empty()) {
+    return nullptr;
+  }
+  auto r_version = to_integer_safe<int32>(url_query.get_arg("v"));
+  if (r_version.is_error()) {
+    return nullptr;
+  }
+  auto r = url_query.get_arg("r").str();
+  auto r_connect_request = get_ton_connect_connect_request_object(r);
+  if (r_connect_request.is_error()) {
+    LOG(INFO) << r_connect_request.error();
+    return nullptr;
+  }
+  return td::make_unique<InternalLinkTonConnect>(r_version.move_as_ok(), url_query.get_arg("id").str(), std::move(r),
+                                                 url_query.get_arg("ret").str(), url_query.get_arg("e").str(),
+                                                 url_query.get_arg("trace_id").str());
 }
 
 unique_ptr<LinkManager::InternalLink> LinkManager::get_internal_link_passport(
@@ -3448,6 +3567,7 @@ Result<string> LinkManager::get_internal_link_impl(const td_api::InternalLinkTyp
       switch (info.type_) {
         case LinkType::External:
         case LinkType::Tg:
+        case LinkType::TonConnect:
           return Status::Error("Invalid instant view URL provided");
         case LinkType::Telegraph:
           if (fallback_info.type_ != LinkType::Telegraph ||
@@ -3970,6 +4090,96 @@ Result<string> LinkManager::get_internal_link_impl(const td_api::InternalLinkTyp
       } else {
         return PSTRING() << get_t_me_url() << "addtheme/" << url_encode(link->theme_name_);
       }
+    }
+    case td_api::internalLinkTypeTonConnect::ID: {
+      auto link = static_cast<const td_api::internalLinkTypeTonConnect *>(type_ptr);
+      if (link->connect_request_ == nullptr) {
+        return Status::Error(400, "Connect request must be non-empty");
+      }
+      for (auto &item : link->connect_request_->items_) {
+        if (item == nullptr) {
+          return Status::Error(400, "Connect request item must be non-empty");
+        }
+        switch (item->get_id()) {
+          case td_api::tonConnectConnectItemAddress::ID: {
+            auto address = static_cast<const td_api::tonConnectConnectItemAddress *>(item.get());
+            if (!check_utf8(address->network_)) {
+              return Status::Error(400, "Network name must be encoded in UTF-8");
+            }
+            break;
+          }
+          case td_api::tonConnectConnectItemProof::ID: {
+            auto proof = static_cast<const td_api::tonConnectConnectItemProof *>(item.get());
+            if (!check_utf8(proof->payload_)) {
+              return Status::Error(400, "Payload must be encoded in UTF-8");
+            }
+            break;
+          }
+          default:
+            UNREACHABLE();
+        }
+      }
+      auto r = json_encode<std::string>(json_object([&](auto &o) {
+        o("manifestUrl", link->connect_request_->manifest_url_);
+        o("items", json_array(link->connect_request_->items_, [](auto &item) {
+            return json_object([&item](auto &o) {
+              switch (item->get_id()) {
+                case td_api::tonConnectConnectItemAddress::ID: {
+                  auto address = static_cast<const td_api::tonConnectConnectItemAddress *>(item.get());
+                  o("name", "ton_addr");
+                  if (!address->network_.empty()) {
+                    o("network", address->network_);
+                  }
+                  break;
+                }
+                case td_api::tonConnectConnectItemProof::ID: {
+                  auto proof = static_cast<const td_api::tonConnectConnectItemProof *>(item.get());
+                  o("name", "ton_proof");
+                  o("payload", proof->payload_);
+                  break;
+                }
+                default:
+                  UNREACHABLE();
+              }
+            });
+          }));
+      }));
+      auto query = PSTRING() << "v=" << to_string(link->version_) << "&id=" << url_encode(link->dapp_client_id_)
+                             << "&r=" << url_encode(r);
+      if (!link->return_strategy_.empty()) {
+        query += "&ret=";
+        query += url_encode(link->return_strategy_);
+      }
+      if (!link->rpc_request_.empty()) {
+        query += "&e=";
+        query += url_encode(link->rpc_request_);
+      }
+      if (!link->trace_id_.empty()) {
+        query += "&trace_id=";
+        query += url_encode(link->trace_id_);
+      }
+      if (is_internal) {
+        return PSTRING() << "tg://sendgrams?" << query;
+      } else {
+        string connect_query;
+        for (auto c : query) {
+          if (c == '-') {
+            connect_query += "--2D";
+          } else if (c == '_') {
+            connect_query += "--5F";
+          } else if (c == '=') {
+            connect_query += "__";
+          } else if (c == '%') {
+            connect_query += "--";
+          } else if (c == '&') {
+            connect_query += '-';
+          } else {
+            connect_query += c;
+          }
+        }
+        return PSTRING() << get_t_me_url() << "sendgrams?startapp=tonconnect-" << connect_query;
+      }
+      return Status::Error(400, "HTTP link is unavailable for the link type");  // TON Connect links are unsupported
     }
     case td_api::internalLinkTypeTonWalletTransfer::ID: {
       auto link = static_cast<const td_api::internalLinkTypeTonWalletTransfer *>(type_ptr);

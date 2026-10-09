@@ -19,6 +19,7 @@
 
 #include "td/utils/common.h"
 #include "td/utils/Promise.h"
+#include "td/utils/Slice.h"
 
 namespace td {
 
@@ -28,6 +29,8 @@ class TonWalletManager final : public Actor {
  public:
   TonWalletManager(Td *td, ActorShared<> parent);
 
+  static Status check_ton_address(Slice address);
+
   void on_update_wallet_state(telegram_api::object_ptr<telegram_api::WalletState> &&wallet_state);
 
   void on_update_wallet_gasless_info(telegram_api::object_ptr<telegram_api::updateWalletGaslessInfo> &&wallet_info);
@@ -36,7 +39,7 @@ class TonWalletManager final : public Actor {
 
   void get_wallet_state(Promise<Unit> &&promise);
 
-  void get_existing_wallet_balance(Promise<Unit> &&promise);
+  void get_existing_wallet_balance(Promise<td_api::object_ptr<td_api::walletBotBalance>> &&promise);
 
   void get_user_addresses(vector<UserId> user_ids,
                           Promise<td_api::object_ptr<td_api::userTonWalletAddresses>> &&promise);
@@ -51,6 +54,8 @@ class TonWalletManager final : public Actor {
   void enable_ton_wallet_backup(const string &password, const string &secret_phrase, Promise<Unit> &&promise);
 
   void disable_ton_wallet_backup(const string &password, Promise<Unit> &&promise);
+
+  void disable_ton_wallet_backup_with_proof(const string &address, const string &private_key, Promise<Unit> &&promise);
 
   void get_ton_wallet_gasless_info(Promise<Unit> &&promise);
 
@@ -82,8 +87,22 @@ class TonWalletManager final : public Actor {
   void register_ton_connect_key(int64 session_id, const string &client_id,
                                 Promise<td_api::object_ptr<td_api::tonConnectChallenge>> &&promise);
 
+  void submit_ton_connect_result(int64 session_id, const string &challenge_answer, bool is_error, const string &body,
+                                 const string &trace_id, Promise<Unit> &&promise);
+
   void get_ton_connect_requests(bool by_dapp, int64 session_id, const string &dapp_client_id,
                                 Promise<td_api::object_ptr<td_api::tonConnectRequests>> &&promise);
+
+  void claim_ton_connect_request(int64 session_id, MessageId message_id, const string &dapp_request_id,
+                                 bool is_rejected, Promise<Unit> &&promise);
+
+  void submit_ton_connect_response(int64 session_id, MessageId message_id, const string &trace_id, const string &body,
+                                   Promise<Unit> &&promise);
+
+  void get_ton_connect_next_event_id(int64 session_id,
+                                     Promise<td_api::object_ptr<td_api::tonConnectSessionEventId>> &&promise);
+
+  void close_ton_connect_session(int64 session_id, const string &body, Promise<Unit> &&promise);
 
   void get_on_ramp_providers(const string &cryptocurrency,
                              Promise<td_api::object_ptr<td_api::onRampProviders>> &&promise);
@@ -234,6 +253,11 @@ class TonWalletManager final : public Actor {
     td_api::object_ptr<td_api::tonConnectChallenge> get_ton_connect_challenge_object() const;
   };
 
+  struct WalletOwnershipProof {
+    BufferSlice public_key_;
+    telegram_api::object_ptr<telegram_api::walletOwnershipProof> proof_;
+  };
+
   void timeout_expired() final;
 
   void tear_down() final;
@@ -269,16 +293,23 @@ class TonWalletManager final : public Actor {
   void do_disable_ton_wallet_backup(telegram_api::object_ptr<telegram_api::InputCheckPasswordSRP> &&input_password,
                                     Promise<Unit> &&promise);
 
+  void do_disable_ton_wallet_backup_with_proof(WalletOwnershipProof &&proof, Promise<Unit> &&promise);
+
   void do_delete_ton_wallet(telegram_api::object_ptr<telegram_api::InputCheckPasswordSRP> &&input_password,
                             Promise<Unit> &&promise);
+
+  void get_wallet_ownership_proof(const string &address, const string &private_key,
+                                  Promise<WalletOwnershipProof> &&promise);
+
+  void get_wallet_ownership_proof_with_challenge(
+      telegram_api::object_ptr<telegram_api::wallet_proofChallenge> &&challenge, const string &address,
+      const string &private_key, Promise<WalletOwnershipProof> &&promise);
 
   void do_replace_ton_wallet(telegram_api::object_ptr<telegram_api::InputCheckPasswordSRP> &&input_password,
                              const string &address, const string &private_key, Promise<Unit> &&promise);
 
-  void do_replace_ton_wallet_with_challenge(
-      telegram_api::object_ptr<telegram_api::InputCheckPasswordSRP> &&input_password,
-      telegram_api::object_ptr<telegram_api::wallet_proofChallenge> &&challenge, const string &address,
-      const string &private_key, Promise<Unit> &&promise);
+  void do_replace_ton_wallet_with_proof(telegram_api::object_ptr<telegram_api::InputCheckPasswordSRP> &&input_password,
+                                        WalletOwnershipProof &&proof, Promise<Unit> &&promise);
 
   void do_get_ton_wallet_transactions(const string &offset, int32 limit,
                                       td_api::object_ptr<td_api::TransactionDirection> &&direction,

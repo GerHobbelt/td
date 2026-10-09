@@ -4667,19 +4667,10 @@ void MessagesManager::on_update_channel_too_long(tl_object_ptr<telegram_api::upd
 
   DialogId dialog_id = DialogId(channel_id);
   auto d = get_dialog_force(dialog_id, "on_update_channel_too_long 4");
-  if (d == nullptr) {
-    auto pts = load_channel_pts(dialog_id);
-    if (pts > 0) {
-      d = add_dialog(dialog_id, "on_update_channel_too_long 5");
-      CHECK(d != nullptr);
-      CHECK(d->pts == pts);
-      update_dialog_pos(d, "on_update_channel_too_long 6");
-    }
-  }
-
-  if (d != nullptr) {
-    if (update->pts_ == 0 || update->pts_ > d->pts) {
-      get_channel_difference(dialog_id, d->pts, update->pts_, MessageId(), true, "on_update_channel_too_long 1");
+  auto pts = d != nullptr ? d->pts : load_channel_pts(dialog_id);
+  if (pts != 0) {
+    if (update->pts_ == 0 || update->pts_ > pts) {
+      get_channel_difference(dialog_id, pts, update->pts_, MessageId(), true, "on_update_channel_too_long 1");
     }
   } else {
     if (force_apply) {
@@ -5690,8 +5681,10 @@ void MessagesManager::add_pending_channel_update(DialogId dialog_id, tl_object_p
         return;
       }
 
-      d = add_dialog(dialog_id, "add_pending_channel_update 4");
-      CHECK(d != nullptr);
+      bool need_update_dialog_pos = false;
+      d = add_dialog_for_new_message(dialog_id,
+                                     pts < new_pts && update->get_id() == telegram_api::updateNewChannelMessage::ID,
+                                     &need_update_dialog_pos, "add_pending_channel_update 4");
       CHECK(d->pts == pts);
       update_dialog_pos(d, "add_pending_channel_update 5");
     }
@@ -7137,18 +7130,8 @@ void MessagesManager::after_get_difference() {
     schedule_restore_missing_messages_after_get_difference();
   }
 
-  if (!td_->auth_manager_->is_bot()) {
+  if (!td_->auth_manager_->is_bot() && td_->auth_manager_->is_authorized()) {
     td_->dialog_manager_->load_dialog_marks_as_unread();
-
-    auto dialog_list_id = DialogListId(FolderId::archive());
-    auto *list = get_dialog_list(dialog_list_id);
-    CHECK(list != nullptr);
-    if (!list->is_dialog_unread_count_inited_) {
-      int32 limit = list->are_pinned_dialogs_inited_ ? static_cast<int32>(list->pinned_dialogs_.size())
-                                                     : get_pinned_dialogs_limit(dialog_list_id);
-      LOG(INFO) << "Loading chat list in " << dialog_list_id << " to init total unread count";
-      get_dialogs_from_list(dialog_list_id, limit + 2, Auto());
-    }
   }
 }
 
@@ -8203,7 +8186,7 @@ bool MessagesManager::can_mark_message_tasks_as_done(DialogId dialog_id, const M
 
 bool MessagesManager::can_approve_or_decline_message(DialogId dialog_id, const Message *m) const {
   if (m->suggested_post == nullptr || !m->suggested_post->is_pending() || !m->message_id.is_server() ||
-      m->is_outgoing || !td_->dialog_manager_->is_monoforum_channel(dialog_id) || m->ephemeral_message != nullptr) {
+      m->ephemeral_message != nullptr || m->is_outgoing || !td_->dialog_manager_->is_monoforum_channel(dialog_id)) {
     return false;
   }
   auto is_from_user = m->sender_user_id != UserId();
@@ -8373,7 +8356,8 @@ bool MessagesManager::can_get_message_author(DialogId dialog_id, const Message *
   if (td_->auth_manager_->is_bot() || !td_->dialog_manager_->is_admined_monoforum_channel(dialog_id)) {
     return false;
   }
-  if (m == nullptr || !m->message_id.is_server() || get_message_sender(m).get_type() != DialogType::Channel) {
+  if (m == nullptr || !m->message_id.is_server() || m->ephemeral_message != nullptr ||
+      get_message_sender(m).get_type() != DialogType::Channel) {
     return false;
   }
   return true;
@@ -15387,14 +15371,21 @@ void MessagesManager::get_message_properties(DialogId dialog_id, MessageId messa
   }
   message_id = m->message_id;
 
-  bool can_delete = can_delete_message(dialog_id, m);
   bool is_ephemeral = is_ephemeral_message(m);
   bool is_scheduled = message_id.is_scheduled();
   bool is_from_saved_messages = (dialog_id == td_->dialog_manager_->get_my_dialog_id());
   bool can_delete_for_self = false;
-  bool can_delete_for_all_users = can_delete && can_revoke_message(dialog_id, m);
+  bool can_delete_for_all_users = false;
   auto dialog_type = dialog_id.get_type();
-  if (can_delete) {
+  auto ephemeral_message_id = get_message_ephemeral_message_id(m);
+  if (is_scheduled) {
+    can_delete_for_self = is_from_saved_messages;
+    can_delete_for_all_users = !can_delete_for_self;
+  } else if (is_ephemeral) {
+    can_delete_for_self = !m->ephemeral_message_id.is_valid();
+    can_delete_for_all_users = !can_delete_for_self;
+  } else if (can_delete_message(dialog_id, m)) {
+    can_delete_for_all_users = can_revoke_message(dialog_id, m);
     switch (dialog_type) {
       case DialogType::User:
       case DialogType::Chat:
@@ -15410,14 +15401,6 @@ void MessagesManager::get_message_properties(DialogId dialog_id, MessageId messa
         UNREACHABLE();
     }
   }
-  if (is_scheduled) {
-    can_delete_for_self = is_from_saved_messages;
-    can_delete_for_all_users = !can_delete_for_self;
-  }
-  if (is_ephemeral) {
-    can_delete_for_self = !m->ephemeral_message_id.is_valid();
-    can_delete_for_all_users = !can_delete_for_self;
-  }
 
   auto is_bot = td_->auth_manager_->is_bot();
   auto can_add_offer = can_add_message_offer(dialog_id, m, true, false);
@@ -15430,7 +15413,7 @@ void MessagesManager::get_message_properties(DialogId dialog_id, MessageId messa
   auto can_be_forwarded = can_forward_message(dialog_id, m, false);
   auto can_be_copied_to_secret_chat =
       can_be_copied && can_send_message_content_to_secret_chat(get_message_actual_content(m)->get_type());
-  auto can_be_paid = get_invoice_message_info({dialog_id, message_id}).is_ok();
+  auto can_be_paid = !ephemeral_message_id.is_valid() && get_invoice_message_info({dialog_id, message_id}).is_ok();
   auto can_be_pinned = can_pin_message(dialog_id, m).is_ok();
   auto can_be_replied = can_reply_to_message(d, message_id, m);
   auto can_be_replied_in_another_chat = can_reply_to_message_in_another_dialog(dialog_id, m, can_be_forwarded);
@@ -15451,20 +15434,23 @@ void MessagesManager::get_message_properties(DialogId dialog_id, MessageId messa
   auto can_get_embedding_code = can_get_message_embedding_code(dialog_id, m).is_ok();
   auto can_mark_tasks_as_done = can_mark_message_tasks_as_done(dialog_id, m);
   auto can_recognize_speech = can_recognize_message_speech(dialog_id, m);
-  auto can_report_chat = td_->dialog_manager_->can_report_dialog(dialog_id) && can_report_message(message_id).is_ok();
+  auto can_report_chat = ephemeral_message_id.is_valid() ? false
+                                                         : td_->dialog_manager_->can_report_dialog(dialog_id) &&
+                                                               can_report_message(message_id).is_ok();
   auto can_report_reactions = can_report_message_reactions(dialog_id, m);
   auto can_report_supergroup_spam =
-      dialog_id.get_type() == DialogType::Channel &&
+      !ephemeral_message_id.is_valid() && dialog_id.get_type() == DialogType::Channel &&
       td_->chat_manager_->is_megagroup_channel(dialog_id.get_channel_id()) &&
       !td_->chat_manager_->is_monoforum_channel(dialog_id.get_channel_id()) &&
       td_->chat_manager_->get_channel_status(dialog_id.get_channel_id()).is_administrator() &&
       can_report_message(message_id).is_ok();
   auto can_set_fact_check = can_set_message_fact_check(dialog_id, m);
+  auto custom_emoji_ids = get_message_content_custom_emoji_ids(get_message_actual_content(m));
   auto has_protected_content_by_current_user =
-      !can_be_saved && dialog_id.get_type() == DialogType::User &&
+      !can_be_saved && !ephemeral_message_id.is_valid() && dialog_id.get_type() == DialogType::User &&
       td_->user_manager_->get_user_has_protected_content_force_by_me(dialog_id.get_user_id());
   auto has_protected_content_by_other_user =
-      !can_be_saved && dialog_id.get_type() == DialogType::User &&
+      !can_be_saved && !ephemeral_message_id.is_valid() && dialog_id.get_type() == DialogType::User &&
       td_->user_manager_->get_user_has_protected_content_force_by_other(dialog_id.get_user_id());
   auto need_show_statistics = can_get_statistics && (m->view_count >= 100 || m->forward_count > 0);
   promise.set_value(td_api::make_object<td_api::messageProperties>(
@@ -15475,7 +15461,8 @@ void MessagesManager::get_message_properties(DialogId dialog_id, MessageId messa
       can_get_link, can_get_media_timestamp_links, can_get_message_thread, can_get_poll_vote_statistics,
       can_get_read_date, can_get_statistics, can_get_video_advertisements, can_get_viewers, can_mark_tasks_as_done,
       can_recognize_speech, can_report_chat, can_report_reactions, can_report_supergroup_spam, can_set_fact_check,
-      has_protected_content_by_current_user, has_protected_content_by_other_user, need_show_statistics));
+      CustomEmojiId::get_custom_emoji_ids_object(custom_emoji_ids), has_protected_content_by_current_user,
+      has_protected_content_by_other_user, need_show_statistics));
 }
 
 void MessagesManager::get_poll_option_properties(DialogId dialog_id, MessageId message_id, const string &option_id,
@@ -15610,6 +15597,7 @@ bool MessagesManager::can_report_message_reactions(DialogId dialog_id, const Mes
       !td_->chat_manager_->is_channel_public(dialog_id.get_channel_id())) {
     return false;
   }
+  // don't need to check m->ephemeral_message != nullptr, because reactions on the original message are reported
   if (m->message_id.is_scheduled() || !m->message_id.is_server()) {
     return false;
   }

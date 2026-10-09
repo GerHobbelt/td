@@ -62,10 +62,11 @@ class GetWalletStateQuery final : public Td::ResultHandler {
 };
 
 class GetExistingWalletBalanceQuery final : public Td::ResultHandler {
-  Promise<Unit> promise_;
+  Promise<td_api::object_ptr<td_api::walletBotBalance>> promise_;
 
  public:
-  explicit GetExistingWalletBalanceQuery(Promise<Unit> &&promise) : promise_(std::move(promise)) {
+  explicit GetExistingWalletBalanceQuery(Promise<td_api::object_ptr<td_api::walletBotBalance>> &&promise)
+      : promise_(std::move(promise)) {
   }
 
   void send() {
@@ -80,10 +81,7 @@ class GetExistingWalletBalanceQuery final : public Td::ResultHandler {
 
     auto result = result_ptr.move_as_ok();
     LOG(INFO) << "Receive result for GetExistingWalletBalanceQuery: " << to_string(result);
-    if (!result->has_balance_) {
-      return on_error(Status::Error(400, "Balance is empty"));
-    }
-    promise_.set_value(Unit());
+    promise_.set_value(td_api::make_object<td_api::walletBotBalance>(result->has_balance_, result->url_));
   }
 
   void on_error(Status status) final {
@@ -325,6 +323,13 @@ class DisableWalletBackupQuery final : public Td::ResultHandler {
         telegram_api::wallet_disableBackup(flags, std::move(input_password), BufferSlice(), nullptr)));
   }
 
+  void send(BufferSlice public_key, telegram_api::object_ptr<telegram_api::walletOwnershipProof> &&proof) {
+    int32 flags =
+        telegram_api::wallet_disableBackup::NEW_PUBLIC_KEY_MASK | telegram_api::wallet_disableBackup::PROOF_MASK;
+    send_query(G()->net_query_creator().create(
+        telegram_api::wallet_disableBackup(flags, nullptr, std::move(public_key), std::move(proof))));
+  }
+
   void on_result(BufferSlice packet) final {
     auto result_ptr = fetch_result<telegram_api::wallet_disableBackup>(packet);
     if (result_ptr.is_error()) {
@@ -438,6 +443,7 @@ static td_api::object_ptr<td_api::tonWalletTransaction> get_ton_wallet_transacti
   string peer_address;
   UserId peer_user_id;
   string peer_domain;
+  string peer_provider_name;
   switch (transaction->peer_->get_id()) {
     case telegram_api::walletTransactionPeerUser::ID: {
       auto peer = telegram_api::move_object_as<telegram_api::walletTransactionPeerUser>(transaction->peer_);
@@ -456,8 +462,13 @@ static td_api::object_ptr<td_api::tonWalletTransaction> get_ton_wallet_transacti
       peer_domain = std::move(peer->domain_);
       break;
     }
-    case telegram_api::walletTransactionPeerOnramp::ID:
+    case telegram_api::walletTransactionPeerOnramp::ID: {
+      auto peer = telegram_api::move_object_as<telegram_api::walletTransactionPeerOnramp>(transaction->peer_);
+      peer_address = std::move(peer->address_);
+      peer_domain = std::move(peer->domain_);
+      peer_provider_name = std::move(peer->provider_name_);
       break;
+    }
     case telegram_api::walletTransactionPeerUnsupported::ID:
       break;
     default:
@@ -474,6 +485,10 @@ static td_api::object_ptr<td_api::tonWalletTransaction> get_ton_wallet_transacti
     return td_api::make_object<td_api::tonWalletTransactionStateSucceeded>(transaction->tx_hash_);
   }();
   auto type = [&]() -> td_api::object_ptr<td_api::TonWalletTransactionType> {
+    if (!peer_provider_name.empty()) {
+      return td_api::make_object<td_api::tonWalletTransactionTypeOnRampDeposit>(amount, transaction->fee_,
+                                                                                peer_provider_name);
+    }
     if (transaction->key_change_) {
       peer_user_id = td->user_manager_->get_my_id();
       return td_api::make_object<td_api::tonWalletTransactionTypeKeyChange>(transaction->fee_);
@@ -750,6 +765,33 @@ class TonWalletManager::RegisterTonConnectKeyQuery final : public Td::ResultHand
   }
 };
 
+class SubmitTonConnectResultQuery final : public Td::ResultHandler {
+  Promise<Unit> promise_;
+
+ public:
+  explicit SubmitTonConnectResultQuery(Promise<Unit> &&promise) : promise_(std::move(promise)) {
+  }
+
+  void send(int64 session_id, const string &challenge_answer, bool is_error, const string &body,
+            const string &trace_id) {
+    send_query(G()->net_query_creator().create(telegram_api::wallet_tonConnectSubmitConnectResult(
+        0, is_error, session_id, BufferSlice(challenge_answer), BufferSlice(body), trace_id)));
+  }
+
+  void on_result(BufferSlice packet) final {
+    auto result_ptr = fetch_result<telegram_api::wallet_tonConnectSubmitConnectResult>(packet);
+    if (result_ptr.is_error()) {
+      return on_error(result_ptr.move_as_error());
+    }
+
+    promise_.set_value(Unit());
+  }
+
+  void on_error(Status status) final {
+    promise_.set_error(std::move(status));
+  }
+};
+
 class TonWalletManager::GetTonConnectPendingQuery final : public Td::ResultHandler {
   Promise<td_api::object_ptr<td_api::tonConnectRequests>> promise_;
 
@@ -779,6 +821,119 @@ class TonWalletManager::GetTonConnectPendingQuery final : public Td::ResultHandl
     LOG(INFO) << "Receive result for GetTonConnectPendingQuery: " << to_string(result);
     auto requests = TonConnectRequests(td_, std::move(result));
     promise_.set_value(requests.get_ton_connect_requests_object(td_));
+  }
+
+  void on_error(Status status) final {
+    promise_.set_error(std::move(status));
+  }
+};
+
+class ClaimTonConnectRequestQuery final : public Td::ResultHandler {
+  Promise<Unit> promise_;
+
+ public:
+  explicit ClaimTonConnectRequestQuery(Promise<Unit> &&promise) : promise_(std::move(promise)) {
+  }
+
+  void send(int64 session_id, MessageId message_id, const string &dapp_request_id, bool is_rejected) {
+    send_query(G()->net_query_creator().create(telegram_api::wallet_tonConnectClaimRequest(
+        0, is_rejected, session_id, message_id.get_server_message_id().get(), dapp_request_id, BufferSlice())));
+  }
+
+  void on_result(BufferSlice packet) final {
+    auto result_ptr = fetch_result<telegram_api::wallet_tonConnectClaimRequest>(packet);
+    if (result_ptr.is_error()) {
+      return on_error(result_ptr.move_as_error());
+    }
+
+    promise_.set_value(Unit());
+  }
+
+  void on_error(Status status) final {
+    promise_.set_error(std::move(status));
+  }
+};
+
+class SubmitTonConnectResponseQuery final : public Td::ResultHandler {
+  Promise<Unit> promise_;
+
+ public:
+  explicit SubmitTonConnectResponseQuery(Promise<Unit> &&promise) : promise_(std::move(promise)) {
+  }
+
+  void send(int64 session_id, MessageId message_id, const string &trace_id, const string &body) {
+    int32 flags = 0;
+    if (!trace_id.empty()) {
+      flags |= telegram_api::wallet_tonConnectSubmitResponse::TRACE_ID_MASK;
+    }
+    send_query(G()->net_query_creator().create(telegram_api::wallet_tonConnectSubmitResponse(
+        flags, session_id, message_id.get_server_message_id().get(), BufferSlice(body), trace_id)));
+  }
+
+  void on_result(BufferSlice packet) final {
+    auto result_ptr = fetch_result<telegram_api::wallet_tonConnectSubmitResponse>(packet);
+    if (result_ptr.is_error()) {
+      return on_error(result_ptr.move_as_error());
+    }
+
+    promise_.set_value(Unit());
+  }
+
+  void on_error(Status status) final {
+    promise_.set_error(std::move(status));
+  }
+};
+
+class GetTonConnectNextEventIdQuery final : public Td::ResultHandler {
+  Promise<td_api::object_ptr<td_api::tonConnectSessionEventId>> promise_;
+
+ public:
+  explicit GetTonConnectNextEventIdQuery(Promise<td_api::object_ptr<td_api::tonConnectSessionEventId>> &&promise)
+      : promise_(std::move(promise)) {
+  }
+
+  void send(int64 session_id) {
+    send_query(G()->net_query_creator().create(telegram_api::wallet_tonConnectNextEventId(session_id)));
+  }
+
+  void on_result(BufferSlice packet) final {
+    auto result_ptr = fetch_result<telegram_api::wallet_tonConnectNextEventId>(packet);
+    if (result_ptr.is_error()) {
+      return on_error(result_ptr.move_as_error());
+    }
+
+    auto result = result_ptr.move_as_ok();
+    promise_.set_value(td_api::make_object<td_api::tonConnectSessionEventId>(result->event_id_));
+  }
+
+  void on_error(Status status) final {
+    promise_.set_error(std::move(status));
+  }
+};
+
+class CloseTonConnectSessionQuery final : public Td::ResultHandler {
+  Promise<Unit> promise_;
+
+ public:
+  explicit CloseTonConnectSessionQuery(Promise<Unit> &&promise) : promise_(std::move(promise)) {
+  }
+
+  void send(int64 session_id, const string &body) {
+    int32 flags = 0;
+    if (!body.empty()) {
+      flags |= telegram_api::wallet_tonConnectCloseSession::BODY_MASK;
+    }
+    send_query(G()->net_query_creator().create(
+        telegram_api::wallet_tonConnectCloseSession(flags, session_id, BufferSlice(body))));
+  }
+
+  void on_result(BufferSlice packet) final {
+    auto result_ptr = fetch_result<telegram_api::wallet_tonConnectCloseSession>(packet);
+    if (result_ptr.is_error()) {
+      return on_error(result_ptr.move_as_error());
+    }
+
+    promise_.set_value(Unit());
   }
 
   void on_error(Status status) final {
@@ -1353,6 +1508,30 @@ void TonWalletManager::tear_down() {
   parent_.reset();
 }
 
+Status TonWalletManager::check_ton_address(Slice address) {
+  if (address.size() != 48u) {
+    return Status::Error(400, "Invalid address length");
+  }
+  auto r_decoded = base64url_decode(address);
+  if (r_decoded.is_error()) {
+    r_decoded = base64_decode(address);
+  }
+  if (r_decoded.is_error()) {
+    return Status::Error(400, "Invalid address format");
+  }
+  auto buffer = r_decoded.move_as_ok();
+  CHECK(buffer.size() == 36u);
+  auto actual_crc = crc16(Slice(buffer).substr(0, 34));
+  auto expected_crc = (static_cast<unsigned char>(buffer[34]) << 8) | static_cast<unsigned char>(buffer[35]);
+  if (actual_crc != expected_crc) {
+    return Status::Error(400, "Invalid address checksum");
+  }
+  if ((static_cast<unsigned char>(buffer[0]) & 0x3F) != 0x11) {
+    return Status::Error(400, "Invalid address first byte");
+  }
+  return Status::OK();
+}
+
 void TonWalletManager::on_update_wallet_state(telegram_api::object_ptr<telegram_api::WalletState> &&wallet_state) {
   LOG(INFO) << "Receive " << to_string(wallet_state);
   if (td_->auth_manager_->is_bot()) {
@@ -1435,7 +1614,7 @@ void TonWalletManager::on_update_wallet_ton_connect_session(
                    TonConnectSession(td_, std::move(session)).get_ton_connect_session_object(td_)));
 }
 
-void TonWalletManager::get_existing_wallet_balance(Promise<Unit> &&promise) {
+void TonWalletManager::get_existing_wallet_balance(Promise<td_api::object_ptr<td_api::walletBotBalance>> &&promise) {
   td_->create_handler<GetExistingWalletBalanceQuery>(std::move(promise))->send();
 }
 
@@ -1696,6 +1875,24 @@ void TonWalletManager::do_disable_ton_wallet_backup(
   td_->create_handler<DisableWalletBackupQuery>(std::move(promise))->send(std::move(input_password));
 }
 
+void TonWalletManager::disable_ton_wallet_backup_with_proof(const string &address, const string &private_key,
+                                                            Promise<Unit> &&promise) {
+  get_wallet_ownership_proof(address, private_key,
+                             PromiseCreator::lambda([actor_id = actor_id(this), promise = std::move(promise)](
+                                                        Result<WalletOwnershipProof> r_proof) mutable {
+                               if (r_proof.is_error()) {
+                                 return promise.set_error(r_proof.move_as_error());
+                               }
+                               send_closure(actor_id, &TonWalletManager::do_disable_ton_wallet_backup_with_proof,
+                                            r_proof.move_as_ok(), std::move(promise));
+                             }));
+}
+
+void TonWalletManager::do_disable_ton_wallet_backup_with_proof(WalletOwnershipProof &&proof, Promise<Unit> &&promise) {
+  td_->create_handler<DisableWalletBackupQuery>(std::move(promise))
+      ->send(std::move(proof.public_key_), std::move(proof.proof_));
+}
+
 void TonWalletManager::get_ton_wallet_gasless_info(Promise<Unit> &&promise) {
   td_->create_handler<GetWalletGaslessInfoQuery>(std::move(promise))->send();
 }
@@ -1729,50 +1926,24 @@ void TonWalletManager::do_delete_ton_wallet(
       ->send(telegram_api::make_object<telegram_api::inputWalletNew>(), std::move(input_password));
 }
 
-void TonWalletManager::replace_ton_wallet(const string &password, const string &address, const string &private_key,
-                                          Promise<Unit> &&promise) {
-  if (address.size() != 48u || !is_base64url_characters(address)) {
-    return promise.set_error(400, "Invalid address specified");
-  }
-  if (private_key.size() != Ed25519::PrivateKey::LENGTH) {
-    return promise.set_error(400, "Invalid private key");
-  }
-  if (password.empty()) {
-    return do_replace_ton_wallet(nullptr, address, private_key, std::move(promise));
-  }
-  send_closure(G()->password_manager(), &PasswordManager::get_input_check_password_srp, password,
-               PromiseCreator::lambda(
-                   [actor_id = actor_id(this), address, private_key, promise = std::move(promise)](
-                       Result<telegram_api::object_ptr<telegram_api::InputCheckPasswordSRP>> r_input_password) mutable {
-                     if (r_input_password.is_error()) {
-                       return promise.set_error(r_input_password.move_as_error());
-                     }
-                     send_closure(actor_id, &TonWalletManager::do_replace_ton_wallet, r_input_password.move_as_ok(),
-                                  address, private_key, std::move(promise));
-                   }));
-}
-
-void TonWalletManager::do_replace_ton_wallet(
-    telegram_api::object_ptr<telegram_api::InputCheckPasswordSRP> &&input_password, const string &address,
-    const string &private_key, Promise<Unit> &&promise) {
-  TRY_STATUS_PROMISE(promise, G()->close_status());
+void TonWalletManager::get_wallet_ownership_proof(const string &address, const string &private_key,
+                                                  Promise<WalletOwnershipProof> &&promise) {
+  TRY_STATUS_PROMISE(promise, check_ton_address(address));
   auto query_promise = PromiseCreator::lambda(
-      [actor_id = actor_id(this), input_password = std::move(input_password), address, private_key,
-       promise = std::move(promise)](
+      [actor_id = actor_id(this), address, private_key, promise = std::move(promise)](
           Result<telegram_api::object_ptr<telegram_api::wallet_proofChallenge>> r_challenge) mutable {
         if (r_challenge.is_error()) {
           return promise.set_error(r_challenge.move_as_error());
         }
-        send_closure(actor_id, &TonWalletManager::do_replace_ton_wallet_with_challenge, std::move(input_password),
-                     r_challenge.move_as_ok(), address, private_key, std::move(promise));
+        send_closure(actor_id, &TonWalletManager::get_wallet_ownership_proof_with_challenge, r_challenge.move_as_ok(),
+                     address, private_key, std::move(promise));
       });
   td_->create_handler<GetWalletProofChallengeQuery>(std::move(query_promise))->send();
 }
 
-void TonWalletManager::do_replace_ton_wallet_with_challenge(
-    telegram_api::object_ptr<telegram_api::InputCheckPasswordSRP> &&input_password,
+void TonWalletManager::get_wallet_ownership_proof_with_challenge(
     telegram_api::object_ptr<telegram_api::wallet_proofChallenge> &&challenge, const string &address,
-    const string &private_key, Promise<Unit> &&promise) {
+    const string &private_key, Promise<WalletOwnershipProof> &&promise) {
   TRY_STATUS_PROMISE(promise, G()->close_status());
   auto key = Ed25519::PrivateKey(SecureString(private_key));
   TRY_RESULT_PROMISE(promise, public_key, key.get_public_key());
@@ -1795,10 +1966,55 @@ void TonWalletManager::do_replace_ton_wallet_with_challenge(
                                   << to_little_endian(static_cast<int64>(challenge->domain_.size()), 4)
                                   << challenge->domain_ << to_little_endian(timestamp, 8) << challenge->payload_));
   TRY_RESULT_PROMISE(promise, signature, key.sign(signed_data));
-  auto proof =
+  WalletOwnershipProof result;
+  result.public_key_ = BufferSlice(public_key.as_octet_string().as_slice());
+  result.proof_ =
       telegram_api::make_object<telegram_api::walletOwnershipProof>(timestamp, BufferSlice(signature.as_slice()));
+  promise.set_value(std::move(result));
+}
+
+void TonWalletManager::replace_ton_wallet(const string &password, const string &address, const string &private_key,
+                                          Promise<Unit> &&promise) {
+  if (private_key.size() != Ed25519::PrivateKey::LENGTH) {
+    return promise.set_error(400, "Invalid private key");
+  }
+  if (password.empty()) {
+    return do_replace_ton_wallet(nullptr, address, private_key, std::move(promise));
+  }
+  send_closure(G()->password_manager(), &PasswordManager::get_input_check_password_srp, password,
+               PromiseCreator::lambda(
+                   [actor_id = actor_id(this), address, private_key, promise = std::move(promise)](
+                       Result<telegram_api::object_ptr<telegram_api::InputCheckPasswordSRP>> r_input_password) mutable {
+                     if (r_input_password.is_error()) {
+                       return promise.set_error(r_input_password.move_as_error());
+                     }
+                     send_closure(actor_id, &TonWalletManager::do_replace_ton_wallet, r_input_password.move_as_ok(),
+                                  address, private_key, std::move(promise));
+                   }));
+}
+
+void TonWalletManager::do_replace_ton_wallet(
+    telegram_api::object_ptr<telegram_api::InputCheckPasswordSRP> &&input_password, const string &address,
+    const string &private_key, Promise<Unit> &&promise) {
+  TRY_STATUS_PROMISE(promise, G()->close_status());
+  get_wallet_ownership_proof(
+      address, private_key,
+      PromiseCreator::lambda([actor_id = actor_id(this), input_password = std::move(input_password),
+                              promise = std::move(promise)](Result<WalletOwnershipProof> r_proof) mutable {
+        if (r_proof.is_error()) {
+          return promise.set_error(r_proof.move_as_error());
+        }
+        send_closure(actor_id, &TonWalletManager::do_replace_ton_wallet_with_proof, std::move(input_password),
+                     r_proof.move_as_ok(), std::move(promise));
+      }));
+}
+
+void TonWalletManager::do_replace_ton_wallet_with_proof(
+    telegram_api::object_ptr<telegram_api::InputCheckPasswordSRP> &&input_password, WalletOwnershipProof &&proof,
+    Promise<Unit> &&promise) {
+  TRY_STATUS_PROMISE(promise, G()->close_status());
   auto input_wallet = telegram_api::make_object<telegram_api::inputWalletImported>(
-      0, BufferSlice(public_key.as_octet_string().as_slice()), BufferSlice(), std::move(proof));
+      0, std::move(proof.public_key_), BufferSlice(), std::move(proof.proof_));
   td_->create_handler<ReplaceWalletQuery>(std::move(promise))->send(std::move(input_wallet), std::move(input_password));
 }
 
@@ -1918,9 +2134,41 @@ void TonWalletManager::register_ton_connect_key(int64 session_id, const string &
   td_->create_handler<RegisterTonConnectKeyQuery>(std::move(promise))->send(session_id, client_id);
 }
 
+void TonWalletManager::submit_ton_connect_result(int64 session_id, const string &challenge_answer, bool is_error,
+                                                 const string &body, const string &trace_id, Promise<Unit> &&promise) {
+  td_->create_handler<SubmitTonConnectResultQuery>(std::move(promise))
+      ->send(session_id, challenge_answer, is_error, body, trace_id);
+}
+
+void TonWalletManager::get_ton_connect_next_event_id(
+    int64 session_id, Promise<td_api::object_ptr<td_api::tonConnectSessionEventId>> &&promise) {
+  td_->create_handler<GetTonConnectNextEventIdQuery>(std::move(promise))->send(session_id);
+}
+
+void TonWalletManager::close_ton_connect_session(int64 session_id, const string &body, Promise<Unit> &&promise) {
+  td_->create_handler<CloseTonConnectSessionQuery>(std::move(promise))->send(session_id, body);
+}
+
 void TonWalletManager::get_ton_connect_requests(bool by_dapp, int64 session_id, const string &dapp_client_id,
                                                 Promise<td_api::object_ptr<td_api::tonConnectRequests>> &&promise) {
   td_->create_handler<GetTonConnectPendingQuery>(std::move(promise))->send(by_dapp, session_id, dapp_client_id);
+}
+
+void TonWalletManager::claim_ton_connect_request(int64 session_id, MessageId message_id, const string &dapp_request_id,
+                                                 bool is_rejected, Promise<Unit> &&promise) {
+  if (!message_id.is_server()) {
+    return promise.set_error(400, "Invalid message identifier specified");
+  }
+  td_->create_handler<ClaimTonConnectRequestQuery>(std::move(promise))
+      ->send(session_id, message_id, dapp_request_id, is_rejected);
+}
+
+void TonWalletManager::submit_ton_connect_response(int64 session_id, MessageId message_id, const string &trace_id,
+                                                   const string &body, Promise<Unit> &&promise) {
+  if (!message_id.is_server()) {
+    return promise.set_error(400, "Invalid message identifier specified");
+  }
+  td_->create_handler<SubmitTonConnectResponseQuery>(std::move(promise))->send(session_id, message_id, trace_id, body);
 }
 
 void TonWalletManager::get_on_ramp_providers(const string &cryptocurrency,
