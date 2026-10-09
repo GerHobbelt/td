@@ -337,9 +337,10 @@ class RichText {
           return Status::Error(400, "Button must be non-empty");
         }
         TRY_RESULT(t, get_rich_text(td, std::move(text->button_->text_)));
-        TRY_RESULT(button, get_inline_keyboard_button(td_api::make_object<td_api::inlineKeyboardButton>(
-                                                          "1", 0, nullptr, std::move(text->button_->type_)),
-                                                      true));
+        TRY_RESULT(button, InlineKeyboardButton::get_inline_keyboard_button(
+                               td_api::make_object<td_api::inlineKeyboardButton>("1", 0, nullptr,
+                                                                                 std::move(text->button_->type_)),
+                               true));
         result.type = Type::Button;
         result.texts.push_back(std::move(t));
         result.button_style = RichButtonStyle(std::move(text->button_->style_));
@@ -586,7 +587,7 @@ class RichText {
           flags |= telegram_api::textButton::STYLE_MASK;
         }
         CHECK(button != nullptr);
-        auto input_button = get_input_keyboard_inline_button(context.td_->user_manager_.get(), *button);
+        auto input_button = button->get_input_keyboard_inline_button(context.td_->user_manager_.get());
         return telegram_api::make_object<telegram_api::textButton>(flags, texts[0].get_input_rich_text(context),
                                                                    std::move(input_button->type_), std::move(style));
       }
@@ -725,7 +726,7 @@ class RichText {
                                                          texts[1].get_rich_text_object(context));
       case RichText::Type::Button: {
         CHECK(button != nullptr);
-        auto button_object = get_inline_keyboard_button_object(context->td_->user_manager_.get(), *button);
+        auto button_object = button->get_inline_keyboard_button_object(context->td_->user_manager_.get());
         return td_api::make_object<td_api::richTextButton>(td_api::make_object<td_api::inlineButton>(
             texts[0].get_rich_text_object(context), button_style.get_button_style_object(),
             std::move(button_object->type_)));
@@ -876,8 +877,6 @@ class WebPageBlockCaption {
     parse(text, parser);
     if (parser.version() >= static_cast<int32>(Version::SupportInstantView2_0)) {
       parse(credit, parser);
-    } else {
-      credit = RichText();
     }
   }
 };
@@ -2501,9 +2500,10 @@ class WebPageBlockButtonRow final : public WebPageBlock {
         return Status::Error(400, "Button must be non-empty");
       }
       TRY_RESULT_ASSIGN(result.text, RichText::get_rich_text(td, std::move(button->text_)));
-      TRY_RESULT_ASSIGN(result.button, get_inline_keyboard_button(td_api::make_object<td_api::inlineKeyboardButton>(
-                                                                      "1", 0, nullptr, std::move(button->type_)),
-                                                                  true));
+      TRY_RESULT_ASSIGN(
+          result.button,
+          InlineKeyboardButton::get_inline_keyboard_button(
+              td_api::make_object<td_api::inlineKeyboardButton>("1", 0, nullptr, std::move(button->type_)), true));
       result.style = RichButtonStyle(std::move(button->style_));
       return result;
     }
@@ -2543,13 +2543,13 @@ class WebPageBlockButtonRow final : public WebPageBlock {
       if (input_style != nullptr) {
         flags |= telegram_api::textButton::STYLE_MASK;
       }
-      auto input_button = get_input_keyboard_inline_button(context.td_->user_manager_.get(), button);
+      auto input_button = button.get_input_keyboard_inline_button(context.td_->user_manager_.get());
       return telegram_api::make_object<telegram_api::pageButton>(
           flags, text.get_input_rich_text(context), std::move(input_button->type_), std::move(input_style));
     }
 
     td_api::object_ptr<td_api::inlineButton> get_inline_button_object(Context *context) const {
-      auto button_object = get_inline_keyboard_button_object(context->td_->user_manager_.get(), button);
+      auto button_object = button.get_inline_keyboard_button_object(context->td_->user_manager_.get());
       return td_api::make_object<td_api::inlineButton>(
           text.get_rich_text_object(context), style.get_button_style_object(), std::move(button_object->type_));
     }
@@ -2998,11 +2998,8 @@ class WebPageBlockAnimation final : public WebPageBlock {
     if (parser.version() >= static_cast<int32>(Version::FixWebPageInstantViewDatabase)) {
       if (!has_empty_animation) {
         animation_file_id = parser.context()->td().get_actor_unsafe()->animations_manager_->parse_animation(parser);
-      } else {
-        animation_file_id = FileId();
       }
     } else {
-      animation_file_id = FileId();
       parser.set_error("Wrong stored object");
     }
     parse(caption, parser);
@@ -3117,9 +3114,6 @@ class WebPageBlockPhoto final : public WebPageBlock {
     if (parser.version() >= static_cast<int32>(Version::SupportInstantView2_0)) {
       parse(url, parser);
       parse(web_page_id, parser);
-    } else {
-      url.clear();
-      web_page_id = WebPageId();
     }
   }
 };
@@ -3241,11 +3235,8 @@ class WebPageBlockVideo final : public WebPageBlock {
     if (parser.version() >= static_cast<int32>(Version::FixWebPageInstantViewDatabase)) {
       if (!has_empty_video) {
         video_file_id = parser.context()->td().get_actor_unsafe()->videos_manager_->parse_video(parser);
-      } else {
-        video_file_id = FileId();
       }
     } else {
-      video_file_id = FileId();
       parser.set_error("Wrong stored object");
     }
     parse(caption, parser);
@@ -3937,16 +3928,13 @@ class WebPageBlockAudio final : public WebPageBlock {
   void parse(ParserT &parser) {
     using ::td::parse;
 
-    bool has_empty_audio;
-    bool is_voice_note_repaired;
+    bool has_empty_audio = false;
+    bool is_voice_note_repaired = false;
     if (parser.version() >= static_cast<int32>(Version::FixPageBlockAudioEmptyFile)) {
       BEGIN_PARSE_FLAGS();
       PARSE_FLAG(has_empty_audio);
       PARSE_FLAG(is_voice_note_repaired);
       END_PARSE_FLAGS();
-    } else {
-      has_empty_audio = false;
-      is_voice_note_repaired = false;
     }
 
     if (!has_empty_audio) {
@@ -3955,7 +3943,6 @@ class WebPageBlockAudio final : public WebPageBlock {
       if (!is_voice_note_repaired) {
         parser.set_error("Trying to repair WebPageBlockVoiceNote");
       }
-      audio_file_id = FileId();
     }
     parse(caption, parser);
   }
@@ -4535,8 +4522,6 @@ class WebPageBlockVoiceNote final : public WebPageBlock {
 
     if (!has_empty_voice_note) {
       voice_note_file_id = parser.context()->td().get_actor_unsafe()->voice_notes_manager_->parse_voice_note(parser);
-    } else {
-      voice_note_file_id = FileId();
     }
     parse(caption, parser);
   }
@@ -4857,8 +4842,8 @@ RichText get_rich_text(tl_object_ptr<telegram_api::RichText> &&rich_text_ptr,
       result.type = RichText::Type::Button;
       result.texts.push_back(get_rich_text(std::move(rich_text->text_), documents));
       result.button_style = RichButtonStyle(std::move(rich_text->style_));
-      result.button = make_unique<InlineKeyboardButton>(get_inline_keyboard_button(
-          telegram_api::make_object<telegram_api::keyboardInlineButton>(0, nullptr, "1", std::move(rich_text->type_))));
+      result.button = make_unique<InlineKeyboardButton>(
+          telegram_api::make_object<telegram_api::keyboardInlineButton>(0, nullptr, "1", std::move(rich_text->type_)));
       break;
     }
     default:
@@ -5049,10 +5034,7 @@ unique_ptr<WebPageBlock> get_web_page_block(Td *td, tl_object_ptr<telegram_api::
     case telegram_api::pageBlockPhoto::ID: {
       auto page_block = telegram_api::move_object_as<telegram_api::pageBlockPhoto>(page_block_ptr);
       auto it = photos.find(page_block->photo_id_);
-      Photo photo;
-      if (it != photos.end()) {
-        photo = *it->second;
-      }
+      auto photo = it != photos.end() ? *it->second : Photo();
       return td::make_unique<WebPageBlockPhoto>(
           std::move(photo), get_page_block_caption(std::move(page_block->caption_), documents),
           std::move(page_block->url_), WebPageId(page_block->webpage_id_), page_block->spoiler_);
@@ -5069,10 +5051,7 @@ unique_ptr<WebPageBlock> get_web_page_block(Td *td, tl_object_ptr<telegram_api::
       }
 
       auto it = videos.find(page_block->video_id_);
-      FileId video_file_id;
-      if (it != videos.end()) {
-        video_file_id = it->second;
-      }
+      auto video_file_id = it != videos.end() ? it->second : FileId();
       return make_unique<WebPageBlockVideo>(video_file_id,
                                             get_page_block_caption(std::move(page_block->caption_), documents),
                                             need_autoplay, is_looped, page_block->spoiler_);
@@ -5090,11 +5069,8 @@ unique_ptr<WebPageBlock> get_web_page_block(Td *td, tl_object_ptr<telegram_api::
       auto page_block = telegram_api::move_object_as<telegram_api::pageBlockEmbed>(page_block_ptr);
       bool is_full_width = page_block->full_width_;
       bool allow_scrolling = page_block->allow_scrolling_;
-      Photo poster_photo;
       auto it = photos.find(page_block->poster_photo_id_);
-      if (it != photos.end()) {
-        poster_photo = *it->second;
-      }
+      auto poster_photo = it != photos.end() ? *it->second : Photo();
       auto dimensions = get_dimensions(page_block->w_, page_block->h_, "pageBlockEmbed");
       return td::make_unique<WebPageBlockEmbedded>(
           std::move(page_block->url_), std::move(page_block->html_), std::move(poster_photo), dimensions,
@@ -5103,10 +5079,7 @@ unique_ptr<WebPageBlock> get_web_page_block(Td *td, tl_object_ptr<telegram_api::
     case telegram_api::pageBlockEmbedPost::ID: {
       auto page_block = telegram_api::move_object_as<telegram_api::pageBlockEmbedPost>(page_block_ptr);
       auto it = photos.find(page_block->author_photo_id_);
-      Photo author_photo;
-      if (it != photos.end()) {
-        author_photo = *it->second;
-      }
+      auto author_photo = it != photos.end() ? *it->second : Photo();
       return td::make_unique<WebPageBlockEmbeddedPost>(
           std::move(page_block->url_), std::move(page_block->author_), std::move(author_photo), page_block->date_,
           get_web_page_blocks(td, std::move(page_block->blocks_), animations, audios, documents, photos, videos,
@@ -5166,10 +5139,7 @@ unique_ptr<WebPageBlock> get_web_page_block(Td *td, tl_object_ptr<telegram_api::
       }
 
       auto it = audios.find(page_block->audio_id_);
-      FileId audio_file_id;
-      if (it != audios.end()) {
-        audio_file_id = it->second;
-      }
+      auto audio_file_id = it != audios.end() ? it->second : FileId();
       return make_unique<WebPageBlockAudio>(audio_file_id,
                                             get_page_block_caption(std::move(page_block->caption_), documents));
     }
@@ -5307,7 +5277,7 @@ unique_ptr<WebPageBlock> get_web_page_block(Td *td, tl_object_ptr<telegram_api::
                       result.text = get_rich_text(std::move(button->text_), documents);
                       result.style = RichButtonStyle(std::move(button->style_));
                       result.button =
-                          get_inline_keyboard_button(telegram_api::make_object<telegram_api::keyboardInlineButton>(
+                          InlineKeyboardButton(telegram_api::make_object<telegram_api::keyboardInlineButton>(
                               0, nullptr, "1", std::move(button->type_)));
                       return result;
                     }),
@@ -5338,7 +5308,7 @@ void WebPageBlock::append_user_ids(vector<UserId> &user_ids) const {
       user_ids.push_back(text->user_id);
     }
     if (text->button != nullptr) {
-      auto user_id = text->button->user_id;
+      auto user_id = text->button->get_user_id();
       if (user_id.is_valid()) {
         user_ids.push_back(user_id);
       }
