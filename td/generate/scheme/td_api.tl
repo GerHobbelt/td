@@ -2177,6 +2177,110 @@ tonCenterApiRequestTypeGet query:string = TonCenterApiRequestType;
 tonCenterApiRequestTypePost payload:string = TonCenterApiRequestType;
 
 
+//@description Contains an HTTP URL for TON Center Streaming API @url The URL @expires_in Time after which the URL expires
+tonCenterStreamingApiUrl url:string expires_in:int32 = TonCenterStreamingApiUrl;
+
+//@description Describes exchange rate of a currency to USD
+//@currency ISO 4217 currency code of the payment currency
+//@rate Exchange rate of the currency to USD
+currencyExchangeRate currency:string rate:double = CurrencyExchangeRate;
+
+//@description Represents a list of currency exchange rates @rates A list of currency exchange rates
+currencyExchangeRates rates:vector<currencyExchangeRate> = CurrencyExchangeRates;
+
+//@description Describes an on-ramp provider
+//@id Unique identifier of the provider
+//@name Name of the provider
+//@cryptocurrencies List of cryptocurrencies supported by the provider
+//@supports_base_currencies True, if the provider supports base currencies and can be used in the method getOnRampProviderBaseCurrencies
+//@supports_limits True, if the provider supports limits retrieval using the method getOnRampPaymentLimits
+//@supports_quote True, if the provider supports quote retrieval using the method getOnRampPaymentQuote
+onRampProvider id:string name:string cryptocurrencies:vector<string> supports_base_currencies:Bool supports_limits:Bool supports_quote:Bool = OnRampProvider;
+
+//@description Represents a list of on-ramp providers @providers A list of providers
+onRampProviders providers:vector<onRampProvider> = OnRampProviders;
+
+//@description Represents a list of currencies @currencies A list of ISO 4217 currency codes
+currencies currencies:vector<string> = Currencies;
+
+//@description Describes a payment method of an on-ramp provider
+//@name Name of the method
+//@is_available True, if the method is available for the user
+onRampPaymentMethod name:string is_available:Bool = OnRampPaymentMethod;
+
+//@description Describes availability of cryptocurrency purchase through an on-ramp provider
+//@is_allowed True, if the current user can use the provider
+//@is_purchase_allowed True, if the current user can purchase through the provider
+//@methods The list of available payment methods
+//@country_code A two-letter ISO 3166-1 alpha-2 country code of the current user's country
+//@state Code of the state of the current user; may be empty if unknown
+onRampPaymentAvailability is_allowed:Bool is_purchase_allowed:Bool methods:vector<onRampPaymentMethod> country_code:string state:string = OnRampPaymentAvailability;
+
+//@description Describes limits for an on-ramp purchase
+//@payment_method The payment method to be used
+//@base_currency_min_amount The minimum allowed amount of the base currency
+//@base_currency_max_amount The maximum allowed amount of the base currency
+//@cryptocurrency_min_amount The minimum allowed amount of the bought cryptocurrency
+//@cryptocurrency_max_amount The maximum allowed amount of the bought cryptocurrency
+onRampPaymentLimits payment_method:string base_currency_min_amount:string base_currency_max_amount:string cryptocurrency_min_amount:string cryptocurrency_max_amount:string = OnRampPaymentLimits;
+
+//@description Describes a quote for an on-ramp purchase
+//@payment_method The payment method to be used
+//@expiration_date Point in time (Unix timestamp) when the quote will expire
+//@base_currency_amount Paid amount of the base currency
+//@cryptocurrency_amount Received amount of the cryptocurrency
+//@cryptocurrency_price The price of the cryptocurrency
+//@fee_amount Fee amount
+//@extra_fee_amount Extra fee amount
+//@network_fee_amount Network fee amount
+//@total_amount Total paid amount
+onRampPaymentQuote payment_method:string expiration_date:int32 base_currency_amount:string cryptocurrency_amount:string cryptocurrency_price:string fee_amount:string extra_fee_amount:string network_fee_amount:string total_amount:string = OnRampPaymentQuote;
+
+//@description Describes a session for an on-ramp purchase
+//@session_id Identifier of the session
+//@expiration_date Point in time (Unix timestamp) when the session will expire
+//@url HTTPS URL to be opened in a WebView to complete the purchase
+onRampPaymentSession session_id:string expiration_date:int32 url:string = OnRampPaymentSession;
+
+//@description Describes state of the wallet of the current user in the TON Blockchain
+//@address Address of the wallet; may be empty if none
+//@public_key Public key of the wallet; may be empty if none
+//@gram_amount The total amount of owned TON Grams, in the smallest units of the cryptocurrency
+//@is_being_created True, if the wallet is being created
+//@is_backup_enabled True, if backup for the wallet key is enabled
+//@can_enable_backup True, if the user can enable backup for the wallet key
+//@can_export_phrase True, if the wallet key can be exported
+tonWalletState address:string public_key:bytes gram_amount:int53 is_being_created:Bool is_backup_enabled:Bool can_enable_backup:Bool can_export_phrase:Bool = TonWalletState;
+
+
+//@class TonWalletTransactionState @description Describes state of a transaction with a TON wallet
+
+//@description The transaction succeeded @tx_hash Hash of the transaction
+tonWalletTransactionStateSucceeded tx_hash:string = TonWalletTransactionState;
+
+//@description The transaction failed
+tonWalletTransactionStateFailed = TonWalletTransactionState;
+
+
+//@description Represents a transaction with the TON wallet of the current user
+//@id Unique identifier of the transaction
+//@peer_address Address in the TON blockchain of the transaction peer; may be empty if the transaction isn't a wallet transfer
+//@peer_user_id Identifier of the other user that participated in the transaction; 0 if unknown
+//@peer_domain Identifier of the domain assigned to the peer address; may be empty if none
+//@amount The amount of received cryptocurrency, in the smallest units of the cryptocurrency; negative for outgoing transactions
+//@fee_amount The fee amount paid for the transaction, in the smallest units of the cryptocurrency
+//@comment Comment added to the transaction
+//@date Point in time (Unix timestamp) when the transaction was completed
+//@type Type of the transaction
+tonWalletTransaction id:string peer_address:string peer_user_id:int53 peer_domain:string amount:int53 fee_amount:int53 comment:string date:int32 type:TonWalletTransactionState = TonWalletTransaction;
+
+//@description Represents a list of TON Gram transactions
+//@gram_amount The total amount of owned TON Grams, in the smallest units of the cryptocurrency
+//@transactions List of transactions
+//@next_offset The offset for the next request. If empty, then there are no more results
+tonWalletTransactions gram_amount:int53 transactions:vector<tonWalletTransaction> next_offset:string = TonWalletTransactions;
+
+
 //@class ActiveStoryState @description Describes state of active stories posted by a chat
 
 //@description The chat has an active live story @story_id Identifier of the active live story
@@ -10255,7 +10359,7 @@ chatRevenueAmount cryptocurrency:string total_amount:int64 balance_amount:int64 
 //@revenue_by_hour_graph A graph containing amount of revenue in a given hour
 //@revenue_graph A graph containing amount of revenue
 //@revenue_amount Amount of earned revenue
-//@usd_rate Current conversion rate of the cryptocurrency in which revenue is calculated to USD
+//@usd_rate Current exchange rate of the cryptocurrency in which revenue is calculated to USD
 chatRevenueStatistics revenue_by_hour_graph:StatisticalGraph revenue_graph:StatisticalGraph revenue_amount:chatRevenueAmount usd_rate:double = ChatRevenueStatistics;
 
 //@description A detailed statistics about a message
@@ -10334,7 +10438,7 @@ starRevenueStatus total_amount:starAmount current_amount:starAmount available_am
 //@description A detailed statistics about Telegram Stars earned by a user or a chat
 //@revenue_by_day_graph A graph containing amount of revenue in a given day
 //@status Telegram Star revenue status
-//@usd_rate Current conversion rate of a Telegram Star to USD
+//@usd_rate Current exchange rate of a Telegram Star to USD
 starRevenueStatistics revenue_by_day_graph:StatisticalGraph status:starRevenueStatus usd_rate:double = StarRevenueStatistics;
 
 //@description Contains information about TON Grams earned by the current user
@@ -10347,7 +10451,7 @@ gramRevenueStatus total_amount:int64 balance_amount:int64 available_amount:int64
 //@description A detailed statistics about TON Grams earned by the current user
 //@revenue_by_day_graph A graph containing amount of revenue in a given day
 //@status Amount of earned revenue
-//@usd_rate Current conversion rate of nanogram to USD cents
+//@usd_rate Current exchange rate of nanogram to USD cents
 gramRevenueStatistics revenue_by_day_graph:StatisticalGraph status:gramRevenueStatus usd_rate:double = GramRevenueStatistics;
 
 
@@ -11033,6 +11137,9 @@ updateOwnedStarCount star_amount:starAmount = Update;
 
 //@description The number of TON Grams owned by the current user has changed @gram_amount The new amount of owned Grams; in the smallest units of the cryptocurrency
 updateOwnedGramCount gram_amount:int53 = Update;
+
+//@description The state of the TON wallet of the current user has changed @state The new state of the wallet
+updateTonWalletState state:tonWalletState = Update;
 
 //@description The revenue earned from sponsored messages in a chat has changed. If chat revenue screen is opened, then getChatRevenueTransactions may be called to fetch new transactions
 //@chat_id Identifier of the chat
@@ -11819,6 +11926,19 @@ createCommunity name:string chat_id:int53 is_chat_hidden:Bool = CommunityId;
 //@community_id Identifier of the community
 //@name New name of the community
 setCommunityName community_id:int53 name:string = Ok;
+
+//@description Changes the photo of a community; requires can_change_info administrator right in the community
+//@community_id Identifier of the community
+//@photo New chat photo; pass null to delete the chat photo
+setCommunityPhoto community_id:int53 photo:InputChatPhoto = Ok;
+
+//@description Changes permissions of regular members in the given community; requires can_ban_members administrator right in the community
+//@community_id Identifier of the community
+//@permissions New permissions of the community
+setCommunityPermissions community_id:int53 permissions:communityPermissions = Ok;
+
+//@description Deletes a community; requires owner privileges @community_id Identifier of the community
+deleteCommunity community_id:int53 = Ok;
 
 
 //@description Returns a list of common group chats with a given user. Chats are sorted by their type and creation date
@@ -15098,9 +15218,9 @@ getBotInfoShortDescription bot_user_id:int53 language_code:string = Text;
 //@description Changes the verification status of a user or a chat by an owned bot
 //@bot_user_id Identifier of the owned bot, which will verify the user or the chat
 //@verified_id Identifier of the user or the supergroup or channel chat, which will be verified by the bot
-//@custom_description Custom description of verification reason; 0-getOption("bot_verification_custom_description_length_max").
+//@custom_description Custom description of verification reason; 0-getOption("bot_verification_custom_description_length_max") characters. Only TextUrl entities are supported.
 //-If empty, then "was verified by organization "organization_name"" will be used as description. Can be specified only if the bot is allowed to provide custom description
-setMessageSenderBotVerification bot_user_id:int53 verified_id:MessageSender custom_description:string = Ok;
+setMessageSenderBotVerification bot_user_id:int53 verified_id:MessageSender custom_description:formattedText = Ok;
 
 //@description Removes the verification status of a user or a chat by an owned bot
 //@bot_user_id Identifier of the owned bot, which verified the user or the chat
@@ -15735,17 +15855,76 @@ getChatRevenueWithdrawalUrl chat_id:int53 password:string = HttpUrl;
 //@limit The maximum number of transactions to be returned; up to 100
 getChatRevenueTransactions chat_id:int53 offset:string limit:int32 = ChatRevenueTransactions;
 
-//@description Returns the list of TON blockchain transactions of the current user
+//@description Returns the list of TON Gram transactions of the current user
 //@direction Direction of the transactions to receive; pass null to get all transactions
 //@offset Offset of the first transaction to return as received from the previous request; use empty string to get the first chunk of results
 //@limit The maximum number of transactions to return
 getTonTransactions direction:TransactionDirection offset:string limit:int32 = TonTransactions;
 
+//@description Returns the list of TON blockchain transactions of the current user
+//@direction Direction of the transactions to receive; pass null to get all transactions
+//@offset Offset of the first transaction to return as received from the previous request; use empty string to get the first chunk of results
+//@limit The maximum number of transactions to return
+getTonWalletTransactions direction:TransactionDirection offset:string limit:int32 = TonWalletTransactions;
+
+
+//@description Loads state of the TON wallet of the current user
+loadTonWalletState = Ok;
+
+//@description Returns exchange rates of currencies to USD
+getCurrencyExchangeRates = CurrencyExchangeRates;
+
+//@description Returns available on-ramp providers @cryptocurrency Pass a cryptocurrency to receive only providers that support it; pass an empty string to receive all providers
+getOnRampProviders cryptocurrency:string = OnRampProviders;
+
+//@description Returns the list of fiat currencies supported by an on-ramp provider for the given cryptocurrency
+//@provider_id Unique identifier of the on-ramp provider; only for providers that supports base currencies
+//@cryptocurrency The cryptocurrency that will be bought
+getOnRampProviderBaseCurrencies provider_id:string cryptocurrency:string = Currencies;
+
+//@description Returns the available on-ramp payment methods based on the current user location
+//@provider_id Unique identifier of the on-ramp provider
+//@cryptocurrency The cryptocurrency that will be bought
+//@base_currency ISO 4217 currency code of the currency that will be used for the purchase; pass an empty string if unknown
+getOnRampPaymentAvailability provider_id:string cryptocurrency:string base_currency:string = OnRampPaymentAvailability;
+
+//@description Returns the limits for an on-ramp payment; only for providers that supports limits retrieval
+//@provider_id Unique identifier of the on-ramp provider
+//@cryptocurrency The cryptocurrency that will be bought
+//@base_currency ISO 4217 currency code of the currency that will be used for the purchase
+//@payment_method_name Name of the chosen payment method; pass an empty string if none
+getOnRampPaymentLimits provider_id:string cryptocurrency:string base_currency:string payment_method_name:string = OnRampPaymentLimits;
+
+//@description Returns a quote for an on-ramp payment; only for providers that supports quote retrieval
+//@provider_id Unique identifier of the on-ramp provider
+//@cryptocurrency The cryptocurrency that will be bought
+//@base_currency ISO 4217 currency code of the currency that will be used for the purchase
+//@cryptocurrency_amount The amount of the cryptocurrency to buy; pass an empty string if the user selected base_currency_amount
+//@base_currency_amount The amount of the base currency to spend; pass an empty string if the user selected cryptocurrency_amount
+//@payment_method_name Name of the chosen payment method; pass an empty string if none
+getOnRampPaymentQuote provider_id:string cryptocurrency:string base_currency:string cryptocurrency_amount:string base_currency_amount:string payment_method_name:string = OnRampPaymentQuote;
+
+//@description Creates a session for an on-ramp payment
+//@provider_id Unique identifier of the on-ramp provider
+//@cryptocurrency The cryptocurrency that will be bought
+//@address Address to which the cryptocurrency will be sent
+//@payment_method_name Name of the chosen payment method; pass an empty string if none
+//@base_currency ISO 4217 currency code of the currency that will be used for the purchase; pass an empty string if unknown
+//@cryptocurrency_amount The amount of the cryptocurrency to buy; pass an empty string if the user selected base_currency_amount
+//@base_currency_amount The amount of the base currency to spend; pass an empty string if the user selected cryptocurrency_amount
+//@memo Memo for the query; pass an empty string if none
+//@theme Preferred theme for the WebView; pass null to use the default theme
+//@success_return_url The URL opened on successful payment; pass an empty string if none
+//@fail_return_url The URL opened on failed payment; pass an empty string if none
+createOnRampPaymentSession provider_id:string cryptocurrency:string address:string payment_method_name:string base_currency:string cryptocurrency_amount:string base_currency_amount:string memo:string theme:themeParameters success_return_url:string fail_return_url:string = OnRampPaymentSession;
 
 //@description Sends a request to TON Center API and returns its response in JSON format.
 //@endpoint The path of the requested endpoint. See https://toncenter.com/api/v3/index.html for the list of supported endpoints
 //@type Type of the request
 sendTonCenterApiRequest endpoint:string type:TonCenterApiRequestType = Text;
+
+//@description Returns a URL for TON Center Streaming API
+getTonCenterStreamingApiUrl = TonCenterStreamingApiUrl;
 
 
 //@description Returns detailed Telegram Star revenue statistics

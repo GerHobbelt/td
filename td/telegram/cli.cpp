@@ -3859,6 +3859,27 @@ class CliClient final : public Actor {
       string name;
       get_args(args, community_id, name);
       send_request(td_api::make_object<td_api::setCommunityName>(community_id, name));
+    } else if (op == "scop") {
+      CommunityId community_id;
+      InputChatPhoto input_chat_photo;
+      get_args(args, community_id, input_chat_photo);
+      send_request(td_api::make_object<td_api::setCommunityPhoto>(community_id, input_chat_photo));
+    } else if (op == "scoperm") {
+      CommunityId community_id;
+      string permissions;
+      get_args(args, community_id, permissions);
+      constexpr size_t EXPECTED_SIZE = 1;
+      if (permissions.size() == EXPECTED_SIZE) {
+        auto &s = permissions;
+        send_request(td_api::make_object<td_api::setCommunityPermissions>(
+            community_id, td_api::make_object<td_api::communityPermissions>(s[0] == '1')));
+      } else {
+        LOG(ERROR) << "Wrong permissions size, expected " << EXPECTED_SIZE;
+      }
+    } else if (op == "DeleteCommunity") {
+      CommunityId community_id;
+      get_args(args, community_id);
+      send_request(td_api::make_object<td_api::deleteCommunity>(community_id));
     } else if (op == "gcc") {
       UserId user_id;
       ChatId offset_chat_id;
@@ -8493,7 +8514,7 @@ class CliClient final : public Actor {
       string custom_description;
       get_args(args, bot_user_id, sender_id, custom_description);
       send_request(td_api::make_object<td_api::setMessageSenderBotVerification>(
-          bot_user_id, as_message_sender(sender_id), custom_description));
+          bot_user_id, as_message_sender(sender_id), as_formatted_text(custom_description)));
     } else if (op == "rmsbv") {
       UserId bot_user_id;
       string sender_id;
@@ -8767,6 +8788,75 @@ class CliClient final : public Actor {
         direction = td_api::make_object<td_api::transactionDirectionOutgoing>();
       }
       send_request(td_api::make_object<td_api::getTonTransactions>(std::move(direction), offset, as_limit(limit)));
+    } else if (op == "ltws") {
+      send_request(td_api::make_object<td_api::loadTonWalletState>());
+    } else if (op == "gtwta" || op == "gtwti" || op == "gtwto") {
+      string limit;
+      string offset;
+      get_args(args, limit, offset);
+      td_api::object_ptr<td_api::TransactionDirection> direction;
+      if (op == "gtwti") {
+        direction = td_api::make_object<td_api::transactionDirectionIncoming>();
+      } else if (op == "gtwto") {
+        direction = td_api::make_object<td_api::transactionDirectionOutgoing>();
+      }
+      send_request(
+          td_api::make_object<td_api::getTonWalletTransactions>(std::move(direction), offset, as_limit(limit)));
+    } else if (op == "gcer") {
+      send_request(td_api::make_object<td_api::getCurrencyExchangeRates>());
+    } else if (op == "gorp") {
+      string cryptocurrency;
+      get_args(args, cryptocurrency);
+      send_request(td_api::make_object<td_api::getOnRampProviders>(cryptocurrency));
+    } else if (op == "gorpbc") {
+      string provider_id;
+      string cryptocurrency;
+      get_args(args, provider_id, cryptocurrency);
+      send_request(td_api::make_object<td_api::getOnRampProviderBaseCurrencies>(provider_id, cryptocurrency));
+    } else if (op == "gorpa") {
+      string provider_id;
+      string cryptocurrency;
+      string base_currency;
+      get_args(args, provider_id, cryptocurrency, base_currency);
+      send_request(
+          td_api::make_object<td_api::getOnRampPaymentAvailability>(provider_id, cryptocurrency, base_currency));
+    } else if (op == "gorpl") {
+      string provider_id;
+      string cryptocurrency;
+      string base_currency;
+      string payment_method;
+      get_args(args, provider_id, cryptocurrency, base_currency, payment_method);
+      send_request(td_api::make_object<td_api::getOnRampPaymentLimits>(provider_id, cryptocurrency, base_currency,
+                                                                       payment_method));
+    } else if (op == "gorpq") {
+      string provider_id;
+      string cryptocurrency;
+      string base_currency;
+      string cryptocurrency_amount;
+      string base_currency_amount;
+      string payment_method;
+      get_args(args, provider_id, cryptocurrency, base_currency, cryptocurrency_amount, base_currency_amount,
+               payment_method);
+      send_request(td_api::make_object<td_api::getOnRampPaymentQuote>(
+          provider_id, cryptocurrency, base_currency, cryptocurrency_amount, base_currency_amount, payment_method));
+    } else if (op == "corps") {
+      string provider_id;
+      string cryptocurrency;
+      string address;
+      string payment_method;
+      string base_currency;
+      string cryptocurrency_amount;
+      string base_currency_amount;
+      string memo;
+      string success_return_url;
+      string fail_return_url;
+      get_args(args, provider_id, cryptocurrency, address, payment_method, base_currency, cryptocurrency_amount,
+               base_currency_amount, memo, success_return_url, fail_return_url);
+      send_request(td_api::make_object<td_api::createOnRampPaymentSession>(
+          provider_id, cryptocurrency, address, payment_method, base_currency, cryptocurrency_amount,
+          base_currency_amount, memo, as_theme_parameters(), success_return_url, fail_return_url));
+    } else if (op == "gtcsau") {
+      send_request(td_api::make_object<td_api::getTonCenterStreamingApiUrl>());
     } else if (op == "stcarg") {
       string endpoint;
       string query;

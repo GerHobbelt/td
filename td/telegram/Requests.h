@@ -462,6 +462,12 @@ class Requests {
 
   void on_request(uint64 id, td_api::setCommunityName &request);
 
+  void on_request(uint64 id, const td_api::setCommunityPhoto &request);
+
+  void on_request(uint64 id, const td_api::setCommunityPermissions &request);
+
+  void on_request(uint64 id, const td_api::deleteCommunity &request);
+
   void on_request(uint64 id, td_api::searchPublicChat &request);
 
   void on_request(uint64 id, td_api::searchPublicChats &request);
@@ -1694,7 +1700,27 @@ class Requests {
 
   void on_request(uint64 id, td_api::getTonTransactions &request);
 
+  void on_request(uint64 id, td_api::getTonWalletTransactions &request);
+
+  void on_request(uint64 id, const td_api::loadTonWalletState &request);
+
+  void on_request(uint64 id, const td_api::getCurrencyExchangeRates &request);
+
+  void on_request(uint64 id, td_api::getOnRampProviders &request);
+
+  void on_request(uint64 id, td_api::getOnRampProviderBaseCurrencies &request);
+
   void on_request(uint64 id, td_api::sendTonCenterApiRequest &request);
+
+  void on_request(uint64 id, td_api::getOnRampPaymentAvailability &request);
+
+  void on_request(uint64 id, td_api::getOnRampPaymentLimits &request);
+
+  void on_request(uint64 id, td_api::getOnRampPaymentQuote &request);
+
+  void on_request(uint64 id, td_api::createOnRampPaymentSession &request);
+
+  void on_request(uint64 id, const td_api::getTonCenterStreamingApiUrl &request);
 
   void on_request(uint64 id, const td_api::getStarRevenueStatistics &request);
 

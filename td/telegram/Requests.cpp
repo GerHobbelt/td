@@ -174,6 +174,7 @@
 #include "td/telegram/TermsOfServiceManager.h"
 #include "td/telegram/ThemeManager.h"
 #include "td/telegram/TimeZoneManager.h"
+#include "td/telegram/TonWalletManager.h"
 #include "td/telegram/TopDialogCategory.h"
 #include "td/telegram/TopDialogManager.h"
 #include "td/telegram/TranscriptionManager.h"
@@ -2254,6 +2255,8 @@ void Requests::on_request(uint64 id, const td_api::getCurrentState &request) {
 
     td_->message_query_manager_->get_current_state(updates);
 
+    td_->ton_wallet_manager_->get_current_state(updates);
+
     td_->translation_manager_->get_current_state(updates);
 
     td_->web_browser_manager_->get_current_state(updates);
@@ -3425,6 +3428,25 @@ void Requests::on_request(uint64 id, td_api::setCommunityName &request) {
   CLEAN_INPUT_STRING(request.name_);
   CREATE_OK_REQUEST_PROMISE();
   td_->community_manager_->set_community_name(CommunityId(request.community_id_), request.name_, std::move(promise));
+}
+
+void Requests::on_request(uint64 id, const td_api::setCommunityPhoto &request) {
+  CHECK_IS_USER();
+  CREATE_OK_REQUEST_PROMISE();
+  td_->community_manager_->set_community_photo(CommunityId(request.community_id_), request.photo_, std::move(promise));
+}
+
+void Requests::on_request(uint64 id, const td_api::setCommunityPermissions &request) {
+  CHECK_IS_USER();
+  CREATE_OK_REQUEST_PROMISE();
+  td_->community_manager_->set_community_permissions(CommunityId(request.community_id_), request.permissions_,
+                                                     std::move(promise));
+}
+
+void Requests::on_request(uint64 id, const td_api::deleteCommunity &request) {
+  CHECK_IS_USER();
+  CREATE_OK_REQUEST_PROMISE();
+  td_->community_manager_->delete_community(CommunityId(request.community_id_), std::move(promise));
 }
 
 void Requests::on_request(uint64 id, td_api::searchPublicChat &request) {
@@ -7065,17 +7087,16 @@ void Requests::on_request(uint64 id, const td_api::getBotInfoShortDescription &r
 }
 
 void Requests::on_request(uint64 id, td_api::setMessageSenderBotVerification &request) {
-  CLEAN_INPUT_STRING(request.custom_description_);
   CREATE_OK_REQUEST_PROMISE();
   TRY_RESULT_PROMISE(promise, dialog_id, get_message_sender_dialog_id(td_, request.verified_id_, true, false));
   td_->bot_info_manager_->set_custom_bot_verification(UserId(request.bot_user_id_), dialog_id, true,
-                                                      request.custom_description_, std::move(promise));
+                                                      std::move(request.custom_description_), std::move(promise));
 }
 
 void Requests::on_request(uint64 id, const td_api::removeMessageSenderBotVerification &request) {
   CREATE_OK_REQUEST_PROMISE();
   TRY_RESULT_PROMISE(promise, dialog_id, get_message_sender_dialog_id(td_, request.verified_id_, false, false));
-  td_->bot_info_manager_->set_custom_bot_verification(UserId(request.bot_user_id_), dialog_id, false, string(),
+  td_->bot_info_manager_->set_custom_bot_verification(UserId(request.bot_user_id_), dialog_id, false, nullptr,
                                                       std::move(promise));
 }
 
@@ -7899,11 +7920,108 @@ void Requests::on_request(uint64 id, td_api::getTonTransactions &request) {
                                            std::move(promise));
 }
 
+void Requests::on_request(uint64 id, td_api::getTonWalletTransactions &request) {
+  CHECK_IS_USER();
+  CLEAN_INPUT_STRING(request.offset_);
+  CREATE_REQUEST_PROMISE();
+  td_->ton_wallet_manager_->get_ton_wallet_transactions(request.offset_, request.limit_, std::move(request.direction_),
+                                                        std::move(promise));
+}
+
+void Requests::on_request(uint64 id, const td_api::loadTonWalletState &request) {
+  CHECK_IS_USER();
+  CREATE_OK_REQUEST_PROMISE();
+  td_->ton_wallet_manager_->get_wallet_state(std::move(promise));
+}
+
+void Requests::on_request(uint64 id, const td_api::getCurrencyExchangeRates &request) {
+  CHECK_IS_USER();
+  CREATE_REQUEST_PROMISE();
+  td_->ton_wallet_manager_->get_currency_rates(std::move(promise));
+}
+
+void Requests::on_request(uint64 id, td_api::getOnRampProviders &request) {
+  CHECK_IS_USER();
+  CLEAN_INPUT_STRING(request.cryptocurrency_);
+  CREATE_REQUEST_PROMISE();
+  td_->ton_wallet_manager_->get_on_ramp_providers(request.cryptocurrency_, std::move(promise));
+}
+
+void Requests::on_request(uint64 id, td_api::getOnRampProviderBaseCurrencies &request) {
+  CHECK_IS_USER();
+  CLEAN_INPUT_STRING(request.provider_id_);
+  CLEAN_INPUT_STRING(request.cryptocurrency_);
+  CREATE_REQUEST_PROMISE();
+  td_->ton_wallet_manager_->get_on_ramp_base_currencies(request.provider_id_, request.cryptocurrency_,
+                                                        std::move(promise));
+}
+
+void Requests::on_request(uint64 id, td_api::getOnRampPaymentAvailability &request) {
+  CHECK_IS_USER();
+  CLEAN_INPUT_STRING(request.provider_id_);
+  CLEAN_INPUT_STRING(request.cryptocurrency_);
+  CLEAN_INPUT_STRING(request.base_currency_);
+  CREATE_REQUEST_PROMISE();
+  td_->ton_wallet_manager_->get_on_ramp_availability(request.provider_id_, request.cryptocurrency_,
+                                                     request.base_currency_, std::move(promise));
+}
+
+void Requests::on_request(uint64 id, td_api::getOnRampPaymentLimits &request) {
+  CHECK_IS_USER();
+  CLEAN_INPUT_STRING(request.provider_id_);
+  CLEAN_INPUT_STRING(request.cryptocurrency_);
+  CLEAN_INPUT_STRING(request.base_currency_);
+  CLEAN_INPUT_STRING(request.payment_method_name_);
+  CREATE_REQUEST_PROMISE();
+  td_->ton_wallet_manager_->get_on_ramp_limits(request.provider_id_, request.cryptocurrency_, request.base_currency_,
+                                               request.payment_method_name_, std::move(promise));
+}
+
+void Requests::on_request(uint64 id, td_api::getOnRampPaymentQuote &request) {
+  CHECK_IS_USER();
+  CLEAN_INPUT_STRING(request.provider_id_);
+  CLEAN_INPUT_STRING(request.cryptocurrency_);
+  CLEAN_INPUT_STRING(request.base_currency_);
+  CLEAN_INPUT_STRING(request.cryptocurrency_amount_);
+  CLEAN_INPUT_STRING(request.base_currency_amount_);
+  CLEAN_INPUT_STRING(request.payment_method_name_);
+  CREATE_REQUEST_PROMISE();
+  td_->ton_wallet_manager_->get_on_ramp_quote(request.provider_id_, request.cryptocurrency_, request.base_currency_,
+                                              request.cryptocurrency_amount_, request.base_currency_amount_,
+                                              request.payment_method_name_, std::move(promise));
+}
+
+void Requests::on_request(uint64 id, td_api::createOnRampPaymentSession &request) {
+  CHECK_IS_USER();
+  CLEAN_INPUT_STRING(request.provider_id_);
+  CLEAN_INPUT_STRING(request.cryptocurrency_);
+  CLEAN_INPUT_STRING(request.address_);
+  CLEAN_INPUT_STRING(request.payment_method_name_);
+  CLEAN_INPUT_STRING(request.base_currency_);
+  CLEAN_INPUT_STRING(request.cryptocurrency_amount_);
+  CLEAN_INPUT_STRING(request.base_currency_amount_);
+  CLEAN_INPUT_STRING(request.memo_);
+  CLEAN_INPUT_STRING(request.success_return_url_);
+  CLEAN_INPUT_STRING(request.fail_return_url_);
+  CREATE_REQUEST_PROMISE();
+  td_->ton_wallet_manager_->create_on_ramp_session(
+      request.provider_id_, request.cryptocurrency_, request.address_, request.payment_method_name_,
+      request.base_currency_, request.cryptocurrency_amount_, request.base_currency_amount_, request.memo_,
+      std::move(request.theme_), request.success_return_url_, request.fail_return_url_, std::move(promise));
+}
+
 void Requests::on_request(uint64 id, td_api::sendTonCenterApiRequest &request) {
   CHECK_IS_USER();
   CLEAN_INPUT_STRING(request.endpoint_);
   CREATE_TEXT_REQUEST_PROMISE();
-  perform_ton_center_api_request(td_, request.endpoint_, std::move(request.type_), std::move(promise));
+  td_->ton_wallet_manager_->perform_ton_center_api_request(request.endpoint_, std::move(request.type_),
+                                                           std::move(promise));
+}
+
+void Requests::on_request(uint64 id, const td_api::getTonCenterStreamingApiUrl &request) {
+  CHECK_IS_USER();
+  CREATE_REQUEST_PROMISE();
+  td_->ton_wallet_manager_->get_ton_center_streaming_api_url(std::move(promise));
 }
 
 void Requests::on_request(uint64 id, const td_api::getStarRevenueStatistics &request) {

@@ -66,6 +66,15 @@ class CommunityManager final : public Actor {
 
   void set_community_name(CommunityId community_id, const string &name, Promise<Unit> &&promise);
 
+  void set_community_photo(CommunityId community_id, const td_api::object_ptr<td_api::InputChatPhoto> &input_photo,
+                           Promise<Unit> &&promise);
+
+  void set_community_permissions(CommunityId community_id,
+                                 const td_api::object_ptr<td_api::communityPermissions> &permissions,
+                                 Promise<Unit> &&promise);
+
+  void delete_community(CommunityId community_id, Promise<Unit> &&promise);
+
   FileSourceId get_community_full_file_source_id(CommunityId community_id);
 
   int64 get_community_id_object(CommunityId community_id, const char *source) const;
@@ -73,6 +82,8 @@ class CommunityManager final : public Actor {
   td_api::object_ptr<td_api::community> get_community_object(CommunityId community_id) const;
 
   telegram_api::object_ptr<telegram_api::InputChannel> get_input_community(CommunityId community_id) const;
+
+  telegram_api::object_ptr<telegram_api::InputPeer> get_input_peer(CommunityId community_id) const;
 
   void on_binlog_community_event(BinlogEvent &&event);
 
