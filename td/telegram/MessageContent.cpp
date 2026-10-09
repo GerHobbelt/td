@@ -56,6 +56,7 @@
 #include "td/telegram/InputGroupCallId.h"
 #include "td/telegram/InputInvoice.h"
 #include "td/telegram/InputInvoice.hpp"
+#include "td/telegram/InputMedia.h"
 #include "td/telegram/InputMessageText.h"
 #include "td/telegram/Location.h"
 #include "td/telegram/MessageEntity.h"
@@ -10474,6 +10475,7 @@ unique_ptr<MessageContent> get_action_message_content(Td *td, tl_object_ptr<tele
       case telegram_api::messageActionNewCreatorPending::ID:
       case telegram_api::messageActionChangeCreator::ID:
       case telegram_api::messageActionChatJoinedViaCommunity::ID:
+      case telegram_api::messageActionWalletTonConnectRequest::ID:
         LOG(ERROR) << "Receive business " << to_string(action_ptr);
         break;
       case telegram_api::messageActionHistoryClear::ID:
@@ -10510,6 +10512,7 @@ unique_ptr<MessageContent> get_action_message_content(Td *td, tl_object_ptr<tele
       case telegram_api::messageActionNoForwardsRequest::ID:
       case telegram_api::messageActionPollAppendAnswer::ID:
       case telegram_api::messageActionPollDeleteAnswer::ID:
+      case telegram_api::messageActionGramTransfer::ID:
         // ok
         break;
       case telegram_api::messageActionBotAllowed::ID:
@@ -11319,6 +11322,12 @@ unique_ptr<MessageContent> get_action_message_content(Td *td, tl_object_ptr<tele
         community_id = {};
       }
       return td::make_unique<MessageChatJoinedViaCommunity>(community_id);
+    }
+    case telegram_api::messageActionGramTransfer::ID: {
+      return td::make_unique<MessageUnsupported>();
+    }
+    case telegram_api::messageActionWalletTonConnectRequest::ID: {
+      return td::make_unique<MessageUnsupported>();
     }
     default:
       UNREACHABLE();

@@ -2635,11 +2635,39 @@ static vector<MessageEntity> find_splittable_entities_v3(Slice text, const vecto
     }
   }
 
+  // URLs and email addresses absorb adjacent markup like "~~t.me/a~~", so markup at their beginning can only open
+  // an entity and markup at their end can only close one, while markup inside them isn't parsed
+  FlatHashSet<int32, Hash<int32>> opening_only_positions;
+  FlatHashSet<int32, Hash<int32>> closing_only_positions;
+  auto is_markup_character = [](char c) {
+    return c == '_' || c == '*' || c == '~' || c == '|';
+  };
   auto found_entities = find_entities(text, false, true);
-  td::remove_if(found_entities, [](const auto &entity) {
-    return entity.type == MessageEntity::Type::EmailAddress || entity.type == MessageEntity::Type::Url;
-  });
+  Slice left_text = text;
+  int32 left_text_offset = 0;
   for (auto &entity : found_entities) {
+    if (entity.type == MessageEntity::Type::EmailAddress || entity.type == MessageEntity::Type::Url) {
+      CHECK(entity.offset >= left_text_offset);
+      left_text = utf8_utf16_substr(left_text, entity.offset - left_text_offset);
+      auto entity_text = utf8_utf16_substr(left_text, 0, entity.length);
+      left_text = left_text.substr(entity_text.size());
+      left_text_offset = entity.offset + entity.length;
+      int32 prefix_length = 0;
+      while (prefix_length < entity.length && is_markup_character(entity_text[prefix_length])) {
+        opening_only_positions.insert(entity.offset + prefix_length + 1);
+        prefix_length++;
+      }
+      int32 suffix_length = 0;
+      while (prefix_length + suffix_length < entity.length &&
+             is_markup_character(entity_text[entity_text.size() - suffix_length - 1])) {
+        suffix_length++;
+        closing_only_positions.insert(entity.offset + entity.length - suffix_length + 1);
+      }
+      for (int32 i = prefix_length + 1; i < entity.length - suffix_length; i++) {
+        unallowed_boundaries.insert(entity.offset + i + 1);
+      }
+      continue;
+    }
     for (int32 i = 0; i <= entity.length; i++) {
       unallowed_boundaries.insert(entity.offset + i + 1);
     }
@@ -2653,8 +2681,7 @@ static vector<MessageEntity> find_splittable_entities_v3(Slice text, const vecto
     if (is_utf8_character_first_code_unit(c)) {
       utf16_offset += 1 + (c >= 0xf0);  // >= 4 bytes in symbol => surrogate pair
     }
-    if ((c == '_' || c == '*' || c == '~' || c == '|') && text[i] == text[i + 1] &&
-        unallowed_boundaries.count(utf16_offset + 1) == 0) {
+    if (is_markup_character(c) && text[i] == text[i + 1] && unallowed_boundaries.count(utf16_offset + 1) == 0) {
       auto j = i + 2;
       while (j != text.size() && text[j] == text[i] &&
              unallowed_boundaries.count(utf16_offset + static_cast<int32>(j - i)) == 0) {
@@ -2678,12 +2705,14 @@ static vector<MessageEntity> find_splittable_entities_v3(Slice text, const vecto
         }();
         auto index = get_splittable_entity_type_index(type);
         if (splittable_entity_offset[index] != 0) {
-          auto length = utf16_offset - splittable_entity_offset[index] - 1;
-          if (length > 0) {
-            result.emplace_back(type, splittable_entity_offset[index], length);
+          if (opening_only_positions.count(utf16_offset) == 0) {
+            auto length = utf16_offset - splittable_entity_offset[index] - 1;
+            if (length > 0) {
+              result.emplace_back(type, splittable_entity_offset[index], length);
+            }
+            splittable_entity_offset[index] = 0;
           }
-          splittable_entity_offset[index] = 0;
-        } else {
+        } else if (closing_only_positions.count(utf16_offset) == 0) {
           splittable_entity_offset[index] = utf16_offset + 1;
         }
       }
@@ -3938,6 +3967,11 @@ vector<MessageEntity> get_message_entities(const UserManager *user_manager,
           continue;
         }
         entities.emplace_back(MessageEntity::Type::FormattedDate, entity->offset_, entity->length_, std::move(date));
+        break;
+      }
+      case telegram_api::messageEntityTonAddress::ID: {
+        auto entity = static_cast<const telegram_api::messageEntityTonAddress *>(server_entity.get());
+        entities.emplace_back(MessageEntity::Type::BankCardNumber, entity->offset_, entity->length_);
         break;
       }
       case telegram_api::messageEntityDiffInsert::ID:

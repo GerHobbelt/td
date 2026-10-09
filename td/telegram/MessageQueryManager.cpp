@@ -26,6 +26,7 @@
 #include "td/telegram/Global.h"
 #include "td/telegram/HashtagHints.h"
 #include "td/telegram/InlineQueriesManager.h"
+#include "td/telegram/InputMedia.h"
 #include "td/telegram/InputMessageText.h"
 #include "td/telegram/logevent/LogEvent.h"
 #include "td/telegram/logevent/LogEventHelper.h"
@@ -90,7 +91,7 @@ class GetRichMessageQuery final : public Td::ResultHandler {
 
   void send(MessageFullId message_full_id) {
     dialog_id_ = message_full_id.get_dialog_id();
-    auto input_peer = td_->dialog_manager_->get_input_peer(message_full_id.get_dialog_id(), AccessRights::Read);
+    auto input_peer = td_->dialog_manager_->get_input_peer(dialog_id_, AccessRights::Read);
     if (input_peer == nullptr) {
       return on_error(Status::Error(400, "Chat not found"));
     }
@@ -279,7 +280,7 @@ class ReportMessageDeliveryQuery final : public Td::ResultHandler {
  public:
   void send(MessageFullId message_full_id, bool from_push) {
     dialog_id_ = message_full_id.get_dialog_id();
-    auto input_peer = td_->dialog_manager_->get_input_peer(message_full_id.get_dialog_id(), AccessRights::Read);
+    auto input_peer = td_->dialog_manager_->get_input_peer(dialog_id_, AccessRights::Read);
     if (input_peer == nullptr) {
       return;
     }

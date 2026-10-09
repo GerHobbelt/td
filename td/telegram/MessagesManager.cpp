@@ -46,8 +46,10 @@
 #include "td/telegram/Global.h"
 #include "td/telegram/GroupCallManager.h"
 #include "td/telegram/InlineKeyboardButton.h"
+#include "td/telegram/InlineMessageContent.h"
 #include "td/telegram/InlineQueriesManager.h"
 #include "td/telegram/InputDialogId.h"
+#include "td/telegram/InputMedia.h"
 #include "td/telegram/InputMessageText.h"
 #include "td/telegram/LinkManager.h"
 #include "td/telegram/Location.h"
@@ -4921,11 +4923,11 @@ bool MessagesManager::is_active_message_reply_info(DialogId dialog_id, const Mes
   }
 
   auto linked_channel_id =
-      td_->chat_manager_->get_channel_linked_channel_id(channel_id, false, "is_active_message_reply_info");
+      td_->chat_manager_->get_channel_linked_channel_id(channel_id, false, "is_active_message_reply_info 1");
   if (!linked_channel_id.is_valid()) {
     // keep the comment button while linked channel is unknown
     send_closure_later(G()->chat_manager(), &ChatManager::load_channel_full, channel_id, false, Promise<Unit>(),
-                       "is_active_message_reply_info");
+                       "is_active_message_reply_info 2");
     return true;
   }
 
@@ -15126,11 +15128,11 @@ void MessagesManager::translate_message_text(MessageFullId message_full_id, cons
     return promise.set_value(td_api::make_object<td_api::formattedText>());
   }
 
+  auto dialog_id = message_full_id.get_dialog_id();
   TranslationManager::InputText input_text;
   input_text.text_ = *text;
-  input_text.skip_bot_commands_ = need_skip_bot_commands(message_full_id.get_dialog_id(), m);
+  input_text.skip_bot_commands_ = need_skip_bot_commands(dialog_id, m);
   input_text.max_media_timestamp_ = get_message_max_media_timestamp(m);
-  auto dialog_id = message_full_id.get_dialog_id();
   auto has_autotranslation = dialog_id.get_type() == DialogType::Channel &&
                              td_->dialog_manager_->have_input_peer(dialog_id, false, AccessRights::Read) &&
                              m->message_id.is_server() && m->ephemeral_message == nullptr &&
@@ -15156,7 +15158,7 @@ void MessagesManager::translate_message_rich_message(MessageFullId message_full_
   auto dialog_id = message_full_id.get_dialog_id();
   TranslationManager::InputRichMessage input_rich_message;
   input_rich_message.message_ = message->clone(td_, dialog_id, MessageContentDupType::Send, true);
-  input_rich_message.skip_bot_commands_ = need_skip_bot_commands(message_full_id.get_dialog_id(), m);
+  input_rich_message.skip_bot_commands_ = need_skip_bot_commands(dialog_id, m);
   auto has_autotranslation = dialog_id.get_type() == DialogType::Channel &&
                              td_->dialog_manager_->have_input_peer(dialog_id, false, AccessRights::Read) &&
                              m->message_id.is_server() && m->ephemeral_message == nullptr &&

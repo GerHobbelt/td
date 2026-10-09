@@ -2168,6 +2168,15 @@ tonTransaction id:string gram_amount:int53 is_refund:Bool date:int32 type:TonTra
 tonTransactions gram_amount:int53 transactions:vector<tonTransaction> next_offset:string = TonTransactions;
 
 
+//@class TonCenterApiRequestType @description Describes state of active stories posted by a chat
+
+//@description A GET request @query URL-encoded query of the request
+tonCenterApiRequestTypeGet query:string = TonCenterApiRequestType;
+
+//@description A POST request @payload Payload of the request
+tonCenterApiRequestTypePost payload:string = TonCenterApiRequestType;
+
+
 //@class ActiveStoryState @description Describes state of active stories posted by a chat
 
 //@description The chat has an active live story @story_id Identifier of the active live story
@@ -7862,7 +7871,7 @@ chatEventAccentColorChanged old_accent_color_id:int32 old_background_custom_emoj
 //@new_profile_background_custom_emoji_id New identifier of the custom emoji; 0 if none
 chatEventProfileAccentColorChanged old_profile_accent_color_id:int32 old_profile_background_custom_emoji_id:int64 new_profile_accent_color_id:int32 new_profile_background_custom_emoji_id:int64 = ChatEventAction;
 
-//@description The has_protected_content setting of a channel was toggled @has_protected_content New value of has_protected_content
+//@description The has_protected_content setting of a chat was toggled @has_protected_content New value of has_protected_content
 chatEventHasProtectedContentToggled has_protected_content:Bool = ChatEventAction;
 
 //@description The can_invite_users permission of a supergroup chat was toggled @can_invite_users New value of can_invite_users permission
@@ -7907,7 +7916,7 @@ chatEventVideoChatParticipantIsMutedToggled participant_id:MessageSender is_mute
 //@description A video chat participant volume level was changed @participant_id Identifier of the affected group call participant @volume_level New value of volume_level; 1-20000 in hundreds of percents
 chatEventVideoChatParticipantVolumeLevelChanged participant_id:MessageSender volume_level:int32 = ChatEventAction;
 
-//@description The is_forum setting of a channel was toggled @is_forum New value of is_forum
+//@description The is_forum setting of a supergroup was toggled @is_forum New value of is_forum
 chatEventIsForumToggled is_forum:Bool = ChatEventAction;
 
 //@description A new forum topic was created @topic_info Information about the topic
@@ -15731,6 +15740,12 @@ getChatRevenueTransactions chat_id:int53 offset:string limit:int32 = ChatRevenue
 //@offset Offset of the first transaction to return as received from the previous request; use empty string to get the first chunk of results
 //@limit The maximum number of transactions to return
 getTonTransactions direction:TransactionDirection offset:string limit:int32 = TonTransactions;
+
+
+//@description Sends a request to TON Center API and returns its response in JSON format.
+//@endpoint The path of the requested endpoint. See https://toncenter.com/api/v3/index.html for the list of supported endpoints
+//@type Type of the request
+sendTonCenterApiRequest endpoint:string type:TonCenterApiRequestType = Text;
 
 
 //@description Returns detailed Telegram Star revenue statistics
