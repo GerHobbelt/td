@@ -4818,6 +4818,12 @@ unique_ptr<MessageContent> create_contact_registered_message_content() {
   return make_unique<MessageContactRegistered>();
 }
 
+unique_ptr<MessageContent> create_gram_transfer_message_content(int64 amount, const string &peer_address,
+                                                                const string &transaction_id, const string &comment,
+                                                                bool is_comment_encrypted) {
+  return td::make_unique<MessageGramTransfer>(amount, peer_address, transaction_id, comment, is_comment_encrypted);
+}
+
 unique_ptr<MessageContent> create_screenshot_taken_message_content() {
   return make_unique<MessageScreenshotTaken>();
 }
@@ -12338,8 +12344,22 @@ td_api::object_ptr<td_api::MessageContent> get_message_content_object(
     }
     case MessageContentType::GramTransfer: {
       const auto *m = static_cast<const MessageGramTransfer *>(content);
-      return td_api::make_object<td_api::messageTonWalletTransfer>(m->transaction_id, m->peer_address, m->amount,
-                                                                   m->comment, m->is_comment_encrypted);
+      UserId sender_user_id;
+      if (dialog_id.get_type() == DialogType::User) {
+        if (is_outgoing) {
+          sender_user_id = td->user_manager_->get_my_id();
+        } else {
+          auto user_id = dialog_id.get_user_id();
+          if (user_id != UserManager::get_service_notifications_user_id()) {
+            sender_user_id = user_id;
+          }
+        }
+      } else {
+        LOG(ERROR) << "Receive TON wallet transfer in " << message_id << " in " << dialog_id << " from " << source;
+      }
+      return td_api::make_object<td_api::messageTonWalletTransfer>(
+          td->user_manager_->get_user_id_object(sender_user_id, "messageTonWalletTransfer"), m->transaction_id,
+          m->peer_address, m->amount, m->comment, m->is_comment_encrypted);
     }
     case MessageContentType::WalletTonConnectRequest: {
       const auto *m = static_cast<const MessageWalletTonConnectRequest *>(content);
@@ -13885,6 +13905,7 @@ void add_message_content_dependencies(Dependencies &dependencies, const MessageC
     case MessageContentType::ManagedBotCreated: {
       const auto *content = static_cast<const MessageManagedBotCreated *>(message_content);
       dependencies.add(content->bot_user_id);
+      dependencies.add(my_user_id);
       break;
     }
     case MessageContentType::PollAppendAnswer:
@@ -13907,6 +13928,7 @@ void add_message_content_dependencies(Dependencies &dependencies, const MessageC
       break;
     }
     case MessageContentType::GramTransfer:
+      dependencies.add(my_user_id);
       break;
     case MessageContentType::WalletTonConnectRequest:
       break;

@@ -8846,11 +8846,19 @@ class CliClient final : public Actor {
       get_args(args, password);
       send_request(td_api::make_object<td_api::disableTonWalletBackup>(password));
     } else if (op == "stwt") {
+      UserId peer_user_id;
+      string peer_address;
+      int64 amount;
+      string comment;
+      bool is_comment_encrypted;
+      int32 sending_id;
       string regular_transfer_data;
       string gasless_transfer_data;
-      get_args(args, regular_transfer_data, gasless_transfer_data);
-      send_request(td_api::make_object<td_api::sendTonWalletTransfer>(hex_decode(regular_transfer_data).move_as_ok(),
-                                                                      hex_decode(gasless_transfer_data).move_as_ok()));
+      get_args(args, peer_user_id, peer_address, amount, comment, is_comment_encrypted, sending_id,
+               regular_transfer_data, gasless_transfer_data);
+      send_request(td_api::make_object<td_api::sendTonWalletTransfer>(
+          peer_user_id, peer_address, amount, comment, is_comment_encrypted, sending_id,
+          hex_decode(regular_transfer_data).move_as_ok(), hex_decode(gasless_transfer_data).move_as_ok()));
     } else if (op == "deleteTonWallet") {
       string password;
       get_args(args, password);
@@ -8924,7 +8932,7 @@ class CliClient final : public Actor {
                base_currency_amount, memo, success_return_url, fail_return_url);
       send_request(td_api::make_object<td_api::createOnRampPaymentSession>(
           provider_id, cryptocurrency, address, payment_method, base_currency, cryptocurrency_amount,
-          base_currency_amount, memo, as_theme_parameters(), success_return_url, fail_return_url));
+          base_currency_amount, memo, "light", success_return_url, fail_return_url));
     } else if (op == "gtcsau") {
       send_request(td_api::make_object<td_api::getTonCenterStreamingApiUrl>());
     } else if (op == "stcarg") {

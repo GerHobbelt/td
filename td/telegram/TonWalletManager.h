@@ -43,6 +43,8 @@ class TonWalletManager final : public Actor {
 
   void get_wallet_state(Promise<Unit> &&promise);
 
+  void reload_wallet_state(Promise<Unit> &&promise);
+
   void get_existing_wallet_balance(Promise<td_api::object_ptr<td_api::walletBotBalance>> &&promise);
 
   void get_user_addresses(vector<UserId> user_ids,
@@ -68,7 +70,9 @@ class TonWalletManager final : public Actor {
 
   void get_ton_wallet_gasless_info(Promise<Unit> &&promise);
 
-  void send_ton_wallet_transfer(const string &data_normal, const string &data_gasless,
+  void send_ton_wallet_transfer(const string &data_normal, const string &data_gasless, UserId peer_user_id,
+                                const string &peer_address, int64 amount, const string &comment,
+                                bool is_comment_encrypted, int32 sending_id,
                                 Promise<td_api::object_ptr<td_api::tonWalletTransferResult>> &&promise);
 
   void delete_ton_wallet(const string &password, Promise<Unit> &&promise);
@@ -137,8 +141,8 @@ class TonWalletManager final : public Actor {
   void create_on_ramp_session(const string &provider, const string &cryptocurrency, const string &address,
                               const string &payment_method, const string &base_currency,
                               const string &cryptocurrency_amount, const string &base_currency_amount,
-                              const string &memo, td_api::object_ptr<td_api::themeParameters> theme,
-                              const string &success_return_url, const string &fail_return_url,
+                              const string &memo, const string &theme, const string &success_return_url,
+                              const string &fail_return_url,
                               Promise<td_api::object_ptr<td_api::onRampPaymentSession>> &&promise);
 
   void perform_ton_center_api_request(const string &endpoint,
@@ -321,6 +325,11 @@ class TonWalletManager final : public Actor {
       const;
 
   void send_update_ton_wallet_gasless_transfers_info() const;
+
+  void do_send_ton_wallet_transfer(const string &data_normal, const string &data_gasless, UserId peer_user_id,
+                                   const string &peer_address, int64 amount, const string &comment,
+                                   bool is_comment_encrypted, int32 sending_id,
+                                   Promise<td_api::object_ptr<td_api::tonWalletTransferResult>> &&promise);
 
   void do_get_ton_wallet_secret_phrase(telegram_api::object_ptr<telegram_api::InputCheckPasswordSRP> &&input_password,
                                        Promise<string> &&promise);

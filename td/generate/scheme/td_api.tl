@@ -2197,7 +2197,7 @@ tonCenterStreamingApiUrl url:string expires_in:int32 = TonCenterStreamingApiUrl;
 walletBotBalance has_balance:Bool url:string = WalletBotBalance;
 
 //@description Contains TON wallet address of a user
-//@user_id Identifier of the user
+//@user_id Identifier of the user; 0 if unknown
 //@wallet_address Address of the user's wallet in the TON blockchain
 //@public_key Public key of the user
 userTonWalletAddress user_id:int53 wallet_address:string public_key:bytes = UserTonWalletAddress;
@@ -2333,28 +2333,25 @@ tonWalletTransactionStateFailed = TonWalletTransactionState;
 
 //@description The transaction is a deposit from an on-ramp provider
 //@amount The amount of received cryptocurrency, in the smallest units of the cryptocurrency
-//@fee_amount The fee amount paid for the transaction, in the smallest units of the cryptocurrency
 //@provider_name Name of the on-ramp provider
-tonWalletTransactionTypeOnRampDeposit amount:int53 fee_amount:int53 provider_name:string = TonWalletTransactionType;
+tonWalletTransactionTypeOnRampDeposit amount:int53 provider_name:string = TonWalletTransactionType;
 
 //@description A transfer of TON Grams to or from the wallet
 //@amount The amount of received cryptocurrency, in the smallest units of the cryptocurrency; negative for outgoing transactions
-//@fee_amount The fee amount paid for the transaction, in the smallest units of the cryptocurrency
 //@is_gasless True, if the fee was paid by Telegram
 //@comment Comment added to the transaction
 //@is_comment_encrypted True, if the comment is encrypted and must be decrypted using the user's private key
-tonWalletTransactionTypeTransfer amount:int53 fee_amount:int53 is_gasless:Bool comment:string is_comment_encrypted:Bool = TonWalletTransactionType;
+tonWalletTransactionTypeTransfer amount:int53 is_gasless:Bool comment:string is_comment_encrypted:Bool = TonWalletTransactionType;
 
 //@description A transfer of a TON NFT to or from the wallet
 //@nft The transferred NFT
-//@fee_amount The fee amount paid for the transaction, in the smallest units of the cryptocurrency
+//@is_outgoing True, if the transfer is outgoing
 //@comment Comment added to the transaction
 //@is_comment_encrypted True, if the comment is encrypted and must be decrypted using the user's private key
-tonWalletTransactionTypeNftTransfer nft:tonNft fee_amount:int53 comment:string is_comment_encrypted:Bool = TonWalletTransactionType;
+tonWalletTransactionTypeNftTransfer nft:tonNft is_outgoing:Bool comment:string is_comment_encrypted:Bool = TonWalletTransactionType;
 
 //@description Change of the wallet key
-//@fee_amount The fee amount paid for the transaction in TON Grams, in the smallest units of the cryptocurrency
-tonWalletTransactionTypeKeyChange fee_amount:int53 = TonWalletTransactionType;
+tonWalletTransactionTypeKeyChange = TonWalletTransactionType;
 
 
 //@description Represents a transaction with the TON wallet of the current user
@@ -2363,9 +2360,10 @@ tonWalletTransactionTypeKeyChange fee_amount:int53 = TonWalletTransactionType;
 //@peer_user_id Identifier of the other user who participated in the transaction; 0 if unknown
 //@peer_domain Identifier of the domain assigned to the peer address; may be empty if none
 //@date Point in time (Unix timestamp) when the transaction was completed
+//@fee_amount The fee amount paid for the transaction in TON Grams, in the smallest units of the cryptocurrency
 //@state State of the transaction
 //@type Type of the transaction
-tonWalletTransaction id:string peer_address:string peer_user_id:int53 peer_domain:string date:int32 state:TonWalletTransactionState type:TonWalletTransactionType = TonWalletTransaction;
+tonWalletTransaction id:string peer_address:string peer_user_id:int53 peer_domain:string date:int32 fee_amount:int53 state:TonWalletTransactionState type:TonWalletTransactionType = TonWalletTransaction;
 
 //@description Represents a list of TON Gram transactions
 //@gram_amount The total amount of owned TON Grams, in the smallest units of the cryptocurrency
@@ -2678,7 +2676,7 @@ emojiStatusCustomEmojis custom_emoji_ids:vector<int64> = EmojiStatusCustomEmojis
 //@disabled_usernames List of currently disabled usernames; the username can be activated with toggleUsernameIsActive, toggleBotUsernameIsActive, or toggleSupergroupUsernameIsActive
 //@editable_username Active or disabled username, which may be changed with setUsername or setSupergroupUsername
 //@collectible_usernames Collectible usernames that were purchased at https://fragment.com and can be passed to getCollectibleItemInfo for more details
-//@secondary_username Secondary non-collectible username; for bots only. Can't be used in toggleBotUsernameIsActive; use addBotSecondaryUsername or removeBotSecondaryUsername to edit it
+//@secondary_username Secondary non-collectible username; for bots only. Can't be used in toggleBotUsernameIsActive; use addBotSecondaryUsername or deleteBotSecondaryUsername to edit it.
 //-If the username is disabled, then Telegram Premium subscription is required to re-enable it
 usernames active_usernames:vector<string> disabled_usernames:vector<string> editable_username:string collectible_usernames:vector<string> secondary_username:string = Usernames;
 
@@ -5863,12 +5861,13 @@ messageGiftedGrams gifter_user_id:int53 receiver_user_id:int53 gram_amount:int53
 messageGiveawayPrizeStars star_count:int53 transaction_id:string boosted_chat_id:int53 giveaway_message_id:int53 is_unclaimed:Bool sticker:sticker = MessageContent;
 
 //@description Represents a transfer with the TON wallet of the current user
-//@transaction_id Unique identifier of the transaction; use getTonWalletTransaction to get additional information about the transaction
+//@sender_user_id Sender of the transfer; 0 if unknown
+//@transaction_id Unique identifier of the transaction; may be empty if the transfer isn't send yet. Use getTonWalletTransaction to get additional information about the transaction
 //@peer_address Address in the TON blockchain of the transaction peer
 //@amount The amount of received cryptocurrency, in the smallest units of the cryptocurrency; negative for outgoing transactions
 //@comment Comment added to the transaction
 //@is_comment_encrypted True, if the comment is encrypted and must be decrypted using the receiver's or sender's private key
-messageTonWalletTransfer transaction_id:string peer_address:string amount:int53 comment:string is_comment_encrypted:Bool = MessageContent;
+messageTonWalletTransfer sender_user_id:int53 transaction_id:string peer_address:string amount:int53 comment:string is_comment_encrypted:Bool = MessageContent;
 
 //@description A request from a dApp was received through TON Connect
 //@session_id Unique identifier of the TON Connect session
@@ -9031,9 +9030,10 @@ pushMessageContentPremiumGiftCode month_count:int32 = PushMessageContent;
 pushMessageContentGiveaway winner_count:int32 prize:GiveawayPrize is_pinned:Bool = PushMessageContent;
 
 //@description A message with a TON wallet transfer
+//@sender_user_id Sender of the transfer; 0 if unknown
 //@amount String representation of the received amount
 //@comment Comment added to the transaction if it is public
-pushMessageContentTonWalletTransfer amount:string comment:string = PushMessageContent;
+pushMessageContentTonWalletTransfer sender_user_id:int53 amount:string comment:string = PushMessageContent;
 
 //@description A message with a request from a dApp was received through TON Connect
 //@dapp_name Name of the dApp; may be empty if unknown
@@ -15420,7 +15420,7 @@ checkBotUsername username:string is_secondary:Bool = CheckChatUsernameResult;
 //@name Name of the bot; 1-64 characters
 //@username Username of the bot. The username must end with "bot" or a string from updateAllowedBotUsernamePremiumSuffixes case-insensitive.
 //-Use checkBotUsername to find whether the name is suitable. If the username doesn't end with "bot", then the current user must have Telegram Premium subscription,
-//-the chosen username will be assigened as secondary and an additional regular username ending with "bot" will be automatically assigned to the created bot
+//-the chosen username will be assigned as secondary and an additional regular username ending with "bot" will be automatically assigned to the created bot
 //@via_link Pass true if the bot is created from an internalLinkTypeRequestManagedBot link
 createBot manager_bot_user_id:int53 name:string username:string via_link:Bool = User;
 
@@ -15449,7 +15449,8 @@ getBotName bot_user_id:int53 language_code:string = Text;
 //@description Changes a profile photo for a bot @bot_user_id Identifier of the target bot @photo Profile photo to set; pass null to delete the chat photo
 setBotProfilePhoto bot_user_id:int53 photo:InputChatPhoto = Ok;
 
-//@description Adds a secondary username to a bot. Can be called only if userTypeBot.can_be_edited == true, the bot has no secondary username and the current user has Telegram Premium subscription
+//@description Adds a secondary username to a bot. Can be called only if userTypeBot.can_be_edited, the bot has no secondary username and the current user has Telegram Premium subscription.
+//-May return an error with a message "OWNER_USERNAMES_LIMIT_EXCEEDED" if the current user already owns at least getOption("secondary_bot_username_count_max") bots with a secondary username
 //@bot_user_id Identifier of the target bot
 //@username The new secondary username; must be non-empty. Use checkBotUsername to check username validness
 addBotSecondaryUsername bot_user_id:int53 username:string = Ok;
@@ -16182,7 +16183,7 @@ getTonWalletOwnershipProofChallenge = TonWalletOwnershipProofChallenge;
 enableTonWalletBackup secret_phrase:string proof:tonWalletOwnershipProof = Ok;
 
 //@description Disables backup of the TON wallet of the user. Works only if tonWalletState.is_backup_enabled is true
-//@password Password of the current user; pass an empty string if the user has no password
+//@password Password of the current user; pass an empty string unless receive an error with a message "PASSWORD_MISSING" for a passwordless request
 disableTonWalletBackup password:string = Ok;
 
 //@description Disables backup of the TON wallet of the user using proof of wallet ownership instead of the password. Works only if tonWalletState.is_backup_enabled is true
@@ -16190,17 +16191,23 @@ disableTonWalletBackup password:string = Ok;
 disableTonWalletBackupWithProof proof:tonWalletOwnershipProof = Ok;
 
 //@description Sends a cryptocurrency from the user's TON wallet; can be used only if getOption("can_use_ton_wallet")
+//@user_id Identifier of the user who will receive the transfer; pass 0 if unknown
+//@address Address in the TON blockchain of the transaction peer
+//@amount The amount of the sent cryptocurrency, in the smallest units of the cryptocurrency
+//@comment Comment added to the transaction
+//@is_comment_encrypted Pass true if the comment is encrypted and must be decrypted using the receiver's or sender's private key
+//@sending_id Non-persistent identifier, which will be returned back in messageSendingStatePending object and can be used to match sent messages and corresponding updateNewMessage updates
 //@regular_transfer_data Serialized data for regular cryptocurrency transfer request. The minimum allowed transfer amount is getOption("ton_wallet_transfer_amount_min")
 //@gasless_transfer_data Serialized data for gasless cryptocurrency transfer request; pass an empty string to force a regular request.
 //-The minimum allowed transfer amount for a gassless transfer is getOption("ton_wallet_gasless_transfer_amount_min")
-sendTonWalletTransfer regular_transfer_data:bytes gasless_transfer_data:bytes = TonWalletTransferResult;
+sendTonWalletTransfer user_id:int53 address:string amount:int53 comment:string is_comment_encrypted:Bool sending_id:int32 regular_transfer_data:bytes gasless_transfer_data:bytes = TonWalletTransferResult;
 
 //@description Deletes the current TON wallet of the user and creates a new one; can be used only if getOption("can_use_ton_wallet")
-//@password Password of the current user; pass an empty string if the user has no password
+//@password Password of the current user; pass an empty string unless receive an error with a message "PASSWORD_MISSING" for a passwordless request
 deleteTonWallet password:string = Ok;
 
 //@description Replaces the current TON wallet with another existing v6r2 wallet or changes private key of the current TON wallet; can be used only if getOption("can_use_ton_wallet")
-//@password Password of the current user; pass an empty string if the user has no password
+//@password Password of the current user; pass an empty string unless receive an error with a message "PASSWORD_MISSING" for a passwordless request
 //@anchor_public_key Original public key of the new TON wallet
 //@proof Proof of ownership of the new private key of the TON wallet; use getTonWalletOwnershipProofChallenge to get a challenge for the proof
 replaceTonWallet password:string anchor_public_key:bytes proof:tonWalletOwnershipProof = Ok;
@@ -16303,10 +16310,10 @@ getOnRampPaymentQuote provider_id:string cryptocurrency:string base_currency:str
 //@cryptocurrency_amount The amount of the cryptocurrency to buy; pass an empty string if the user selected base_currency_amount
 //@base_currency_amount The amount of the base currency to spend; pass an empty string if the user selected cryptocurrency_amount
 //@memo Memo for the query; pass an empty string if none
-//@theme Preferred theme for the WebView; pass null to use the default theme
+//@theme Preferred theme for the WebView; pass "light" for a light theme, "dark" for a dark theme, or leave empty for a default theme
 //@success_return_url The URL opened on successful payment; pass an empty string if none
 //@fail_return_url The URL opened on failed payment; pass an empty string if none
-createOnRampPaymentSession provider_id:string cryptocurrency:string address:string payment_method_name:string base_currency:string cryptocurrency_amount:string base_currency_amount:string memo:string theme:themeParameters success_return_url:string fail_return_url:string = OnRampPaymentSession;
+createOnRampPaymentSession provider_id:string cryptocurrency:string address:string payment_method_name:string base_currency:string cryptocurrency_amount:string base_currency_amount:string memo:string theme:string success_return_url:string fail_return_url:string = OnRampPaymentSession;
 
 //@description Sends a request to TON Center API and returns its response in JSON format
 //@endpoint The path of the requested endpoint. See https://toncenter.com/api/v3/index.html for the list of supported endpoints

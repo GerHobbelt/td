@@ -2667,7 +2667,8 @@ void Requests::on_request(uint64 id, const td_api::getMessageProperties &request
                                                  std::move(promise));
 }
 
-void Requests::on_request(uint64 id, const td_api::getPollOptionProperties &request) {
+void Requests::on_request(uint64 id, td_api::getPollOptionProperties &request) {
+  CLEAN_INPUT_STRING(request.poll_option_id_);
   CREATE_REQUEST_PROMISE();
   td_->messages_manager_->get_poll_option_properties(DialogId(request.chat_id_), MessageId(request.message_id_),
                                                      request.poll_option_id_, std::move(promise));
@@ -2772,7 +2773,8 @@ void Requests::on_request(uint64 id, const td_api::getMessageAuthor &request) {
       {DialogId(request.chat_id_), MessageId(request.message_id_)}, std::move(promise));
 }
 
-void Requests::on_request(uint64 id, const td_api::getMessageLink &request) {
+void Requests::on_request(uint64 id, td_api::getMessageLink &request) {
+  CLEAN_INPUT_STRING(request.poll_option_id_);
   auto r_message_link = td_->messages_manager_->get_message_link(
       {DialogId(request.chat_id_), MessageId(request.message_id_)}, request.media_timestamp_,
       request.checklist_task_id_, request.poll_option_id_, request.for_album_, request.in_message_thread_);
@@ -2887,6 +2889,7 @@ void Requests::on_request(uint64 id, td_api::translateMessageRichMessage &reques
 void Requests::on_request(uint64 id, td_api::summarizeMessage &request) {
   CHECK_IS_USER();
   CLEAN_INPUT_STRING(request.translate_to_language_code_);
+  CLEAN_INPUT_STRING(request.tone_);
   CREATE_REQUEST_PROMISE();
   td_->message_query_manager_->summarize_message_text({DialogId(request.chat_id_), MessageId(request.message_id_)},
                                                       request.translate_to_language_code_, request.tone_,
@@ -4629,8 +4632,9 @@ void Requests::on_request(uint64 id, const td_api::loadQuickReplyShortcuts &requ
   td_->quick_reply_manager_->get_quick_reply_shortcuts(std::move(promise));
 }
 
-void Requests::on_request(uint64 id, const td_api::setQuickReplyShortcutName &request) {
+void Requests::on_request(uint64 id, td_api::setQuickReplyShortcutName &request) {
   CHECK_IS_USER();
+  CLEAN_INPUT_STRING(request.name_);
   CREATE_OK_REQUEST_PROMISE();
   td_->quick_reply_manager_->set_quick_reply_shortcut_name(QuickReplyShortcutId(request.shortcut_id_), request.name_,
                                                            std::move(promise));
@@ -6108,6 +6112,7 @@ void Requests::on_request(uint64 id, td_api::setChatAvailableReactions &request)
 }
 
 void Requests::on_request(uint64 id, td_api::setChatClientData &request) {
+  CLEAN_INPUT_STRING(request.client_data_);
   answer_ok_query(
       id, td_->messages_manager_->set_dialog_client_data(DialogId(request.chat_id_), std::move(request.client_data_)));
 }
@@ -8028,11 +8033,14 @@ void Requests::on_request(uint64 id, td_api::disableTonWalletBackupWithProof &re
   td_->ton_wallet_manager_->disable_ton_wallet_backup_with_proof(std::move(request.proof_), std::move(promise));
 }
 
-void Requests::on_request(uint64 id, const td_api::sendTonWalletTransfer &request) {
+void Requests::on_request(uint64 id, td_api::sendTonWalletTransfer &request) {
   CHECK_IS_USER();
+  CLEAN_INPUT_STRING(request.address_);
+  CLEAN_INPUT_STRING(request.comment_);
   CREATE_REQUEST_PROMISE();
-  td_->ton_wallet_manager_->send_ton_wallet_transfer(request.regular_transfer_data_, request.gasless_transfer_data_,
-                                                     std::move(promise));
+  td_->ton_wallet_manager_->send_ton_wallet_transfer(
+      request.regular_transfer_data_, request.gasless_transfer_data_, UserId(request.user_id_), request.address_,
+      request.amount_, request.comment_, request.is_comment_encrypted_, request.sending_id_, std::move(promise));
 }
 
 void Requests::on_request(uint64 id, td_api::deleteTonWallet &request) {
@@ -8197,13 +8205,14 @@ void Requests::on_request(uint64 id, td_api::createOnRampPaymentSession &request
   CLEAN_INPUT_STRING(request.cryptocurrency_amount_);
   CLEAN_INPUT_STRING(request.base_currency_amount_);
   CLEAN_INPUT_STRING(request.memo_);
+  CLEAN_INPUT_STRING(request.theme_);
   CLEAN_INPUT_STRING(request.success_return_url_);
   CLEAN_INPUT_STRING(request.fail_return_url_);
   CREATE_REQUEST_PROMISE();
   td_->ton_wallet_manager_->create_on_ramp_session(
       request.provider_id_, request.cryptocurrency_, request.address_, request.payment_method_name_,
       request.base_currency_, request.cryptocurrency_amount_, request.base_currency_amount_, request.memo_,
-      std::move(request.theme_), request.success_return_url_, request.fail_return_url_, std::move(promise));
+      request.theme_, request.success_return_url_, request.fail_return_url_, std::move(promise));
 }
 
 void Requests::on_request(uint64 id, td_api::sendTonCenterApiRequest &request) {

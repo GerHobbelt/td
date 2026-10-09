@@ -15445,7 +15445,10 @@ void MessagesManager::get_message_properties(DialogId dialog_id, MessageId messa
       td_->chat_manager_->get_channel_status(dialog_id.get_channel_id()).is_administrator() &&
       can_report_message(message_id).is_ok();
   auto can_set_fact_check = can_set_message_fact_check(dialog_id, m);
-  auto custom_emoji_ids = get_message_content_custom_emoji_ids(get_message_actual_content(m));
+  auto custom_emoji_ids =
+      CustomEmojiId::get_custom_emoji_ids_object(get_message_content_custom_emoji_ids(get_message_actual_content(m)));
+  std::sort(custom_emoji_ids.begin(), custom_emoji_ids.end());
+  td::unique(custom_emoji_ids);
   auto has_protected_content_by_current_user =
       !can_be_saved && !ephemeral_message_id.is_valid() && dialog_id.get_type() == DialogType::User &&
       td_->user_manager_->get_user_has_protected_content_force_by_me(dialog_id.get_user_id());
@@ -15461,8 +15464,8 @@ void MessagesManager::get_message_properties(DialogId dialog_id, MessageId messa
       can_get_link, can_get_media_timestamp_links, can_get_message_thread, can_get_poll_vote_statistics,
       can_get_read_date, can_get_statistics, can_get_video_advertisements, can_get_viewers, can_mark_tasks_as_done,
       can_recognize_speech, can_report_chat, can_report_reactions, can_report_supergroup_spam, can_set_fact_check,
-      CustomEmojiId::get_custom_emoji_ids_object(custom_emoji_ids), has_protected_content_by_current_user,
-      has_protected_content_by_other_user, need_show_statistics));
+      std::move(custom_emoji_ids), has_protected_content_by_current_user, has_protected_content_by_other_user,
+      need_show_statistics));
 }
 
 void MessagesManager::get_poll_option_properties(DialogId dialog_id, MessageId message_id, const string &option_id,
@@ -25154,6 +25157,34 @@ void MessagesManager::send_send_quick_reply_messages_query(DialogId dialog_id, Q
                                                            Promise<Unit> &&promise) {
   td_->create_handler<SendQuickReplyMessagesQuery>(std::move(promise))
       ->send(dialog_id, shortcut_id, std::move(message_ids), std::move(random_ids));
+}
+
+int64 MessagesManager::send_ton_wallet_transfer(UserId peer_user_id, const string &peer_address, int64 amount,
+                                                const string &comment, bool is_comment_encrypted, int32 sending_id) {
+  if (!peer_user_id.is_valid() || td_->user_manager_->is_user_deleted(peer_user_id)) {
+    return Random::secure_int64();
+  }
+
+  auto dialog_id = DialogId(peer_user_id);
+  force_create_dialog(dialog_id, "send_ton_wallet_transfer");
+  Dialog *d = get_dialog(dialog_id);
+  if (d == nullptr) {
+    return Random::secure_int64();
+  }
+
+  bool need_update_dialog_pos = false;
+  MessageSendOptions message_send_options;
+  message_send_options.sending_id = sending_id;
+  const Message *m = get_message_to_send(
+      d, MessageTopic(), MessageInputReplyTo(), message_send_options,
+      create_gram_transfer_message_content(amount, peer_address, string(), comment, is_comment_encrypted), false,
+      &need_update_dialog_pos);
+  int64 random_id = begin_send_message(dialog_id, m);
+  send_update_new_message(d, m);
+  if (need_update_dialog_pos) {
+    send_update_chat_last_message(d, "send_ton_wallet_transfer");
+  }
+  return random_id;
 }
 
 Result<vector<MessageId>> MessagesManager::resend_messages(DialogId dialog_id, vector<MessageId> message_ids,
