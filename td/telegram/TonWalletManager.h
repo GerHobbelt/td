@@ -6,10 +6,14 @@
 //
 #pragma once
 
+#include "td/telegram/net/DcId.h"
 #include "td/telegram/td_api.h"
 #include "td/telegram/telegram_api.h"
+#include "td/telegram/UserId.h"
 
 #include "td/actor/actor.h"
+
+#include "td/e2e/e2e_api.h"
 
 #include "td/utils/common.h"
 #include "td/utils/Promise.h"
@@ -26,9 +30,36 @@ class TonWalletManager final : public Actor {
 
   void get_wallet_state(Promise<Unit> &&promise);
 
+  void get_user_addresses(vector<UserId> user_ids,
+                          Promise<td_api::object_ptr<td_api::userTonWalletAddresses>> &&promise);
+
+  void create_user_ton_wallet(UserId user_id, Promise<string> &&promise);
+
+  void get_ton_wallet_secret_phrase(Promise<string> &&promise);
+
+  void enable_ton_wallet_backup(const string &password, const string &secret_phrase, Promise<Unit> &&promise);
+
+  void disable_ton_wallet_backup(const string &password, Promise<Unit> &&promise);
+
+  void get_ton_wallet_gasless_info(Promise<td_api::object_ptr<td_api::tonWalletGaslessTransfersInfo>> &&promise);
+
+  void send_ton_wallet_transfer(const string &data_normal, const string &data_gasless,
+                                Promise<td_api::object_ptr<td_api::tonWalletTransferResult>> &&promise);
+
+  void delete_ton_wallet(const string &password, Promise<Unit> &&promise);
+
+  void replace_ton_wallet(const string &password, const string &address, const string &private_key,
+                          Promise<Unit> &&promise);
+
   void get_ton_wallet_transactions(const string &offset, int32 limit,
                                    td_api::object_ptr<td_api::TransactionDirection> &&direction,
                                    Promise<td_api::object_ptr<td_api::tonWalletTransactions>> &&promise);
+
+  void get_ton_wallet_transaction(const string &transaction_id,
+                                  Promise<td_api::object_ptr<td_api::tonWalletTransaction>> &&promise);
+
+  void get_ton_wallet_transaction_by_msg_hash(const string &msg_hash,
+                                              Promise<td_api::object_ptr<td_api::tonWalletTransaction>> &&promise);
 
   void get_currency_rates(Promise<td_api::object_ptr<td_api::currencyExchangeRates>> &&promise);
 
@@ -70,6 +101,8 @@ class TonWalletManager final : public Actor {
   class GetOnRampQuoteQuery;
   class CreateOnRampSessionQuery;
 
+  static constexpr size_t MAX_MNEMONIC_BACKUP_SIZE = 215u;
+
   class WalletState {
     bool is_being_created_ = false;
     bool is_backup_enabled_ = false;
@@ -99,6 +132,46 @@ class TonWalletManager final : public Actor {
 
   void on_get_wallet_state(Result<Unit> &&result);
 
+  void do_get_ton_wallet_secret_phrase(Promise<string> &&promise);
+
+  void do_get_ton_wallet_secret_phrase_with_parts(
+      telegram_api::object_ptr<telegram_api::wallet_secretPhraseParts> &&parts, Promise<string> &&promise);
+
+  static Result<BufferSlice> encrypt_secret_phrase_part(Slice data, tde2e_api::PublicKeyId dc_public_key_id);
+
+  static Result<string> descrypt_secret_phrase_part(Slice data, tde2e_api::PrivateKeyId private_key_id);
+
+  void on_get_ton_wallet_secret_phrase_part(
+      Result<telegram_api::object_ptr<telegram_api::wallet_encryptedSecretPhrasePart>> r_part, uint64 query_id,
+      tde2e_api::PrivateKeyId private_key_id);
+
+  void do_enable_ton_wallet_backup(telegram_api::object_ptr<telegram_api::InputCheckPasswordSRP> &&input_password,
+                                   const string &secret_phrase, Promise<Unit> &&promise);
+
+  void do_disable_ton_wallet_backup(telegram_api::object_ptr<telegram_api::InputCheckPasswordSRP> &&input_password,
+                                    Promise<Unit> &&promise);
+
+  void do_delete_ton_wallet(telegram_api::object_ptr<telegram_api::InputCheckPasswordSRP> &&input_password,
+                            Promise<Unit> &&promise);
+
+  void do_replace_ton_wallet(telegram_api::object_ptr<telegram_api::InputCheckPasswordSRP> &&input_password,
+                             const string &address, const string &private_key, Promise<Unit> &&promise);
+
+  void do_replace_ton_wallet_with_challenge(
+      telegram_api::object_ptr<telegram_api::InputCheckPasswordSRP> &&input_password,
+      telegram_api::object_ptr<telegram_api::wallet_proofChallenge> &&challenge, const string &address,
+      const string &private_key, Promise<Unit> &&promise);
+
+  void do_get_ton_wallet_transactions(const string &offset, int32 limit,
+                                      td_api::object_ptr<td_api::TransactionDirection> &&direction,
+                                      Promise<td_api::object_ptr<td_api::tonWalletTransactions>> &&promise);
+
+  void do_get_ton_wallet_transaction(const string &transaction_id,
+                                     Promise<td_api::object_ptr<td_api::tonWalletTransaction>> &&promise);
+
+  void do_get_ton_wallet_transaction_by_msg_hash(const string &msg_hash,
+                                                 Promise<td_api::object_ptr<td_api::tonWalletTransaction>> &&promise);
+
   void on_get_currency_rates(Result<telegram_api::object_ptr<telegram_api::payments_currencyRates>> r_rates);
 
   td_api::object_ptr<td_api::currencyExchangeRates> get_currency_exchange_rates_object() const;
@@ -108,6 +181,10 @@ class TonWalletManager final : public Actor {
 
   void on_get_ton_center_streaming_api_url(
       Result<telegram_api::object_ptr<telegram_api::toncenter_streamingUrl>> r_url);
+
+  void load_backup_holder_dcs(Promise<Unit> &&promise);
+
+  void on_get_backup_holder_dcs(Result<vector<telegram_api::object_ptr<telegram_api::wallet_holderDc>>> r_dcs);
 
   Td *td_;
   ActorShared<> parent_;
@@ -190,6 +267,25 @@ class TonWalletManager final : public Actor {
   };
   StreamingApiUrl streaming_api_url_;
   vector<Promise<td_api::object_ptr<td_api::tonCenterStreamingApiUrl>>> get_streaming_api_url_queries_;
+
+  struct BackupHolderDc {
+    DcId dc_id_;
+    string public_key_;
+    tde2e_api::PublicKeyId public_key_id_;
+  };
+  struct BackupHolderDcs {
+    vector<BackupHolderDc> dcs_;
+  };
+  BackupHolderDcs backup_holder_dcs_;
+  vector<Promise<Unit>> get_backup_holder_dcs_queries_;
+
+  struct GetSecretPhraseQuery {
+    Promise<string> promise_;
+    string result_;
+    size_t left_responses_ = 0;
+  };
+  uint64 current_get_secret_phrase_query_id_ = 0;
+  FlatHashMap<uint64, GetSecretPhraseQuery> get_secret_phrase_queries_;
 };
 
 }  // namespace td

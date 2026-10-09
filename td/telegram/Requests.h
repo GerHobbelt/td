@@ -456,7 +456,7 @@ class Requests {
 
   void on_request(uint64 id, const td_api::setPinnedSavedMessagesTopics &request);
 
-  void on_request(uint64 id, const td_api::loadCommunityFullInfo &request);
+  void on_request(uint64 id, const td_api::getCommunityFullInfo &request);
 
   void on_request(uint64 id, td_api::createCommunity &request);
 
@@ -1694,7 +1694,7 @@ class Requests {
 
   void on_request(uint64 id, const td_api::getChatRevenueStatistics &request);
 
-  void on_request(uint64 id, const td_api::getChatRevenueWithdrawalUrl &request);
+  void on_request(uint64 id, td_api::getChatRevenueWithdrawalUrl &request);
 
   void on_request(uint64 id, td_api::getChatRevenueTransactions &request);
 
@@ -1702,7 +1702,29 @@ class Requests {
 
   void on_request(uint64 id, td_api::getTonWalletTransactions &request);
 
+  void on_request(uint64 id, td_api::getTonWalletTransaction &request);
+
+  void on_request(uint64 id, td_api::getTonWalletTransactionByMsgHash &request);
+
   void on_request(uint64 id, const td_api::loadTonWalletState &request);
+
+  void on_request(uint64 id, const td_api::getUserTonWalletAddresses &request);
+
+  void on_request(uint64 id, const td_api::createUserTonWallet &request);
+
+  void on_request(uint64 id, const td_api::getTonWalletSecretPhrase &request);
+
+  void on_request(uint64 id, td_api::enableTonWalletBackup &request);
+
+  void on_request(uint64 id, td_api::disableTonWalletBackup &request);
+
+  void on_request(uint64 id, const td_api::getTonWalletGaslessTransfersInfo &request);
+
+  void on_request(uint64 id, const td_api::sendTonWalletTransfer &request);
+
+  void on_request(uint64 id, td_api::deleteTonWallet &request);
+
+  void on_request(uint64 id, td_api::replaceTonWallet &request);
 
   void on_request(uint64 id, const td_api::getCurrencyExchangeRates &request);
 
@@ -1724,13 +1746,13 @@ class Requests {
 
   void on_request(uint64 id, const td_api::getStarRevenueStatistics &request);
 
-  void on_request(uint64 id, const td_api::getStarWithdrawalUrl &request);
+  void on_request(uint64 id, td_api::getStarWithdrawalUrl &request);
 
   void on_request(uint64 id, const td_api::getStarAdAccountUrl &request);
 
   void on_request(uint64 id, const td_api::getGramRevenueStatistics &request);
 
-  void on_request(uint64 id, const td_api::getGramWithdrawalUrl &request);
+  void on_request(uint64 id, td_api::getGramWithdrawalUrl &request);
 
   void on_request(uint64 id, const td_api::getMessageStatistics &request);
 
@@ -1914,7 +1936,7 @@ class Requests {
 
   void on_request(uint64 id, td_api::getUpgradedGiftValueInfo &request);
 
-  void on_request(uint64 id, const td_api::getUpgradedGiftWithdrawalUrl &request);
+  void on_request(uint64 id, td_api::getUpgradedGiftWithdrawalUrl &request);
 
   void on_request(uint64 id, const td_api::getUpgradedGiftsPromotionalAnimation &request);
 

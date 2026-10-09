@@ -5119,10 +5119,10 @@ class CliClient final : public Actor {
       ChatId chat_id;
       get_args(args, chat_id);
       send_request(td_api::make_object<td_api::getChat>(chat_id));
-    } else if (op == "lcfi") {
+    } else if (op == "gcfi") {
       CommunityId community_id;
       get_args(args, community_id);
-      send_request(td_api::make_object<td_api::loadCommunityFullInfo>(community_id));
+      send_request(td_api::make_object<td_api::getCommunityFullInfo>(community_id));
     } else if (op == "open") {
       ChatId chat_id;
       get_args(args, chat_id);
@@ -8788,8 +8788,6 @@ class CliClient final : public Actor {
         direction = td_api::make_object<td_api::transactionDirectionOutgoing>();
       }
       send_request(td_api::make_object<td_api::getTonTransactions>(std::move(direction), offset, as_limit(limit)));
-    } else if (op == "ltws") {
-      send_request(td_api::make_object<td_api::loadTonWalletState>());
     } else if (op == "gtwta" || op == "gtwti" || op == "gtwto") {
       string limit;
       string offset;
@@ -8802,6 +8800,52 @@ class CliClient final : public Actor {
       }
       send_request(
           td_api::make_object<td_api::getTonWalletTransactions>(std::move(direction), offset, as_limit(limit)));
+    } else if (op == "gtwt") {
+      string transaction_id;
+      get_args(args, transaction_id);
+      send_request(td_api::make_object<td_api::getTonWalletTransaction>(transaction_id));
+    } else if (op == "gtwtbmh") {
+      string msg_hash;
+      get_args(args, msg_hash);
+      send_request(td_api::make_object<td_api::getTonWalletTransactionByMsgHash>(msg_hash));
+    } else if (op == "ltws") {
+      send_request(td_api::make_object<td_api::loadTonWalletState>());
+    } else if (op == "gutwa") {
+      send_request(td_api::make_object<td_api::getUserTonWalletAddresses>(as_user_ids(args)));
+    } else if (op == "cutw") {
+      UserId user_id;
+      get_args(args, user_id);
+      send_request(td_api::make_object<td_api::createUserTonWallet>(user_id));
+    } else if (op == "gtwsp") {
+      send_request(td_api::make_object<td_api::getTonWalletSecretPhrase>());
+    } else if (op == "etwb") {
+      string password;
+      string secret_phrase;
+      get_args(args, password, secret_phrase);
+      send_request(td_api::make_object<td_api::enableTonWalletBackup>(password, secret_phrase));
+    } else if (op == "dtwb") {
+      string password;
+      get_args(args, password);
+      send_request(td_api::make_object<td_api::disableTonWalletBackup>(password));
+    } else if (op == "gtwgti") {
+      send_request(td_api::make_object<td_api::getTonWalletGaslessTransfersInfo>());
+    } else if (op == "stwt") {
+      string regular_transfer_data;
+      string gasless_transfer_data;
+      get_args(args, regular_transfer_data, gasless_transfer_data);
+      send_request(td_api::make_object<td_api::sendTonWalletTransfer>(hex_decode(regular_transfer_data).move_as_ok(),
+                                                                      hex_decode(gasless_transfer_data).move_as_ok()));
+    } else if (op == "deleteTonWallet") {
+      string password;
+      get_args(args, password);
+      send_request(td_api::make_object<td_api::deleteTonWallet>(password));
+    } else if (op == "replaceTonWallet") {
+      string password;
+      string address;
+      string private_key;
+      get_args(args, password, address, private_key);
+      send_request(
+          td_api::make_object<td_api::replaceTonWallet>(password, address, hex_decode(private_key).move_as_ok()));
     } else if (op == "gcer") {
       send_request(td_api::make_object<td_api::getCurrencyExchangeRates>());
     } else if (op == "gorp") {

@@ -629,7 +629,8 @@ voiceNote duration:int32 waveform:bytes mime_type:string speech_recognition_resu
 //@sticker_height Expected height of the sticker, which can be used if the sticker is null
 //@fitzpatrick_type Emoji modifier fitzpatrick type; 0-6; 0 if none
 //@sound File containing the sound to be played when the sticker is clicked; may be null. The sound is encoded with the Opus codec, and stored inside an OGG container
-animatedEmoji sticker:sticker sticker_width:int32 sticker_height:int32 fitzpatrick_type:int32 sound:file = AnimatedEmoji;
+//@is_regular_emoji True, if the emoji is a regular emoji
+animatedEmoji sticker:sticker sticker_width:int32 sticker_height:int32 fitzpatrick_type:int32 sound:file is_regular_emoji:Bool = AnimatedEmoji;
 
 //@description Describes a contact of a user
 //@phone_number Phone number of the user
@@ -2180,6 +2181,27 @@ tonCenterApiRequestTypePost payload:string = TonCenterApiRequestType;
 //@description Contains an HTTP URL for TON Center Streaming API @url The URL @expires_in Time after which the URL expires
 tonCenterStreamingApiUrl url:string expires_in:int32 = TonCenterStreamingApiUrl;
 
+//@description Contains TON wallet address of a user
+//@user_id Identifier of the user
+//@wallet_address Address of the user's wallet in the TON blockchain
+userTonWalletAddress user_id:int53 wallet_address:string = UserTonWalletAddress;
+
+//@description Represents a list of TON wallet addresses of users @addresses A list of TON wallet addresses
+userTonWalletAddresses addresses:vector<userTonWalletAddress> = UserTonWalletAddresses;
+
+//@description Represents state of gasless transfers for the current user
+//@left_count Number of left gasless transfers
+//@reset_date Point in time (Unix timestamp) when the number of left transfers will be reset; 0 if never
+//@relayer_address Address of the relayer for gasless transfers; may be empty if unavailable
+tonWalletGaslessTransfersInfo left_count:int32 reset_date:int32 relayer_address:string = TonWalletGaslessTransfersInfo;
+
+//@description Represents result of cryptocurrency transfer from the current user's TON wallet
+//@is_gasless True, if the transfer is gasless
+//@msg_hash Unique identifier of the sent message; use getTonWalletTransactionByMsgHash to poll information about the transaction
+//@left_gasless_transfer_count Number of left gasless transfers
+//@gasless_transfer_reset_date Point in time (Unix timestamp) when the number of left gasless transfers will be reset; 0 if never
+tonWalletTransferResult is_gasless:Bool msg_hash:bytes left_gasless_transfer_count:int32 gasless_transfer_reset_date:int32 = TonWalletTransferResult;
+
 //@description Describes exchange rate of a currency to USD
 //@currency ISO 4217 currency code of the payment currency
 //@rate Exchange rate of the currency to USD
@@ -2249,7 +2271,7 @@ onRampPaymentSession session_id:string expiration_date:int32 url:string = OnRamp
 //@is_being_created True, if the wallet is being created
 //@is_backup_enabled True, if backup for the wallet key is enabled
 //@can_enable_backup True, if the user can enable backup for the wallet key
-//@can_export_phrase True, if the wallet key can be exported
+//@can_export_phrase True, if the wallet key can be exported using getTonWalletSecretPhrase
 tonWalletState address:string public_key:bytes gram_amount:int53 is_being_created:Bool is_backup_enabled:Bool can_enable_backup:Bool can_export_phrase:Bool = TonWalletState;
 
 
@@ -2262,17 +2284,29 @@ tonWalletTransactionStateSucceeded tx_hash:string = TonWalletTransactionState;
 tonWalletTransactionStateFailed = TonWalletTransactionState;
 
 
+//@class TonWalletTransactionType @description Describes type of a transaction with a TON wallet
+
+//@description A transfer of TON Grams to or from the wallet
+//@amount The amount of received cryptocurrency, in the smallest units of the cryptocurrency; negative for outgoing transactions
+//@fee_amount The fee amount paid for the transaction, in the smallest units of the cryptocurrency
+//@comment Comment added to the transaction
+//@is_comment_encrypted True, if the comment is encrypted and must be decrypted using the user's private key
+tonWalletTransactionTypeTransfer amount:int53 fee_amount:int53 comment:string is_comment_encrypted:Bool = TonWalletTransactionType;
+
+//@description Change of the wallet key
+//@fee_amount The fee amount paid for the transaction in TON Grams, in the smallest units of the cryptocurrency
+tonWalletTransactionTypeKeyChange fee_amount:int53 = TonWalletTransactionType;
+
+
 //@description Represents a transaction with the TON wallet of the current user
 //@id Unique identifier of the transaction
 //@peer_address Address in the TON blockchain of the transaction peer; may be empty if the transaction isn't a wallet transfer
 //@peer_user_id Identifier of the other user that participated in the transaction; 0 if unknown
 //@peer_domain Identifier of the domain assigned to the peer address; may be empty if none
-//@amount The amount of received cryptocurrency, in the smallest units of the cryptocurrency; negative for outgoing transactions
-//@fee_amount The fee amount paid for the transaction, in the smallest units of the cryptocurrency
-//@comment Comment added to the transaction
 //@date Point in time (Unix timestamp) when the transaction was completed
+//@state State of the transaction
 //@type Type of the transaction
-tonWalletTransaction id:string peer_address:string peer_user_id:int53 peer_domain:string amount:int53 fee_amount:int53 comment:string date:int32 type:TonWalletTransactionState = TonWalletTransaction;
+tonWalletTransaction id:string peer_address:string peer_user_id:int53 peer_domain:string date:int32 state:TonWalletTransactionState type:TonWalletTransactionType = TonWalletTransaction;
 
 //@description Represents a list of TON Gram transactions
 //@gram_amount The total amount of owned TON Grams, in the smallest units of the cryptocurrency
@@ -5659,6 +5693,14 @@ messageGiftedGrams gifter_user_id:int53 receiver_user_id:int53 gram_amount:int53
 //@is_unclaimed True, if the corresponding winner wasn't chosen and the Telegram Stars were received by the owner of the boosted chat
 //@sticker A sticker to be shown in the message; may be null if unknown
 messageGiveawayPrizeStars star_count:int53 transaction_id:string boosted_chat_id:int53 giveaway_message_id:int53 is_unclaimed:Bool sticker:sticker = MessageContent;
+
+//@description Represents a transfer with the TON wallet of the current user
+//@transaction_id Unique identifier of the transaction; use getTonWalletTransaction to get additional information about the transaction
+//@peer_address Address in the TON blockchain of the transaction peer
+//@amount The amount of received cryptocurrency, in the smallest units of the cryptocurrency; negative for outgoing transactions
+//@comment Comment added to the transaction
+//@is_comment_encrypted True, if the comment is encrypted and must be decrypted using the receiver's or sender's private key
+messageTonWalletTransfer transaction_id:string peer_address:string amount:int53 comment:string is_comment_encrypted:Bool = MessageContent;
 
 //@description A regular gift was received or sent by the current user, or the current user was notified about a channel gift
 //@gift The gift
@@ -11912,8 +11954,8 @@ toggleSavedMessagesTopicIsPinned saved_messages_topic_id:int53 is_pinned:Bool = 
 setPinnedSavedMessagesTopics saved_messages_topic_ids:vector<int53> = Ok;
 
 
-//@description Returns full information about a community. The data will be sent through update. @community_id Community identifier
-loadCommunityFullInfo community_id:int53 = Ok;
+//@description Returns full information about a community @community_id Community identifier
+getCommunityFullInfo community_id:int53 = CommunityFullInfo;
 
 //@description Creates a new community for the given chat. Returns identifier of the created community
 //@name Name of the new community
@@ -15861,15 +15903,59 @@ getChatRevenueTransactions chat_id:int53 offset:string limit:int32 = ChatRevenue
 //@limit The maximum number of transactions to return
 getTonTransactions direction:TransactionDirection offset:string limit:int32 = TonTransactions;
 
-//@description Returns the list of TON blockchain transactions of the current user
+//@description Returns the list of TON wallet transactions of the current user
 //@direction Direction of the transactions to receive; pass null to get all transactions
 //@offset Offset of the first transaction to return as received from the previous request; use empty string to get the first chunk of results
 //@limit The maximum number of transactions to return
 getTonWalletTransactions direction:TransactionDirection offset:string limit:int32 = TonWalletTransactions;
 
+//@description Returns a TON wallet transaction by their identifier @transaction_id Identifier of the transaction
+getTonWalletTransaction transaction_id:string = TonWalletTransaction;
+
+//@description Returns a TON wallet transaction by their msg_hash; return an error if the transaction isn't finalized yet @msg_hash Value of msg_hash of the transaction
+getTonWalletTransactionByMsgHash msg_hash:string = TonWalletTransaction;
+
 
 //@description Loads state of the TON wallet of the current user
 loadTonWalletState = Ok;
+
+//@description Returns TON wallet addresses of the specified users
+//@user_ids Identifiers of the users, which wallet addresses have to be returned. If a user has no TON wallet, it will be skipped in the result
+getUserTonWalletAddresses user_ids:vector<int53> = UserTonWalletAddresses;
+
+//@description Creates a TON wallet for the specified regular user. The current user must have positive TON wallet balance. Returns the address of the TON wallet of the user
+//@user_id Identifier of the user
+createUserTonWallet user_id:int53 = Text;
+
+//@description Returns the secret phrase of the user's TON wallet as a space separated list of words. Works only if tonWalletState.can_export_phrase is true
+getTonWalletSecretPhrase = Text;
+
+//@description Enables backup of the TON wallet of the user. Works only if tonWalletState.can_enable_backup is true
+//@password Password of the current user; pass an empty string if the user has no password
+//@secret_phrase The secret phrase of the user's TON wallet as a space separated list of words
+enableTonWalletBackup password:string secret_phrase:string = Ok;
+
+//@description Disables backup of the TON wallet of the user. Works only if tonWalletState.is_backup_enabled is true
+//@password Password of the current user; pass an empty string if the user has no password
+disableTonWalletBackup password:string = Ok;
+
+//@description Returns the current state of gasless transfers for the current user
+getTonWalletGaslessTransfersInfo = TonWalletGaslessTransfersInfo;
+
+//@description Sends a cryptocurrency from the user's TON wallet
+//@regular_transfer_data Serialized data for regular cryptocurrency transfer request
+//@gasless_transfer_data Serialized data for gasless cryptocurrency transfer request; pass an empty string to force a regular request
+sendTonWalletTransfer regular_transfer_data:bytes gasless_transfer_data:bytes = TonWalletTransferResult;
+
+//@description Deletes the current TON wallet of the user and creates a new one
+//@password Password of the current user; pass an empty string if the user has no password
+deleteTonWallet password:string = Ok;
+
+//@description Replaces the current TON wallet with another existing v6r2 wallet
+//@password Password of the current user; pass an empty string if the user has no password
+//@address Normalized address of the new TON wallet in the URL-safe base64 format
+//@private_key Private key of the TON wallet; the key will be used only to proof ownership of the address
+replaceTonWallet password:string address:string private_key:bytes = Ok;
 
 //@description Returns exchange rates of currencies to USD
 getCurrencyExchangeRates = CurrencyExchangeRates;
@@ -15918,7 +16004,7 @@ getOnRampPaymentQuote provider_id:string cryptocurrency:string base_currency:str
 //@fail_return_url The URL opened on failed payment; pass an empty string if none
 createOnRampPaymentSession provider_id:string cryptocurrency:string address:string payment_method_name:string base_currency:string cryptocurrency_amount:string base_currency_amount:string memo:string theme:themeParameters success_return_url:string fail_return_url:string = OnRampPaymentSession;
 
-//@description Sends a request to TON Center API and returns its response in JSON format.
+//@description Sends a request to TON Center API and returns its response in JSON format
 //@endpoint The path of the requested endpoint. See https://toncenter.com/api/v3/index.html for the list of supported endpoints
 //@type Type of the request
 sendTonCenterApiRequest endpoint:string type:TonCenterApiRequestType = Text;
