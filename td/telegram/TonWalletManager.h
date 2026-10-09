@@ -6,6 +6,8 @@
 //
 #pragma once
 
+#include "td/telegram/files/FileId.h"
+#include "td/telegram/MessageId.h"
 #include "td/telegram/net/DcId.h"
 #include "td/telegram/td_api.h"
 #include "td/telegram/telegram_api.h"
@@ -28,20 +30,29 @@ class TonWalletManager final : public Actor {
 
   void on_update_wallet_state(telegram_api::object_ptr<telegram_api::WalletState> &&wallet_state);
 
+  void on_update_wallet_gasless_info(telegram_api::object_ptr<telegram_api::updateWalletGaslessInfo> &&wallet_info);
+
+  void on_update_wallet_ton_connect_session(telegram_api::object_ptr<telegram_api::tonConnectSession> &&session);
+
   void get_wallet_state(Promise<Unit> &&promise);
+
+  void get_existing_wallet_balance(Promise<Unit> &&promise);
 
   void get_user_addresses(vector<UserId> user_ids,
                           Promise<td_api::object_ptr<td_api::userTonWalletAddresses>> &&promise);
 
-  void create_user_ton_wallet(UserId user_id, Promise<string> &&promise);
+  void create_user_ton_wallet(UserId user_id, Promise<td_api::object_ptr<td_api::userTonWalletAddress>> &&promise);
 
-  void get_ton_wallet_secret_phrase(Promise<string> &&promise);
+  void get_address_ton_wallet(const string &address,
+                              Promise<td_api::object_ptr<td_api::userTonWalletAddress>> &&promise);
+
+  void get_ton_wallet_secret_phrase(const string &password, Promise<string> &&promise);
 
   void enable_ton_wallet_backup(const string &password, const string &secret_phrase, Promise<Unit> &&promise);
 
   void disable_ton_wallet_backup(const string &password, Promise<Unit> &&promise);
 
-  void get_ton_wallet_gasless_info(Promise<td_api::object_ptr<td_api::tonWalletGaslessTransfersInfo>> &&promise);
+  void get_ton_wallet_gasless_info(Promise<Unit> &&promise);
 
   void send_ton_wallet_transfer(const string &data_normal, const string &data_gasless,
                                 Promise<td_api::object_ptr<td_api::tonWalletTransferResult>> &&promise);
@@ -62,6 +73,17 @@ class TonWalletManager final : public Actor {
                                               Promise<td_api::object_ptr<td_api::tonWalletTransaction>> &&promise);
 
   void get_currency_rates(Promise<td_api::object_ptr<td_api::currencyExchangeRates>> &&promise);
+
+  void get_ton_connect_sessions(Promise<td_api::object_ptr<td_api::tonConnectSessions>> &&promise);
+
+  void create_ton_connect_session(const string &dapp_client_id, const string &manifest_url,
+                                  Promise<td_api::object_ptr<td_api::tonConnectSession>> &&promise);
+
+  void register_ton_connect_key(int64 session_id, const string &client_id,
+                                Promise<td_api::object_ptr<td_api::tonConnectChallenge>> &&promise);
+
+  void get_ton_connect_requests(bool by_dapp, int64 session_id, const string &dapp_client_id,
+                                Promise<td_api::object_ptr<td_api::tonConnectRequests>> &&promise);
 
   void get_on_ramp_providers(const string &cryptocurrency,
                              Promise<td_api::object_ptr<td_api::onRampProviders>> &&promise);
@@ -97,6 +119,10 @@ class TonWalletManager final : public Actor {
   void get_current_state(vector<td_api::object_ptr<td_api::Update>> &updates) const;
 
  private:
+  class GetTonConnectSessionsQuery;
+  class CreateTonConnectSessionQuery;
+  class RegisterTonConnectKeyQuery;
+  class GetTonConnectPendingQuery;
   class GetOnRampLimitsQuery;
   class GetOnRampQuoteQuery;
   class CreateOnRampSessionQuery;
@@ -124,15 +150,107 @@ class TonWalletManager final : public Actor {
 
   friend bool operator==(const WalletState &lhs, const WalletState &rhs);
 
+  class WalletGaslessInfo {
+    bool is_available_ = false;
+    int32 left_ = 0;
+    int32 reset_date_ = 0;
+    int64 min_amount_ = 0;
+    string relayer_address_;
+
+    friend bool operator==(const WalletGaslessInfo &lhs, const WalletGaslessInfo &rhs);
+
+   public:
+    WalletGaslessInfo() = default;
+
+    explicit WalletGaslessInfo(telegram_api::object_ptr<telegram_api::updateWalletGaslessInfo> &&wallet_info);
+
+    int32 try_reset();
+
+    td_api::object_ptr<td_api::tonWalletGaslessTransfersInfo> get_ton_wallet_gasless_transfers_info_object() const;
+  };
+
+  friend bool operator==(const WalletGaslessInfo &lhs, const WalletGaslessInfo &rhs);
+
+  class TonConnectManifest {
+    string url_;
+    string name_;
+    FileId icon_file_id_;
+
+   public:
+    TonConnectManifest(Td *td, telegram_api::object_ptr<telegram_api::tonConnectManifest> &&manifest);
+
+    td_api::object_ptr<td_api::TonConnectManifest> get_ton_connect_manifest_object(Td *td) const;
+  };
+
+  class TonConnectSession {
+    int64 id_ = 0;
+    string dapp_client_id_;
+    string client_id_;
+    string nonce_;
+    unique_ptr<TonConnectManifest> manifest_;
+    int32 manifest_error_ = 0;
+    int32 date_ = 0;
+    bool is_pending_ = false;
+    bool is_closing_ = false;
+    bool is_closed_ = false;
+
+   public:
+    explicit TonConnectSession(Td *td, telegram_api::object_ptr<telegram_api::tonConnectSession> &&session);
+
+    td_api::object_ptr<td_api::tonConnectSession> get_ton_connect_session_object(Td *td) const;
+  };
+
+  class TonConnectRequest {
+    int64 session_id_ = 0;
+    MessageId message_id_;
+    string body_;
+    int32 expire_date_;
+    string topic_;
+    string trace_id_;
+
+   public:
+    explicit TonConnectRequest(telegram_api::object_ptr<telegram_api::tonConnectRequest> &&request);
+
+    td_api::object_ptr<td_api::tonConnectRequest> get_ton_connect_request_object() const;
+  };
+
+  class TonConnectRequests {
+    TonConnectSession session_;
+    vector<TonConnectRequest> requests_;
+
+   public:
+    explicit TonConnectRequests(Td *td, telegram_api::object_ptr<telegram_api::wallet_tonConnectPending> &&requests);
+
+    td_api::object_ptr<td_api::tonConnectRequests> get_ton_connect_requests_object(Td *td) const;
+  };
+
+  class TonConnectChallenge {
+    string challenge_;
+    int64 event_id_ = 0;
+
+   public:
+    explicit TonConnectChallenge(telegram_api::object_ptr<telegram_api::wallet_tonConnectChallenge> &&challenge);
+
+    td_api::object_ptr<td_api::tonConnectChallenge> get_ton_connect_challenge_object() const;
+  };
+
+  void timeout_expired() final;
+
   void tear_down() final;
 
-  td_api::object_ptr<td_api::updateTonWalletState> get_update_ton_wallet_state() const;
+  td_api::object_ptr<td_api::updateTonWalletState> get_update_ton_wallet_state_object() const;
 
   void send_update_ton_wallet_state() const;
 
   void on_get_wallet_state(Result<Unit> &&result);
 
-  void do_get_ton_wallet_secret_phrase(Promise<string> &&promise);
+  td_api::object_ptr<td_api::updateTonWalletGaslessTransfersInfo> get_update_ton_wallet_gasless_transfers_info_object()
+      const;
+
+  void send_update_ton_wallet_gasless_transfers_info() const;
+
+  void do_get_ton_wallet_secret_phrase(telegram_api::object_ptr<telegram_api::InputCheckPasswordSRP> &&input_password,
+                                       Promise<string> &&promise);
 
   void do_get_ton_wallet_secret_phrase_with_parts(
       telegram_api::object_ptr<telegram_api::wallet_secretPhraseParts> &&parts, Promise<string> &&promise);
@@ -186,6 +304,9 @@ class TonWalletManager final : public Actor {
 
   void on_get_backup_holder_dcs(Result<vector<telegram_api::object_ptr<telegram_api::wallet_holderDc>>> r_dcs);
 
+  static td_api::object_ptr<td_api::TonConnectManifest> get_ton_connect_manifest_object(
+      Td *td, const TonConnectManifest *manifest, int32 manifest_error);
+
   Td *td_;
   ActorShared<> parent_;
 
@@ -194,6 +315,9 @@ class TonWalletManager final : public Actor {
   WalletState wallet_state_;
 
   vector<Promise<Unit>> get_wallet_state_queries_;
+
+  bool is_wallet_gasless_info_inited_ = false;
+  WalletGaslessInfo wallet_gasless_info_;
 
   struct CurrencyRate {
     string currency_;

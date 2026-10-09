@@ -720,7 +720,7 @@ class Requests {
 
   void on_request(uint64 id, td_api::editEphemeralMessageCaption &request);
 
-  void on_request(uint64 id, td_api::editCallbackQueryMessage &request);
+  void on_request(uint64 id, td_api::replyToCallbackQueryWithEphemeralMessage &request);
 
   void on_request(uint64 id, td_api::editMessageSchedulingState &request);
 
@@ -1708,17 +1708,21 @@ class Requests {
 
   void on_request(uint64 id, const td_api::loadTonWalletState &request);
 
+  void on_request(uint64 id, const td_api::loadTonWalletGaslessTransfersInfo &request);
+
+  void on_request(uint64 id, const td_api::checkWalletBotBalance &request);
+
   void on_request(uint64 id, const td_api::getUserTonWalletAddresses &request);
 
   void on_request(uint64 id, const td_api::createUserTonWallet &request);
 
-  void on_request(uint64 id, const td_api::getTonWalletSecretPhrase &request);
+  void on_request(uint64 id, td_api::getAddressTonWallet &request);
+
+  void on_request(uint64 id, td_api::getTonWalletSecretPhrase &request);
 
   void on_request(uint64 id, td_api::enableTonWalletBackup &request);
 
   void on_request(uint64 id, td_api::disableTonWalletBackup &request);
-
-  void on_request(uint64 id, const td_api::getTonWalletGaslessTransfersInfo &request);
 
   void on_request(uint64 id, const td_api::sendTonWalletTransfer &request);
 
@@ -1727,6 +1731,16 @@ class Requests {
   void on_request(uint64 id, td_api::replaceTonWallet &request);
 
   void on_request(uint64 id, const td_api::getCurrencyExchangeRates &request);
+
+  void on_request(uint64 id, const td_api::getTonConnectSessions &request);
+
+  void on_request(uint64 id, td_api::createTonConnectSession &request);
+
+  void on_request(uint64 id, td_api::setTonConnectSessionWalletClientId &request);
+
+  void on_request(uint64 id, const td_api::getTonConnectSessionPendingRequests &request);
+
+  void on_request(uint64 id, td_api::getTonConnectDAppPendingRequests &request);
 
   void on_request(uint64 id, td_api::getOnRampProviders &request);
 
@@ -2094,13 +2108,15 @@ class Requests {
 
   void on_request(uint64 id, td_api::getCollectibleItemInfo &request);
 
-  void on_request(uint64 id, const td_api::getApplicationDownloadLink &request);
-
   void on_request(uint64 id, td_api::getDeepLinkInfo &request);
+
+  void on_request(uint64 id, td_api::dismissWebToken &request);
 
   void on_request(uint64 id, const td_api::getApplicationConfig &request);
 
   void on_request(uint64 id, td_api::saveApplicationLogEvent &request);
+
+  void on_request(uint64 id, const td_api::getApplicationDownloadLink &request);
 
   void on_request(uint64 id, td_api::addProxy &request);
 

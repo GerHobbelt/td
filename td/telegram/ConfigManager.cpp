@@ -1358,6 +1358,7 @@ void ConfigManager::process_app_config(tl_object_ptr<telegram_api::JSONValue> &c
   string whitelisted_bots;
   string ton_stakedice_stake_suggested_amounts;
   string gift_craft_probabilities;
+  int32 wallet_gasless_daily_transfers = 0;
 
   // {"stories_all_hidden", "archive_all_stories"}
   static const FlatHashMap<Slice, Slice, SliceHash> bool_keys = {
@@ -1489,6 +1490,7 @@ void ConfigManager::process_app_config(tl_object_ptr<telegram_api::JSONValue> &c
       {"telegram_antispam_user_id", "anti_spam_bot_user_id"},
       {"ton_stakedice_stake_amount_max", "stake_dice_stake_amount_max"},
       {"ton_stakedice_stake_amount_min", "stake_dice_stake_amount_min"},
+      {"wallet_gasless_min_nanos", "ton_wallet_gasless_transfer_amount_min"},
       {"wallet_transfer_min_nanos", "ton_wallet_transfer_amount_min"}};
   static const FlatHashMap<Slice, Slice, SliceHash> string_keys = {
       {"gif_search_branding", "animation_search_provider"},
@@ -2037,6 +2039,10 @@ void ConfigManager::process_app_config(tl_object_ptr<telegram_api::JSONValue> &c
         }
         continue;
       }
+      if (key == "wallet_gasless_daily_transfers") {
+        wallet_gasless_daily_transfers = get_json_value_int(std::move(key_value->value_), key);
+        continue;
+      }
 
       new_values.push_back(std::move(key_value));
     }
@@ -2117,6 +2123,7 @@ void ConfigManager::process_app_config(tl_object_ptr<telegram_api::JSONValue> &c
   } else {
     options.set_option_string("animation_search_emojis", animation_search_emojis);
   }
+  options.set_option_integer("ton_wallet_gasless_transfer_daily_count_max", wallet_gasless_daily_transfers);
 
   options.set_option_boolean("can_accept_calls", can_accept_calls);
 

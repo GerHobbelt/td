@@ -2178,29 +2178,33 @@ tonCenterApiRequestTypeGet query:string = TonCenterApiRequestType;
 tonCenterApiRequestTypePost payload:string = TonCenterApiRequestType;
 
 
+//@class TonWalletTransferReceiver @description Represents expected receiver of a TON Wallet transfer
+
+//@description The receiver is specified by its username @username Username of the user. Use searchPublicChat to find the user, check that it is a regular user,
+//-and then use createUserTonWallet to get information about the user's TON Wallet
+tonWalletTransferReceiverUser username:string = TonWalletTransferReceiver;
+
+//@description The receiver is specified by its address @address Address of the receiver. Use getAddressTonWallet to get information about the user's TON Wallet
+tonWalletTransferReceiverAddress address:string = TonWalletTransferReceiver;
+
+
 //@description Contains an HTTP URL for TON Center Streaming API @url The URL @expires_in Time after which the URL expires
 tonCenterStreamingApiUrl url:string expires_in:int32 = TonCenterStreamingApiUrl;
 
 //@description Contains TON wallet address of a user
 //@user_id Identifier of the user
 //@wallet_address Address of the user's wallet in the TON blockchain
-userTonWalletAddress user_id:int53 wallet_address:string = UserTonWalletAddress;
+//@public_key Public key of the user
+userTonWalletAddress user_id:int53 wallet_address:string public_key:bytes = UserTonWalletAddress;
 
 //@description Represents a list of TON wallet addresses of users @addresses A list of TON wallet addresses
 userTonWalletAddresses addresses:vector<userTonWalletAddress> = UserTonWalletAddresses;
 
 //@description Represents state of gasless transfers for the current user
-//@left_count Number of left gasless transfers
+//@left_count Number of left gasless transfers. The daily available number of gasless transfers is available as getOption("ton_wallet_gasless_transfer_daily_count_max")
 //@reset_date Point in time (Unix timestamp) when the number of left transfers will be reset; 0 if never
 //@relayer_address Address of the relayer for gasless transfers; may be empty if unavailable
 tonWalletGaslessTransfersInfo left_count:int32 reset_date:int32 relayer_address:string = TonWalletGaslessTransfersInfo;
-
-//@description Represents result of cryptocurrency transfer from the current user's TON wallet
-//@is_gasless True, if the transfer is gasless
-//@msg_hash Unique identifier of the sent message; use getTonWalletTransactionByMsgHash to poll information about the transaction
-//@left_gasless_transfer_count Number of left gasless transfers
-//@gasless_transfer_reset_date Point in time (Unix timestamp) when the number of left gasless transfers will be reset; 0 if never
-tonWalletTransferResult is_gasless:Bool msg_hash:bytes left_gasless_transfer_count:int32 gasless_transfer_reset_date:int32 = TonWalletTransferResult;
 
 //@description Describes exchange rate of a currency to USD
 //@currency ISO 4217 currency code of the payment currency
@@ -2289,9 +2293,10 @@ tonWalletTransactionStateFailed = TonWalletTransactionState;
 //@description A transfer of TON Grams to or from the wallet
 //@amount The amount of received cryptocurrency, in the smallest units of the cryptocurrency; negative for outgoing transactions
 //@fee_amount The fee amount paid for the transaction, in the smallest units of the cryptocurrency
+//@is_gasless True, if the fee was paid by Telegram
 //@comment Comment added to the transaction
 //@is_comment_encrypted True, if the comment is encrypted and must be decrypted using the user's private key
-tonWalletTransactionTypeTransfer amount:int53 fee_amount:int53 comment:string is_comment_encrypted:Bool = TonWalletTransactionType;
+tonWalletTransactionTypeTransfer amount:int53 fee_amount:int53 is_gasless:Bool comment:string is_comment_encrypted:Bool = TonWalletTransactionType;
 
 //@description Change of the wallet key
 //@fee_amount The fee amount paid for the transaction in TON Grams, in the smallest units of the cryptocurrency
@@ -2313,6 +2318,92 @@ tonWalletTransaction id:string peer_address:string peer_user_id:int53 peer_domai
 //@transactions List of transactions
 //@next_offset The offset for the next request. If empty, then there are no more results
 tonWalletTransactions gram_amount:int53 transactions:vector<tonWalletTransaction> next_offset:string = TonWalletTransactions;
+
+
+//@class TonConnectRequestState @description Describes state of a request received from a dApp through TON Connect
+
+//@description The request must be accepted or rejected if it isn't expired yet
+//@expiration_date Point in time (Unix timestamp) when the request will expire or has expired
+tonConnectRequestStatePending expiration_date:int32 = TonConnectRequestState;
+
+//@description The request was accepted
+tonConnectRequestStateAccepted = TonConnectRequestState;
+
+//@description The request was rejected
+tonConnectRequestStateRejected = TonConnectRequestState;
+
+
+//@class TonConnectManifest @description Describes manifest of the dApp that is being connected using TON Connect
+
+//@description The manifest is being downloaded
+tonConnectManifestPending = TonConnectManifest;
+
+//@description The manifest is available
+//@url URL of the dApp
+//@name Name of the dApp
+//@icon App icon in PNG or ICO format
+tonConnectManifestInfo url:string name:string icon:document = TonConnectManifest;
+
+//@description The manifest has failed to download
+tonConnectManifestFailed = TonConnectManifest;
+
+//@description The manifest is invalid
+tonConnectManifestInvalid = TonConnectManifest;
+
+
+//@class TonConnectSessionState @description Describes state of a TON Connect session
+
+//@description The session is pending
+tonConnectSessionStatePending = TonConnectSessionState;
+
+//@description The session is ready
+tonConnectSessionStateReady = TonConnectSessionState;
+
+//@description The session is being closed
+tonConnectSessionStateClosing = TonConnectSessionState;
+
+//@description The session is closed
+tonConnectSessionStateClosed = TonConnectSessionState;
+
+
+//@description Represents a TON Connect session
+//@id Unique identifier of the session
+//@dapp_client_id Hex-encoded public X25519 key of the dApp
+//@wallet_client_id Hex-encoded public X25519 key of the current user's application; may be empty if none
+//@creation_date Point in time (Unix timestamp) when the session was created
+//@manifest Manifest of the dApp
+//@nonce Nonce used for the session
+//@state Session state
+tonConnectSession id:int64 dapp_client_id:string wallet_client_id:string creation_date:int32 manifest:TonConnectManifest nonce:bytes state:TonConnectSessionState = TonConnectSession;
+
+//@description Contains a list of TON connect sessions @sessions The list of sessions
+tonConnectSessions sessions:vector<tonConnectSession> = TonConnectSessions;
+
+//@description Represents a pending TON Connect request
+//@session_id Unique identifier of the session
+//@message_id Unique identifier of the service message in the chat 777000 with the request
+//@body Body of the request
+//@expiration_date Point in time (Unix timestamp) when the request will expire; 0 if never
+//@topic Topic of the request; may be empty if none
+//@trace_id Identifier to trace the connection request; may be empty if none
+tonConnectRequest session_id:int64 message_id:int53 body:bytes expiration_date:int32 topic:string trace_id:string = TonConnectRequest;
+
+//@description Represents a session with its pending TON Connect requests
+//@session The session
+//@requests The requests
+tonConnectRequests session:tonConnectSession requests:vector<tonConnectRequest> = TonConnectRequests;
+
+//@description Represents a TON Connect challenge
+//@challenge 104-byte challenge
+//@event_id Unique identifier of the first outgoing event
+tonConnectChallenge challenge:bytes event_id:int64 = TonConnectChallenge;
+
+
+//@description Represents result of cryptocurrency transfer from the current user's TON wallet
+//@is_gasless True, if the transfer is gasless
+//@msg_hash Unique identifier of the sent message; use getTonWalletTransactionByMsgHash to poll information about the transaction
+//@transaction The completed transaction; may be null if the transaction is still pending
+tonWalletTransferResult is_gasless:Bool msg_hash:bytes transaction:tonWalletTransaction = TonWalletTransferResult;
 
 
 //@class ActiveStoryState @description Describes state of active stories posted by a chat
@@ -5701,6 +5792,13 @@ messageGiveawayPrizeStars star_count:int53 transaction_id:string boosted_chat_id
 //@comment Comment added to the transaction
 //@is_comment_encrypted True, if the comment is encrypted and must be decrypted using the receiver's or sender's private key
 messageTonWalletTransfer transaction_id:string peer_address:string amount:int53 comment:string is_comment_encrypted:Bool = MessageContent;
+
+//@description A request from a dApp was received thriugh TON Connect
+//@session_id Unique identifier of the TON Connect session
+//@state State of the request
+//@topic Topic of the request; may be empty if none
+//@trace_id Identifier to trace the connection request; may be empty if none
+messageTonConnectRequest session_id:int64 state:TonConnectRequestState topic:string trace_id:string = MessageContent;
 
 //@description A regular gift was received or sent by the current user, or the current user was notified about a channel gift
 //@gift The gift
@@ -9782,6 +9880,11 @@ internalLinkTypeTextCompositionStyle style_name:string = InternalLinkType;
 //@description The link is a link to a cloud theme. TDLib has no theme support yet @theme_name Name of the theme
 internalLinkTypeTheme theme_name:string = InternalLinkType;
 
+//@description The link is a link for sending Grams from the user's TON Wallet
+//@receiver Chosen receiver of the transfer; may be null if none
+//@gram_amount The pre-filled amount of TON Grams to send; in the smallest units of the cryptocurrency
+internalLinkTypeTonWalletTransfer receiver:TonWalletTransferReceiver gram_amount:int53 = InternalLinkType;
+
 //@description The link is an unknown tg: link. Call getDeepLinkInfo to process the link @link Link to be passed to getDeepLinkInfo
 internalLinkTypeUnknownDeepLink link:string = InternalLinkType;
 
@@ -11183,6 +11286,12 @@ updateOwnedGramCount gram_amount:int53 = Update;
 //@description The state of the TON wallet of the current user has changed @state The new state of the wallet
 updateTonWalletState state:tonWalletState = Update;
 
+//@description The information about gasless transfers has changed @info The new state of the wallet
+updateTonWalletGaslessTransfersInfo info:tonWalletGaslessTransfersInfo = Update;
+
+//@description A session of a TON Connect request has changed @session The new state of the session
+updateTonWalletTonConnectSession session:tonConnectSession = Update;
+
 //@description The revenue earned from sponsored messages in a chat has changed. If chat revenue screen is opened, then getChatRevenueTransactions may be called to fetch new transactions
 //@chat_id Identifier of the chat
 //@revenue_amount New amount of earned revenue
@@ -12564,13 +12673,14 @@ editEphemeralMessage chat_id:int53 receiver_user_id:int53 ephemeral_message_id:i
 //@show_caption_above_media Pass true to show the caption above the media; otherwise, the caption will be shown below the media. May be true only for animation, photo, and video messages
 editEphemeralMessageCaption chat_id:int53 receiver_user_id:int53 ephemeral_message_id:int32 reply_markup:ReplyMarkup caption:formattedText show_caption_above_media:Bool = Ok;
 
-//@description Edits the message from which a callback query has originated with an ephemeral message; for bots only
+//@description Replies to a callback query with an ephemeral message; for bots only
 //@callback_query_id Identifier of the callback query
+//@replace_callback_query_message Pass true if the ephemeral message must replace the message from which the callback query originated
 //@protect_content Pass true if the content of the message must be protected from forwarding and saving
 //@reply_markup The new message reply markup; pass null if none
 //@input_message_content New content of the message. Must be one of the following types: inputMessageText, inputMessageAnimation,
 //-inputMessageAudio, inputMessageDocument, inputMessagePhoto, inputMessageRichMessage, inputMessageSticker, inputMessageVideo, inputMessageVideoNote, inputMessageVoiceNote
-editCallbackQueryMessage callback_query_id:int64 protect_content:Bool reply_markup:ReplyMarkup input_message_content:InputMessageContent = Ok;
+replyToCallbackQueryWithEphemeralMessage callback_query_id:int64 replace_callback_query_message:Bool protect_content:Bool reply_markup:ReplyMarkup input_message_content:InputMessageContent = Ok;
 
 //@description Edits the time when a scheduled message will be sent. Scheduling state of all messages in the same album or forwarded together with the message will be also changed
 //@chat_id The chat the message belongs to
@@ -15919,16 +16029,25 @@ getTonWalletTransactionByMsgHash msg_hash:string = TonWalletTransaction;
 //@description Loads state of the TON wallet of the current user
 loadTonWalletState = Ok;
 
+//@description Loads or reloads the current state of gasless transfers for the current user
+loadTonWalletGaslessTransfersInfo = Ok;
+
+//@description Returns Ok if the current user has positive TON Gram balance in the bot https://t.me/wallet
+checkWalletBotBalance = Ok;
+
 //@description Returns TON wallet addresses of the specified users
 //@user_ids Identifiers of the users, which wallet addresses have to be returned. If a user has no TON wallet, it will be skipped in the result
 getUserTonWalletAddresses user_ids:vector<int53> = UserTonWalletAddresses;
 
-//@description Creates a TON wallet for the specified regular user. The current user must have positive TON wallet balance. Returns the address of the TON wallet of the user
-//@user_id Identifier of the user
-createUserTonWallet user_id:int53 = Text;
+//@description Creates a TON wallet for the specified regular user. The current user must have positive TON wallet balance @user_id Identifier of the user
+createUserTonWallet user_id:int53 = UserTonWalletAddress;
+
+//@description Returns information about a TON wallet with the given address @address Address in the TON blockchain
+getAddressTonWallet address:string = UserTonWalletAddress;
 
 //@description Returns the secret phrase of the user's TON wallet as a space separated list of words. Works only if tonWalletState.can_export_phrase is true
-getTonWalletSecretPhrase = Text;
+//@password Password of the current user; pass an empty string unless receive an error PASSWORD_MISSING for a passwordless request
+getTonWalletSecretPhrase password:string = Text;
 
 //@description Enables backup of the TON wallet of the user. Works only if tonWalletState.can_enable_backup is true
 //@password Password of the current user; pass an empty string if the user has no password
@@ -15939,12 +16058,10 @@ enableTonWalletBackup password:string secret_phrase:string = Ok;
 //@password Password of the current user; pass an empty string if the user has no password
 disableTonWalletBackup password:string = Ok;
 
-//@description Returns the current state of gasless transfers for the current user
-getTonWalletGaslessTransfersInfo = TonWalletGaslessTransfersInfo;
-
 //@description Sends a cryptocurrency from the user's TON wallet
-//@regular_transfer_data Serialized data for regular cryptocurrency transfer request
-//@gasless_transfer_data Serialized data for gasless cryptocurrency transfer request; pass an empty string to force a regular request
+//@regular_transfer_data Serialized data for regular cryptocurrency transfer request. The minimum allowed transfer amount is getOption("ton_wallet_transfer_amount_min")
+//@gasless_transfer_data Serialized data for gasless cryptocurrency transfer request; pass an empty string to force a regular request.
+//-The minimum allowed transfer amount for a gassless transfer is getOption("ton_wallet_gasless_transfer_amount_min")
 sendTonWalletTransfer regular_transfer_data:bytes gasless_transfer_data:bytes = TonWalletTransferResult;
 
 //@description Deletes the current TON wallet of the user and creates a new one
@@ -15959,6 +16076,27 @@ replaceTonWallet password:string address:string private_key:bytes = Ok;
 
 //@description Returns exchange rates of currencies to USD
 getCurrencyExchangeRates = CurrencyExchangeRates;
+
+
+//@description Returns active TON Connect sessions
+getTonConnectSessions = TonConnectSessions;
+
+//@description Creates a TON Connect session
+//@dapp_client_id Hex-encoded public X25519 key of the dApp
+//@manifest_url URL of the manifest of the dApp
+createTonConnectSession dapp_client_id:string manifest_url:string = TonConnectSession;
+
+//@description Sets wallet_client_id for a pending TON Connect session
+//@session_id Unique identifier of the session
+//@wallet_client_id Hex-encoded public X25519 key of the current user's application calculated from the TON wallet private key and session parameters
+setTonConnectSessionWalletClientId session_id:int64 wallet_client_id:string = TonConnectChallenge;
+
+//@description Returns pending requests in a TON Connect session @session_id Unique identifier of the session
+getTonConnectSessionPendingRequests session_id:int64 = TonConnectRequests;
+
+//@description Returns pending requests with a dApp through TON Connect @dapp_client_id Hex-encoded public X25519 key of the dApp
+getTonConnectDAppPendingRequests dapp_client_id:string = TonConnectRequests;
+
 
 //@description Returns available on-ramp providers @cryptocurrency Pass a cryptocurrency to receive only providers that support it; pass an empty string to receive all providers
 getOnRampProviders cryptocurrency:string = OnRampProviders;
@@ -16468,6 +16606,10 @@ getCollectibleItemInfo type:CollectibleItemType = CollectibleItemInfo;
 
 //@description Returns information about a tg:// deep link. Use "tg://need_update_for_some_feature" or "tg:some_unsupported_feature" for testing. Returns a 404 error for unknown links. Can be called before authorization @link The link
 getDeepLinkInfo link:string = DeepLinkInfo;
+
+
+//@description Dismissess a received web token without consumption; for official Telegram apps only @token The token to dismiss
+dismissWebToken token:string = Ok;
 
 
 //@description Returns application config, provided by the server. Can be called before authorization

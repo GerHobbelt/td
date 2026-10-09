@@ -4760,6 +4760,8 @@ class CliClient final : public Actor {
       send_request(td_api::make_object<td_api::acceptTermsOfService>(args));
     } else if (op == "gdli") {
       send_request(td_api::make_object<td_api::getDeepLinkInfo>(args));
+    } else if (op == "dwt") {
+      send_request(td_api::make_object<td_api::dismissWebToken>(args));
     } else if (op == "tme") {
       send_request(td_api::make_object<td_api::getRecentlyVisitedTMeUrls>(args));
     } else if (op == "gbms") {
@@ -8810,14 +8812,24 @@ class CliClient final : public Actor {
       send_request(td_api::make_object<td_api::getTonWalletTransactionByMsgHash>(msg_hash));
     } else if (op == "ltws") {
       send_request(td_api::make_object<td_api::loadTonWalletState>());
+    } else if (op == "ltwgti") {
+      send_request(td_api::make_object<td_api::loadTonWalletGaslessTransfersInfo>());
+    } else if (op == "cwbb") {
+      send_request(td_api::make_object<td_api::checkWalletBotBalance>());
     } else if (op == "gutwa") {
       send_request(td_api::make_object<td_api::getUserTonWalletAddresses>(as_user_ids(args)));
     } else if (op == "cutw") {
       UserId user_id;
       get_args(args, user_id);
       send_request(td_api::make_object<td_api::createUserTonWallet>(user_id));
+    } else if (op == "gatw") {
+      string address;
+      get_args(args, address);
+      send_request(td_api::make_object<td_api::getAddressTonWallet>(address));
     } else if (op == "gtwsp") {
-      send_request(td_api::make_object<td_api::getTonWalletSecretPhrase>());
+      string password;
+      get_args(args, password);
+      send_request(td_api::make_object<td_api::getTonWalletSecretPhrase>(password));
     } else if (op == "etwb") {
       string password;
       string secret_phrase;
@@ -8827,8 +8839,6 @@ class CliClient final : public Actor {
       string password;
       get_args(args, password);
       send_request(td_api::make_object<td_api::disableTonWalletBackup>(password));
-    } else if (op == "gtwgti") {
-      send_request(td_api::make_object<td_api::getTonWalletGaslessTransfersInfo>());
     } else if (op == "stwt") {
       string regular_transfer_data;
       string gasless_transfer_data;
@@ -8848,6 +8858,18 @@ class CliClient final : public Actor {
           td_api::make_object<td_api::replaceTonWallet>(password, address, hex_decode(private_key).move_as_ok()));
     } else if (op == "gcer") {
       send_request(td_api::make_object<td_api::getCurrencyExchangeRates>());
+    } else if (op == "gtcs") {
+      send_request(td_api::make_object<td_api::getTonConnectSessions>());
+    } else if (op == "ctwcs") {
+      string dapp_client_id;
+      string manifest_url;
+      get_args(args, dapp_client_id, manifest_url);
+      send_request(td_api::make_object<td_api::createTonConnectSession>(dapp_client_id, manifest_url));
+    } else if (op == "stcswci") {
+      int64 session_id;
+      string wallet_client_id;
+      get_args(args, session_id, wallet_client_id);
+      send_request(td_api::make_object<td_api::setTonConnectSessionWalletClientId>(session_id, wallet_client_id));
     } else if (op == "gorp") {
       string cryptocurrency;
       get_args(args, cryptocurrency);
